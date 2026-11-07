@@ -16,6 +16,7 @@ import (
 type Opener func(context.Context, func(context.Context, wireless.ApplySession) error) (error, error)
 
 // Journal durably records intent before sending and acknowledges completed work.
+// Implementations consume each state synchronously without modifying it.
 // FinalizeExecution must preserve a recoverable checkpoint if publication fails.
 type Journal interface {
 	WriteExecution(context.Context, wireless.Record) error
@@ -38,14 +39,12 @@ func (e *runError) GoString() string { return e.Error() }
 
 // Run performs a confirmed plan once. It never retries, reconnects, rolls back,
 // or saves configuration. planSHA256 identifies the exact confirmed file bytes.
-func Run(ctx context.Context, plan wireless.Record, planSHA256 string, open Opener, journal Journal) (Result, error) {
-	if wireless.ValidateChangePlan(plan) != nil || open == nil || journal == nil {
+func Run(ctx context.Context, plan wireless.ChangePlan, planSHA256 string, open Opener, journal Journal) (Result, error) {
+	if plan.Host() == "" || open == nil || journal == nil {
 		return Result{}, &runError{wireless.ErrChangePlan}
 	}
-	device := plan["device"].(wireless.Record)
-	commands := stringsFromPlan(plan["commands"])
-	change := plan["change"].(wireless.Record)
-	state := wireless.Record{"status": "confirmed", "device": device, "plan_sha256": planSHA256, "expected_config_sha256": plan["expected_config_sha256"], "commands": commands, "steps": []wireless.Record{}}
+	commands := plan.Commands()
+	state := wireless.Record{"status": "confirmed", "device": plan.Device(), "plan_sha256": planSHA256, "expected_config_sha256": plan.ExpectedConfigSHA256(), "commands": plan.Commands(), "steps": []wireless.Record{}}
 	started := false
 	stage := "connect"
 	fail := func(cause, cleanup error) (Result, error) {
@@ -99,9 +98,8 @@ func Run(ctx context.Context, plan wireless.Record, planSHA256 string, open Open
 		if err != nil {
 			return err
 		}
-		fingerprint, err := wireless.Fingerprint(before)
-		if err != nil || fingerprint != plan["expected_config_sha256"] || !wireless.ChangeEligible(before, change) {
-			return wireless.ErrChangePlan
+		if err := plan.CheckBefore(before); err != nil {
+			return err
 		}
 		for i, command := range commands {
 			stage = "execute"
@@ -139,10 +137,7 @@ func Run(ctx context.Context, plan wireless.Record, planSHA256 string, open Open
 		if err != nil {
 			return err
 		}
-		if !wireless.ChangeSatisfied(after, change) {
-			return errors.New("wireless: readback not satisfied")
-		}
-		fingerprint, err = wireless.Fingerprint(after)
+		fingerprint, err := plan.CheckAfter(after)
 		if err != nil {
 			return err
 		}
@@ -162,17 +157,6 @@ func Run(ctx context.Context, plan wireless.Record, planSHA256 string, open Open
 		return fail(ctx.Err(), nil)
 	}
 	return Result{}, nil
-}
-
-func stringsFromPlan(value any) []string {
-	if values, ok := value.([]string); ok {
-		return values
-	}
-	var result []string
-	for _, value := range value.([]any) {
-		result = append(result, value.(string))
-	}
-	return result
 }
 
 func ownedOpen(ctx context.Context, open Opener, run func(context.Context, wireless.ApplySession) error) (error, error) {

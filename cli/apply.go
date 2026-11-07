@@ -5,16 +5,17 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"github.com/gatework/go-net-connector/connector"
-	"github.com/gatework/go-net-connector/vendors"
-	wireless "github.com/gatework/go-wireless"
-	"github.com/gatework/go-wireless/adapter"
-	"github.com/gatework/go-wireless/internal/apply"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/gatework/go-net-connector/connector"
+	"github.com/gatework/go-net-connector/vendors"
+	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/adapter"
+	"github.com/gatework/go-wireless/internal/apply"
 )
 
 // ApplyFactory owns one synchronous borrowed session callback and returns
@@ -46,18 +47,23 @@ func applyCommand(ctx context.Context, args []string, r *Runner) int {
 	if e != nil {
 		return r.failure("计划读取失败")
 	}
-	plan, _, e := wireless.DecodeJSONDocument(body)
-	if e != nil || wireless.ValidateChangePlan(plan) != nil {
+	document, _, e := wireless.DecodeJSONDocument(body)
+	if e != nil {
+		return r.failure("计划结构、目标、指纹或命令无效")
+	}
+	plan, e := wireless.NewChangePlan(document)
+	if e != nil {
 		return r.failure("计划结构、目标、指纹或命令无效")
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256(body))
-	device := plan["device"].(wireless.Record)
-	host := device["host"].(string)
-	commands, _ := stringList(plan["commands"])
-	rollback, _ := stringList(plan["rollback"])
+	device := plan.Device()
+	host := plan.Host()
+	commands := plan.Commands()
+	rollback := plan.Rollback()
+	document = plan.ToMap()
 	var display strings.Builder
-	fmt.Fprintf(&display, "目标：%s（%s）；%s；%s\n影响：%s\n", safe(stringValue(device["name"])), host, safe(stringValue(plan["scope"])), safe(stringValue(plan["title"])), safe(stringValue(plan["impact"])))
-	if prerequisites, ok := stringList(plan["prerequisites"]); ok == nil {
+	fmt.Fprintf(&display, "目标：%s（%s）；%s；%s\n影响：%s\n", safe(stringValue(device["name"])), host, safe(stringValue(document["scope"])), safe(stringValue(document["title"])), safe(stringValue(document["impact"])))
+	if prerequisites, ok := stringList(document["prerequisites"]); ok == nil {
 		for _, v := range prerequisites {
 			fmt.Fprintf(&display, "条件：%s\n", safe(v))
 		}

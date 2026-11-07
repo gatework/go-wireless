@@ -79,13 +79,17 @@ func (j *journal) FinalizeExecution(ctx context.Context, state wireless.Record) 
 	return j.WriteExecution(ctx, state)
 }
 
-func fixture(t *testing.T) (wireless.Record, *session) {
+func fixture(t *testing.T) (wireless.ChangePlan, *session) {
 	t.Helper()
 	body, err := os.ReadFile("../../testdata/ruby-interop/security.plan.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, _, err := wireless.DecodeJSONDocument(body)
+	document, _, err := wireless.DecodeJSONDocument(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := wireless.NewChangePlan(document)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,9 +113,32 @@ func fixture(t *testing.T) (wireless.Record, *session) {
 	return plan, &session{before: before, after: after}
 }
 
-func openSession(s wireless.ApplySession) apply.Opener {
-	return func(ctx context.Context, run func(context.Context, wireless.ApplySession) error) (error, error) {
-		return run(ctx, s), nil
+func TestRunRejectsZeroPlanBeforeJournalOrOpener(t *testing.T) {
+	j := &journal{}
+	opens := 0
+	open := func(context.Context, func(context.Context, wireless.ApplySession) error) (error, error) {
+		opens++
+		return nil, nil
+	}
+	if _, err := apply.Run(t.Context(), wireless.ChangePlan{}, "hash", open, j); !errors.Is(err, wireless.ErrChangePlan) {
+		t.Fatal("zero plan was admitted", err)
+	}
+	if opens != 0 || len(j.entries) != 0 || j.finalized {
+		t.Fatal("zero plan caused side effects")
+	}
+}
+
+func TestRunStopsBeforeDeviceWorkOnCancelledBorrowedContext(t *testing.T) {
+	plan, s := fixture(t)
+	child, cancel := context.WithCancel(t.Context())
+	cancel()
+	j := &journal{}
+	open := func(ctx context.Context, run func(context.Context, wireless.ApplySession) error) (error, error) {
+		return run(child, s), nil
+	}
+	result, err := apply.Run(t.Context(), plan, "hash", open, j)
+	if !errors.Is(err, context.Canceled) || s.read != 0 || len(s.commands) != 0 || j.finalized || result.Summary["status"] != "failed" || result.Summary["cancellation_errors"] == nil {
+		t.Fatalf("borrowed cancellation lost: %v, %#v", err, result)
 	}
 }
 
