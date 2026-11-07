@@ -3,6 +3,7 @@ package wireless
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -33,12 +34,7 @@ func SupportedDimensions() []Dimension {
 	return out
 }
 func supportedDimension(n Dimension) bool {
-	for _, d := range SupportedDimensions() {
-		if n == d {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(SupportedDimensions(), n)
 }
 func NewProfile(platform, model string) (*Profile, error) {
 	key := strings.ToLower(strip(platform))

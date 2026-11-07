@@ -2,6 +2,7 @@ package wireless
 
 import (
 	"errors"
+	"maps"
 	"unicode/utf8"
 )
 
@@ -61,9 +62,7 @@ func (p *RuntimeParser) ParseMany(names []Dimension, content string, o ParseOpti
 	if err != nil {
 		return nil, err
 	}
-	for n, v := range parsed {
-		out[n] = v
-	}
+	maps.Copy(out, parsed)
 	return out, nil
 }
 func (p *RuntimeParser) String() string   { return "<wireless.RuntimeParser>" }

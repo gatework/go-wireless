@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"time"
 )
 
@@ -39,9 +40,7 @@ func NewSnapshot(o SnapshotOptions) (Snapshot, error) {
 func (s Snapshot) Target() Record { return cloneRecord(s.target) }
 func (s Snapshot) Dimensions() map[Dimension]Observation {
 	d := map[Dimension]Observation{}
-	for n, o := range s.dimensions {
-		d[n] = o
-	}
+	maps.Copy(d, s.dimensions)
 	return d
 }
 func (s Snapshot) ObservedAt() time.Time { return s.observedAt }

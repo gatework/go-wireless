@@ -1,13 +1,14 @@
 package wireless
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 )
 
@@ -94,7 +95,7 @@ func ParseConfigurationSource(content string, complete bool) (*ConfigurationSour
 	p := newConfigurationParser(s)
 	result := p.parse(complete)
 	s.observation = resultObservation(Configuration, result)
-	sort.SliceStable(s.captures, func(i, j int) bool { return s.captures[i].first < s.captures[j].first })
+	slices.SortStableFunc(s.captures, func(a, b ConfigurationCapture) int { return cmp.Compare(a.first, b.first) })
 	return s, nil
 }
 func (s *ConfigurationSource) Observation() Observation { return s.observation }

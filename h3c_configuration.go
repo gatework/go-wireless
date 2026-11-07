@@ -2,7 +2,9 @@ package wireless
 
 import (
 	"errors"
+	"maps"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -335,17 +337,9 @@ func (p *configurationParser) parseScope(block *sourceBlock, owner *configuratio
 func arrayIncludes(v any, s string) bool {
 	switch a := v.(type) {
 	case []any:
-		for _, v := range a {
-			if v == s {
-				return true
-			}
-		}
+		return slices.Contains(a, any(s))
 	case []string:
-		for _, v := range a {
-			if v == s {
-				return true
-			}
-		}
+		return slices.Contains(a, s)
 	}
 	return false
 }
@@ -375,9 +369,7 @@ func (p *configurationParser) assignMany(record Record, identity string, values 
 		if previous == nil {
 			fields[identity] = &configAssignment{values, block, false}
 		}
-		for k, v := range values {
-			record[k] = v
-		}
+		maps.Copy(record, values)
 	}
 }
 func (p *configurationParser) applyBlock(block *sourceBlock, scope *configurationScope) (bool, error) {
