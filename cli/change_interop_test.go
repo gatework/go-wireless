@@ -6,10 +6,10 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
@@ -104,7 +104,7 @@ func TestRubyChangeInterop(t *testing.T) {
 	batch, plan := collectChangeFixture(t)
 	script, _ := filepath.Abs("../scripts/check-ruby-change-interop.rb")
 	source, _ := filepath.Abs("../testdata/ruby-interop/source.cfg")
-	cmd := exec.Command(ruby, "-S", "bundle", "exec", ruby, script, batch, plan, source, t.TempDir())
+	cmd, _ := testCommand(t, 2*time.Minute, ruby, "-S", "bundle", "exec", ruby, script, batch, plan, source, t.TempDir())
 	cmd.Dir = reference
 	cmd.Env = append(os.Environ(), "PATH="+filepath.Dir(ruby)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if b, e := cmd.CombinedOutput(); e != nil {

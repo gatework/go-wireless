@@ -107,49 +107,75 @@ func TestReviewSubprocessParseSIGINTWithOpenStdin(t *testing.T) {
 	}
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "wireless")
-	if b, e := exec.Command("go", "build", "-o", binary, "../cmd/wireless").CombinedOutput(); e != nil {
+	build, _ := testCommand(t, 2*time.Minute, "go", "build", "-o", binary, "../cmd/wireless")
+	if b, e := build.CombinedOutput(); e != nil {
 		t.Fatal(e, string(b))
 	}
-	if b, e := exec.Command(binary, "--version").CombinedOutput(); e != nil {
-		t.Fatal(e, string(b))
-	}
-	command := exec.Command(binary, "parse", "--complete", "--json")
+	command, ctx := testCommand(t, 10*time.Second, binary, "parse", "--complete", "--json")
 	input, e := command.StdinPipe()
 	if e != nil {
 		t.Fatal(e)
 	}
+	t.Cleanup(func() { _ = input.Close() })
 	var out, diagnostic bytes.Buffer
 	command.Stdout = &out
 	command.Stderr = &diagnostic
 	if e = command.Start(); e != nil {
 		t.Fatal(e)
 	}
-	done := make(chan error, 1)
-	go func() { done <- command.Wait() }()
-	defer func() { _ = input.Close(); _ = command.Process.Kill() }()
-	if _, e = io.WriteString(input, "sysname WLC\nreturn\n"); e != nil {
-		t.Fatal(e)
-	}
-	// Warm executable, then confirm it remains in its input phase before SIGINT.
+	waitDone, writeDone := make(chan struct{}), make(chan struct{})
+	var waitErr, writeErr error
+	t.Cleanup(func() {
+		_ = input.Close()
+		_ = command.Process.Kill()
+		timer := time.NewTimer(5 * time.Second)
+		defer timer.Stop()
+		for _, done := range []<-chan struct{}{writeDone, waitDone} {
+			select {
+			case <-done:
+			case <-timer.C:
+				t.Error("subprocess cleanup did not join stdin writer and Wait")
+				return
+			}
+		}
+	})
+	go func() {
+		defer close(waitDone)
+		waitErr = command.Wait()
+	}()
+	go func() {
+		defer close(writeDone)
+		// This exceeds the default pipe capacity on the supported platforms.
+		// Completing the write proves the child is reading after signal setup.
+		_, writeErr = io.WriteString(input, strings.Repeat("# synthetic input\n", 256<<10))
+	}()
 	select {
-	case e := <-done:
-		t.Fatal("exited before cancellation", e)
-	case <-time.After(250 * time.Millisecond):
+	case <-writeDone:
+		if writeErr != nil {
+			t.Fatal("stdin readiness write failed", writeErr)
+		}
+	case <-waitDone:
+		t.Fatal("exited before consuming stdin", waitErr)
+	case <-ctx.Done():
+		t.Fatal("child did not start reading stdin", ctx.Err())
+	}
+	// Keep stdin open: parse must remain in input collection until interrupted.
+	select {
+	case <-waitDone:
+		t.Fatal("exited before cancellation", waitErr)
+	default:
 	}
 	if e = command.Process.Signal(os.Interrupt); e != nil {
 		t.Fatal(e)
 	}
 	select {
-	case e := <-done:
+	case <-waitDone:
 		var exit *exec.ExitError
-		if !errors.As(e, &exit) || exit.ExitCode() != 130 {
-			t.Fatal("exit", e, out.String(), diagnostic.String())
+		if !errors.As(waitErr, &exit) || exit.ExitCode() != 130 {
+			t.Fatal("exit", waitErr, out.String(), diagnostic.String())
 		}
-	case <-time.After(2 * time.Second):
-		_ = input.Close()
-		_ = command.Process.Kill()
-		<-done
-		t.Fatal("SIGINT did not unblock stdin")
+	case <-ctx.Done():
+		t.Fatal("SIGINT did not unblock stdin", ctx.Err())
 	}
 	if out.Len() != 0 {
 		t.Fatal("facts emitted after cancellation", out.String())

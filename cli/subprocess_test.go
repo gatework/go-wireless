@@ -1,13 +1,24 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+func testCommand(t *testing.T, timeout time.Duration, name string, args ...string) (*exec.Cmd, context.Context) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), timeout)
+	t.Cleanup(cancel)
+	command := exec.CommandContext(ctx, name, args...)
+	command.WaitDelay = 2 * time.Second
+	return command, ctx
+}
 
 func TestSubprocessCLI(t *testing.T) {
 	if testing.Short() {
@@ -15,7 +26,7 @@ func TestSubprocessCLI(t *testing.T) {
 	}
 	dir := t.TempDir()
 	binary := filepath.Join(dir, "wireless")
-	build := exec.Command("go", "build", "-o", binary, "../cmd/wireless")
+	build, _ := testCommand(t, 2*time.Minute, "go", "build", "-o", binary, "../cmd/wireless")
 	if out, e := build.CombinedOutput(); e != nil {
 		t.Fatal(e, string(out))
 	}
@@ -26,7 +37,7 @@ func TestSubprocessCLI(t *testing.T) {
 	}
 	run := func(input string, args ...string) (int, string, string) {
 		t.Helper()
-		command := exec.Command(binary, args...)
+		command, _ := testCommand(t, 10*time.Second, binary, args...)
 		command.Dir = cwd
 		command.Env = []string{"HOME=" + home, "XDG_CONFIG_HOME=" + filepath.Join(home, ".config"), "PATH=" + os.Getenv("PATH"), "WIRELESS_PARALLEL=invalid"}
 		command.Stdin = strings.NewReader(input)
