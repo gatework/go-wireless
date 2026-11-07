@@ -28,6 +28,8 @@
 | 检查 | 结果 |
 |---|---|
 | Go 1.27.3 `bash scripts/ci` | 通过；格式、只读模块、verify/tidy、完整 uncached shuffled race、vet、交付负例与独立 consumer |
+| 同步回原目录后 Go 1.26.0 `go test -mod=readonly -count=1 ./...` | 全包通过 |
+| 最终源码 Linux/macOS × amd64/arm64，Go 1.26.0 / CGO=0 | 四种构建通过 |
 | golangci-lint v2.15.0 | 0 issues |
 | govulncheck v1.9.0 / Go 1.27.3 | No vulnerabilities found |
 | actionlint v1.7.12 | 通过两个仓库 workflow |
