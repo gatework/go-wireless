@@ -15,7 +15,14 @@ func Fingerprint(any) (string, error)
 func RenderChange(Record) (commands, rollback []string, err error)
 func ChangeEligible(config, change Record) bool
 func ChangeSatisfied(config, change Record) bool
-func ValidateChangePlan(Record) error
+type ChangePlan struct { /* immutable, private state */ }
+func NewChangePlan(Record) (ChangePlan, error)
+func (ChangePlan) Device() Record
+func (ChangePlan) Commands() []string
+func (ChangePlan) Rollback() []string
+func (ChangePlan) ToMap() Record
+func (ChangePlan) CheckBefore(Record) error
+func (ChangePlan) CheckAfter(Record) (string, error)
 
 type ObjectOrder map[uintptr][]string
 func DecodeJSONDocument([]byte) (Record, ObjectOrder, error)
@@ -69,6 +76,12 @@ and TKIP and/or WPA to remove. Rendering disables the template first and restore
 its original enabled state. Eligibility compares original ordered protocol
 arrays and enabled state. Satisfaction compares exact arrays after removing
 TKIP/WPA and the original enabled state; CLI acknowledgement alone is insufficient.
+
+NewChangePlan validates once and deeply owns its document, device, action and
+rendered commands. Accessors return detached copies; the zero value cannot execute.
+Schema is compared exactly: 1, 1.0 and 1e0 are valid; a near-one decimal such as
+1.0000000000000001 is rejected without float64 rounding. Huge exponents do not
+allocate exponent-sized integers. JSON schema and Ruby canonical bytes stay unchanged.
 
 Plan validation accepts schema 1, platform `h3c_wireless`, a canonical IP address,
 a lowercase 64-digit expected fingerprint, and exact re-rendered commands and
@@ -124,12 +137,17 @@ type ApplySession interface {
 // package cli
 type ApplyFactory func(context.Context, wireless.Record,
     connector.ConnectionConfig,
-    func(wireless.ApplySession) error) (operationErr, cleanupErr error)
+    func(context.Context, wireless.ApplySession) error) (operationErr, cleanupErr error)
 // Dependencies.ApplyFactory optionally supplies this boundary.
 // package adapter
 func Apply(context.Context, *connector.Device,
-    func(wireless.ApplySession) error) (operationErr, cleanupErr error)
+    func(context.Context, wireless.ApplySession) error) (operationErr, cleanupErr error)
 ```
+
+`internal/apply.Run` owns the confirmed/precheck/intent/send/acknowledgement/readback/
+cleanup/finalization sequence behind consumer-owned Opener and Journal interfaces.
+CLI owns TTY checks, exact-file confirmation, credential loading and presentation.
+Callback work uses the context supplied by the opener.
 
 ApplyFactory owns a synchronous borrowed-session callback and independent
 operation/cleanup results. The runner guards the callback against replay and
@@ -137,10 +155,10 @@ post-return entry, joins admitted work, and retains callback errors even if a
 factory drops them. A factory must not open more than once, retry, reconnect,
 automatically roll back or save configuration. ReadConfiguration must return
 exactly one complete parsed configuration, never partial facts. Native
-`adapter.Apply` connects once and owns one `WithOperationCleanup` lease through
+`adapter.Apply` connects once and owns one `WithBorrowedOperation` lease through
 preparation, precheck, all writes, postread and retirement. It uses
-`ExecuteBorrowedCommand` with Borrowed true, SkipPrivilege true, protected output,
-partial-receipt capture, and no rejection preservation. It never nests adapter
+`Operation.ExecuteCommand` with SkipPrivilege true, protected output and no
+rejection preservation; failed Attempts remain separate from accepted Steps. It never nests adapter
 collection sessions or leases. Native reads prepare screen length, bind the
 exact query prompt, parse the existing H3C configuration grammar, and reject
 partial evidence. Each write requires one confirmed matching command receipt.
@@ -170,7 +188,7 @@ Failure records retain the compatibility `status`/`error` summary and independen
 `operation_errors`, `cancellation_errors`, `cleanup_errors`, and `report_errors`
 arrays. Joined causes retain first-seen order, deduplicated by safe metadata.
 Typed Failure code/stage and valid connector phases are preserved through
-`adapter.SafeFailure`; unknown errors become allowlisted contextual fallbacks.
+the shared internal classifier; unknown errors become allowlisted contextual fallbacks.
 No arbitrary error text, transport output or connector Source field is retained.
 Existing `cleanup_error` and first `report_error` summary fields remain.
 A failure-record publication error is added to the safe stderr diagnostic record;

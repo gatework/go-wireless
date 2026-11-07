@@ -2,12 +2,12 @@
 
 独立的 Go 无线控制器证据采集、离线解析、报告复核与受控变更库/CLI。移植基线为 Wireless Ruby `b328e1f`（2026-10-26）；运行和普通测试不需要 Ruby、Rails 或数据库。证据完整不代表网络健康。
 
-需要 Go **1.26.0+**、Python 3、`patch`；真实连接使用主机的 `ssh`/`telnet`。当前源码尚未提交或公开发布，两个 Gatework 依赖使用冻结源码及 `v0.0.0` 占位版本，不能宣称可通过公开 `go install` 安装。
+需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.3.0**、go-expect **v0.4.0**。Wireless 自身尚未公开发布，当前从源码构建；Python 3 仅用于交付验证。
 
 ## 构建与安全预览
 
 ```sh
-python3 scripts/prepare-workspace.py
+export GOWORK=off
 go build -o bin/wireless ./cmd/wireless
 bin/wireless --help
 bin/wireless collect --config examples/wireless.yml --show-config
@@ -18,13 +18,15 @@ bin/wireless review --help
 bin/wireless apply --help
 ```
 
-Bootstrap 校验归档、原始/补丁后每个文件、补丁 SHA256 与路径白名单，再原子发布相对路径 `go.work`。不读取兄弟项目。冻结源只包含构建所需公共源码、嵌入模板和许可证；第三方模块仍需 Go 模块缓存或正常下载，不能称为完全离线构建。详情见 [依赖来源](dependencies/README.md)。
+构建与验证统一设置 `GOWORK=off`，使用 `go.mod/go.sum`，不含 `replace`。历史 `dependencies/` 和重建脚本仅保留为审计材料，不再参与默认构建。已有本地 `go.work` 不会被删除，请沿用上面的环境设置。
 
 `--show-config`、`--plan` 和各级帮助不会连接设备。示例使用文档地址和虚构凭据名称；`examples/controller.cfg` 是合成的离线语法样本。不要把它下发到控制器。
 
 ## 配置与采集
 
-发现目录依次为 `/etc/net-connector`、`/usr/local/etc/net-connector`、`$XDG_CONFIG_HOME/net-connector`（回退 `$HOME/.config/net-connector`）、可执行文件目录、启动目录。各目录读取 `.env`、`net-connector.yml` 的 common/wireless、`wireless.yml`；显式 `--env-file`/`--config` 最后叠加。有效优先级为 **CLI > 进程环境 > YAML > .env > 默认值**。配置文件内路径相对该文件，CLI/进程路径相对启动目录。
+发现目录依次为 `/etc/net-connector`、`/usr/local/etc/net-connector`、`$XDG_CONFIG_HOME/net-connector`（回退 `$HOME/.config/net-connector`）、可执行文件目录、启动目录。各目录读取 `.env`、平铺的 `net-connector.yml`、`wireless.yml`；显式 `--env-file`/`--config` 最后叠加。有效优先级为 **CLI > 进程环境 > YAML > .env > 默认值**。配置文件内路径相对该文件，CLI/进程路径相对启动目录。
+
+共享文件采用连接器 schema；无线目标、并发、目录、SSH 端口和超时放在 `wireless.yml`。旧 `common`/`wireless` 容器会返回迁移错误。共享 SSH 仅继承 `host_key_policy`/`known_hosts`，其协议、厂商协议、日志字段不控制无线采集。
 
 `bin/wireless collect --init` 只在用户配置目录创建缺失的私有模板，保留已有文件。未知键、重复地址、无效维度、公开 YAML 中的密码均在会话前拒绝。完整 schema、环境键和输入取消契约见 [CLI API](docs/cli-api.md)。
 
@@ -63,7 +65,7 @@ bin/wireless apply --plan /path/to/change.plan.json --directory /path/to/private
 ## 作为库使用
 
 ```sh
-go run ./examples/library
+GOWORK=off go run ./examples/library
 ```
 
 ```go
@@ -74,18 +76,20 @@ if err != nil { return err }
 body, err := wireless.MarshalJSONIndent(observation, "", "  ")
 ```
 
-导入路径 `github.com/gatework/go-wireless`，包名 `wireless`。核心包不导入 native connector，适合离线解析；`adapter` 和完整 CLI 才需要冻结 native 依赖。独立 consumer 需在自己的 workspace 使用本源码和冻结依赖（模板见 `scripts/check-delivery.py`），当前不能把占位版本当作公开模块。借用会话、时钟、库存来源和报告写入均可注入，见 [核心 API](docs/core-api.md)、[采集/传输 API](docs/transport-api.md)。
+导入路径 `github.com/gatework/go-wireless`，包名 `wireless`。核心包不导入 native connector，适合离线解析；`adapter` 和完整 CLI 使用正式 native 模块。`scripts/check-delivery.py` 用临时文件模块代理验证未发布 Wireless 的独立 consumer，完整依赖通过正常版本解析，无 workspace 或本地 replace；该验证不等于 Wireless 已发布。借用会话、时钟、库存来源和报告写入均可注入，见 [核心 API](docs/core-api.md)、[采集/传输 API](docs/transport-api.md)。
 
 ## 验证与边界
 
 ```sh
-go test ./...
-go test -race ./...
-go vet ./...
-python3 scripts/test_prepare_workspace.py
+GOWORK=off go test ./...
+GOWORK=off go test -race ./...
+GOWORK=off go vet ./...
+python3 -O scripts/test_check_delivery.py
 python3 scripts/check-delivery.py
+# CI 同时执行只读模块、格式和完整 race 检查
+bash scripts/ci
 ```
 
-[兼容矩阵](docs/COMPATIBILITY.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[验证记录](docs/VALIDATION.md) 列出当前树的命令、日志、数据规模与平台结果。测试只使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY；未验证真实设备、外部 Netdisco/PostgreSQL、生产部署。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。
+[兼容矩阵](docs/COMPATIBILITY.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[本次验证记录](docs/2026-11-07-modernization.md) 与 [历史验证记录](docs/VALIDATION.md) 分别列出本次迁移和冻结基线的证据。测试只使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY；未验证真实设备、外部 Netdisco/PostgreSQL、生产部署。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。
 
 许可沿用参考项目 [MIT](LICENSE)，原署名完整保留；冻结依赖各自的 LICENSE 随归档保留，fpconv 的 Boost Software License 在源码中保留。

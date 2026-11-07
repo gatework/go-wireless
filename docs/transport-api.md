@@ -2,8 +2,8 @@
 
 Package `github.com/gatework/go-wireless` adds collection without importing a
 transport. Package `github.com/gatework/go-wireless/adapter` binds the pinned native
-connector. Run `python3 scripts/prepare-workspace.py` before Go commands. The
-unpublished native module placeholders require this verified local workspace.
+connector v0.3.0 and go-expect v0.4.0. Use `GOWORK=off`; no local workspace
+or replacement is required.
 
 ```go
 type Clock func() time.Time
@@ -38,13 +38,14 @@ aliases normalize through the same profile registry.
 
 ```go
 type ReceiptOptions struct {
-    Command, Output, Body string
+    Command, Raw, Body string
+    Attempted bool
     Steps int
     Success bool
     Failure *Failure
 }
 func NewReceipt(ReceiptOptions) Receipt
-func (Receipt) Output() string
+func (Receipt) Raw() string
 func (Receipt) Body() string
 func NewReader(Session, Clock) (*Reader, error)
 func (*Reader) Read(context.Context, string) (Capture, error)
@@ -75,7 +76,8 @@ func (*Failure) ToMap() Record
 ```
 
 Receipts are immutable and opaque. Reader validates the requested command and
-one successful step. Evidence hashes the exact receipt Output before decoding:
+one successful step and an explicit attempt. Evidence hashes the exact receipt Raw
+before decoding; unattempted commands have no byte evidence:
 `command`, `sha256`, `bytes`, `observed_at` (UTC, six fractional digits). Body is
 explicit and absent from formatting/JSON; failed captures cannot contain Body.
 Evidence accessors return deep copies. A rejected command remains a failure and
@@ -117,7 +119,8 @@ func NewAPSession(*connector.Device, wireless.APCredentials, wireless.Clock) (*A
 func (*APSession) Read(context.Context, wireless.Record) (wireless.APOutcome, error)
 ```
 
-Construct the native device through `vendors.Profile` + `connector.New` (inject
+Construct the native device through `vendors.NewBuiltinRegistry().Lookup`,
+`Platform.Profile()` and `connector.New` (inject
 `connector.WithTransportFactory` for tests). `Borrow` itself never connects or
 closes. Its Execute permits only the fixed profile preparation/query declarations,
 binds the exact current prompt, skips privilege escalation, protects output,
@@ -125,48 +128,41 @@ retains rejected/partial evidence and requests rejection preservation. It owns
 failure retirement within that query lease and retains the first close failure for
 Open (or a custom host via CloseFailure), preserving it even if a later close succeeds. AP login
 uses nested telnet through the controller, bounded sensitive credentials and one
-`Device.WithOperation` around login/preparation/query/exit/retirement. AP session
+`Device.WithBorrowedOperation` around login/preparation/query/exit/retirement. AP session
 must be online with a nonzero IPv4 management address and valid name. A busy lease
 is untouched. Unknown prompt/cancellation retires without quit; only confirmed AP
 state may send quit, and return must match the original controller prompt exactly.
 
-Frozen connector additions (all opt-in; defaults preserved):
-`ExecuteOptions.Borrowed`, `PreserveSessionOnRejection`, `CapturePartialOutput`;
-`Device.WithOperationCleanup`, `Operation.ExecuteBorrowedCommand`,
-`Operation.Retire`, `Operation.Connected`;
-`StepResult.Body`. ExecuteBorrowedCommand is the only way to defer automatic close
-to the lease owner; this private flag cannot be set via Device APIs. Retire works
-with canceled contexts, rejects stale/reentrant operations, and prevents automatic
-second retirement by WithOperation. Rejection preservation requires one complete
-synchronized receipt, no cancellation, no output limit/callback/log error. Body
-uses the existing native terminal renderer and removes only exact prompt/first
-command echo. Apply must retain `Borrowed: true` (no reconnect), while leaving rejection
-preservation disabled and explicitly classifying acknowledgement errors; failed/partial
-collection receipts must never become apply acknowledgements.
+The connector owns the borrowed lease, command retirement and first cleanup result.
+`WithBorrowedOperation(ctx, func(context.Context, *Operation) error)` requires an
+already connected device and returns operation/cleanup errors separately. Execute
+uses ordinary `Operation.ExecuteCommand`; no borrowed-command alias or partial
+capture option is needed. `Result.Attempts` retains every attempted raw response
+in wire order; `Result.Steps` contains accepted main commands only.
+`PreserveSessionOnRejection` is valid only for one borrowed command and only keeps
+a synchronized, verified pure device rejection after all observers/logging succeed.
+Retire works after cancellation, rejects stale/reentrant/repeated calls, and the
+scope retains its first failure even if the callback ignores it. An explicit
+Device.Close can retry failed cleanup. Device.Close is terminal and cancels active
+work; observer Close is not treated as lease reentry.
 
-No external devices, release, deployment or public dependency availability is
-asserted by this API. The native connector uses the host SSH/telnet executables;
+Apply disables rejection preservation: a rejected/partial response never
+acknowledges a write. Body uses verified text and removes only the exact prompt
+and first matching echo, preserving the preceding newline and indentation.
+
+The native connector uses the host SSH/telnet executables;
 the wireless implementation and pinned libraries require no Ruby runtime.
-
-Review round 1 lifecycle refinement: `Device.WithOperationCleanup(ctx, run)` returns
-`(operationErr, closeErr error)`. It fixes both results while holding the device
-lease, including fallback retirement after callback return or scope join. Session
-and AP adapters use this boundary so late cancellation cannot discard close
-failure. Plain WithOperation retains its original error-only interface. Apply
-callers that need complete cleanup diagnostics should use WithOperationCleanup
-and retain its two errors independently.
 
 Collector opener errors may use `errors.Join` for independent primary and close
 failures. Collection issues retain their stable codes in original order, including
 cancellation/deadline and explicit Failure codes, with duplicate codes removed.
 Only a generic untyped post-callback error is inferred as session_close_failed.
 
-Final typed apply uses `adapter.Apply` and `wireless.ApplySession`, documented in
-`docs/change-api.md`. It owns one `WithOperationCleanup` lease across preparation,
+Typed apply uses `adapter.Apply` and `wireless.ApplySession`, documented in
+`docs/change-api.md`. It owns one `WithBorrowedOperation` lease across preparation,
 precheck, writes, readback and retirement; it never nests the collection adapter.
+Both Open and Apply reject busy admission without closing another caller's lease.
 
-`adapter.SafeFailure(err, fallback, stage)` exposes the existing allowlisted
-single-diagnostic mapping for apply hosts. It preserves typed Wireless stage and
-validated native connector phase, omits arbitrary text/Source/cause, and leaves
-ordered traversal of joined errors to the host. Existing collection mapping is
-unchanged. See the independent diagnostic arrays in `docs/change-api.md`.
+`internal/nativeerr` centralizes allowlisted connector diagnostics for adapter and
+apply. It omits arbitrary text, Source and causes from displayed diagnostics;
+apply traverses joined causes to retain independent diagnostic arrays.

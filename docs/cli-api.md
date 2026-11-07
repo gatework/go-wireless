@@ -1,8 +1,8 @@
 # CLI and private report API (Task 3)
 
 All implementations are Go. No Ruby runtime is used. Module:
-`github.com/gatework/go-wireless`. Run `python3 scripts/prepare-workspace.py`
-before Go commands to expand the pinned connector workspace.
+`github.com/gatework/go-wireless`. Run Go commands with `GOWORK=off` and the
+published versions in go.mod; historical bootstrap scripts are not build inputs.
 
 ## Entry point and extension registration
 
@@ -45,14 +45,14 @@ type cli.Executor func(context.Context, int, []wireless.Record,
 
 `Dependencies` has `Environment map[string]string`, `Input io.Reader`,
 `Output, Error io.Writer`, `Discovery`, `SessionFactory`, `SourceFactory`,
-`APFactory wireless.APFactory`, `PrepareResources func(context.Context,int)error`,
+`Registry dialect.Registry`, `APFactory wireless.APFactory`, `PrepareResources func(context.Context,int)error`,
 `Execute cli.Executor`, `ReportOptions report.Options`,
 `RecommendationHook func(scripts bool) report.DeviceHook`,
 `NewReport func(string,report.Options)(*report.Report,error)`,
 `ApplyFactory cli.ApplyFactory`,
 `Commands map[string]cli.Command`, and `Terminal func(any)bool`.
 Defaults use real streams/environment, native sources/connector/adapter,
-`resources.Prepare`, `parallel.Map`, `report.New`, and descriptor terminal tests.
+a private process-wide file-limit check, `parallel.Map`, `report.New`, and descriptor terminal tests.
 Environment is copied when creating a Runner; nil reads `os.Environ`, empty
 nonnil means explicitly empty. Run state resets on each invocation. An injected
 Executor must join all admitted callbacks before returning. Session factories
@@ -82,7 +82,7 @@ The native default supports paginated HTTP and read-only PostgreSQL with bounded
 responses, whole inventory and timeout, then authenticated private native cache.
 No real external inventory or device service was used in Task 3 tests.
 
-## Frozen configuration
+## Configuration
 
 ```go
 func cli.LoadOptions(argv []string, env map[string]string,
@@ -108,7 +108,11 @@ Precedence is CLI > process environment > YAML > .env > built-in defaults.
 Discovery, deduplicated in order: `/etc/net-connector`,
 `/usr/local/etc/net-connector`, `$XDG_CONFIG_HOME/net-connector` (fallback
 `$HOME/.config/net-connector`), executable directory, launch CWD. Each directory
-loads `.env`, then `net-connector.yml` common/wireless overlays and `wireless.yml`.
+loads `.env`, then flat `net-connector.yml` and `wireless.yml`. Shared configuration is validated
+against the full connector schema, then projects only netdisco/inventory and
+SSH host_key_policy/known_hosts. Shared protocol/vendor_protocols/logging fields
+do not change wireless behavior. Wireless SSH port/timeouts remain in wireless.yml.
+Legacy common/wireless containers fail with an explicit migration diagnostic.
 Explicit env/config files are applied last. Blank WIRELESS_CONFIG selectors are
 absent. Explicit missing files fail; explicit empty file arguments fail.
 Unknown/duplicate keys, aliases, nonstring keys, extra YAML documents, invalid
@@ -122,7 +126,7 @@ host, name, model, platform; normalized device identity is exactly
 `{host, name, model, platform}`, model explicitly null when unknown. Duplicate
 canonical IPs fail before execution. h3c/h3c_wireless aliases retain identity but
 native H3C sessions use h3c_wireless. Static dedicated devices do not inherit
-common dynamic inventory. Nonempty static devices, inline dynamic inventory and
+shared dynamic inventory. Nonempty static devices, inline dynamic inventory and
 external netdisco_config are mutually exclusive. Empty `devices: []` alone is a
 valid zero-target inventory. Null dimensions means profile defaults excluding
 LLDP; explicit empty/duplicate dimensions fail. Host and name selectors intersect;
@@ -290,3 +294,17 @@ execution.json on the same writer for apply per-command checkpoints.
 Final recommendation rules, canonical plans, offline review, interactive apply and
 publication recovery use these same CLI/report/configuration boundaries. See
 `docs/change-api.md` for their complete contracts.
+
+The default vendor catalog is one injected `dialect.Registry`, used consistently
+for validation, fleet inventory matching and connection construction. The default
+is `vendors.NewBuiltinRegistry()`. No global registration or capability map is used.
+
+HTTP cache identity uses URL, authentication mode, nonsecret username/namespace and
+query shape. API keys never enter the identity, even hashed. API-key mode with caching enabled requires
+a username or explicit cache namespace; rotating a key within the same account
+keeps the identity. Old key-hash caches must be refreshed once; cache-only reports
+a miss until the new identity has a verified cache.
+
+The private file-descriptor precheck budgets `128 + 16*min(workers, targets)` and
+serializes process-wide limit updates. Zero targets need no descriptors. It raises
+only the soft limit, bounded by the existing hard limit; failure precedes device I/O.

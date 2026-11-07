@@ -45,7 +45,7 @@
     "source": "lib/wireless/cli/apply.rb",
     "implementation": [
       "cli/apply.go",
-      "cli/apply_diagnostics.go"
+      "internal/apply/diagnostics.go"
     ],
     "tests": [
       "cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay",
