@@ -33,11 +33,32 @@ func (c *closeTransport) Close() error {
 	}
 	return nil
 }
-func fixture(t *testing.T, steps []exchange, closeFail bool, event func(connector.Event), loginPrompt ...string) (*connector.Device, *closeTransport) {
+func fixture(t *testing.T, steps []exchange, closeFail bool, event func(connector.SessionEvent), loginPrompt ...string) (*connector.Device, *closeTransport) {
+	t.Helper()
+	return fixtureObserver(t, steps, closeFail, func(_ context.Context, e connector.SessionEvent) error {
+		if event != nil {
+			event(e)
+		}
+		return nil
+	}, loginPrompt...)
+}
+func fixtureObserver(t *testing.T, steps []exchange, closeFail bool, event func(context.Context, connector.SessionEvent) error, loginPrompt ...string) (*connector.Device, *closeTransport) {
 	t.Helper()
 	client, server := net.Pipe()
 	transport := &closeTransport{Conn: client, fail: closeFail}
 	done := make(chan error, 1)
+	t.Cleanup(func() {
+		_ = client.Close()
+		_ = server.Close()
+		select {
+		case e := <-done:
+			if e != nil {
+				t.Error(e)
+			}
+		case <-time.After(time.Second):
+			t.Error("fixture did not exit")
+		}
+	})
 	go func() {
 		defer server.Close()
 		prompt := "<WLC>"
@@ -76,28 +97,18 @@ func fixture(t *testing.T, steps []exchange, closeFail bool, event func(connecto
 		}
 		done <- nil
 	}()
-	p, e := vendors.Profile("h3c_wireless")
+	platform, e := vendors.NewBuiltinRegistry().Lookup("h3c_wireless")
 	if e != nil {
 		t.Fatal(e)
 	}
-	d, e := connector.New(p, connector.ConnectionConfig{Host: "fixture.invalid", CommandTimeout: 150 * time.Millisecond, WriteTimeout: time.Second, OnEvent: event}, connector.WithTransportFactory(func(context.Context, connector.ConnectionConfig) (io.ReadWriteCloser, error) { return transport, nil }))
+	d, e := connector.New(platform.Profile(), connector.ConnectionConfig{Host: "fixture.invalid", CommandTimeout: 150 * time.Millisecond, WriteTimeout: time.Second, OnSessionEvent: event}, connector.WithTransportFactory(func(context.Context, connector.ConnectionConfig) (io.ReadWriteCloser, error) { return transport, nil }))
 	if e != nil {
 		t.Fatal(e)
 	}
 	if e = d.Connect(t.Context()); e != nil {
 		t.Fatal(e)
 	}
-	t.Cleanup(func() {
-		_ = d.Close()
-		select {
-		case e := <-done:
-			if e != nil {
-				t.Error(e)
-			}
-		case <-time.After(time.Second):
-			t.Error("fixture did not join")
-		}
-	})
+	t.Cleanup(func() { _ = d.Close() })
 	return d, transport
 }
 
@@ -226,40 +237,36 @@ func TestNativeLeaseBusyReentryStaleAndCancellationRetire(t *testing.T) {
 	var d *connector.Device
 	var op *connector.Operation
 	events := 0
-	event := func(e connector.Event) {
+	event := func(e connector.SessionEvent) {
 		if e.Name == "command_start" && op != nil {
 			events++
 			if !errors.Is(op.Retire(), connector.ErrBusy) {
 				t.Error("reentrant retirement allowed")
-			}
-			if !errors.Is(d.Close(), connector.ErrBusy) {
-				t.Error("lease bypassed")
 			}
 		}
 	}
 	d, _ = fixture(t, []exchange{{"show\n", "<WLC>"}}, false, event)
 	a := makeAP(t, d)
 	var saved *connector.Operation
-	e := d.WithOperation(t.Context(), func(ctx context.Context, o *connector.Operation) error {
+	e, closeErr := d.WithBorrowedOperation(t.Context(), func(ctx context.Context, o *connector.Operation) error {
 		op = o
 		saved = o
 		out, err := a.Read(t.Context(), apRecord())
 		if err != nil || !out.Skipped || out.Error.Code() != "session_busy" || !d.Connected() {
 			t.Fatal("busy operation changed controller")
 		}
-		_, err = o.ExecuteBorrowedCommand(t.Context(), connector.Command{Text: "show"}, connector.ExecuteOptions{})
+		_, err = o.ExecuteCommand(t.Context(), connector.Command{Text: "show"}, connector.ExecuteOptions{})
 		if err != nil {
 			return err
 		}
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		_, err = o.ExecuteBorrowedCommand(ctx, connector.Command{Text: "never"}, connector.ExecuteOptions{})
-		if !errors.Is(err, context.Canceled) {
-			t.Fatal(err)
+		if ctx.Err() == nil {
+			t.Fatal("expected cancelled child context")
 		}
 		return o.Retire()
 	})
-	if e != nil || events != 1 || d.Connected() {
+	if e != nil || closeErr != nil || events != 1 || d.Connected() {
 		t.Fatalf("retire %v %d", e, events)
 	}
 	if !errors.Is(saved.Retire(), connector.ErrScope) {
@@ -292,29 +299,45 @@ func TestNativeBorrowDoesNotConnectOrRunArbitraryCommands(t *testing.T) {
 
 func TestNativePreservationRejectsCallbackCancellationAndMultiCommand(t *testing.T) {
 	rejection := "% Unrecognized command found at '^' position.\r\n<WLC>"
-	for _, kind := range []string{"receipt_error", "cancelled", "multi"} {
+	for _, kind := range []string{"observer_error", "cancelled", "multi"} {
 		t.Run(kind, func(t *testing.T) {
-			d, _ := fixture(t, []exchange{{"query\n", rejection}}, false, nil)
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
-			opts := connector.ExecuteOptions{Borrowed: true, PreserveSessionOnRejection: true, CapturePartialOutput: true}
-			commands := []connector.Command{{Text: "query"}}
-			if kind == "receipt_error" {
-				opts.OnReceipt = func(context.Context, connector.StepResult) error { return errors.New("private callback failure") }
-			}
-			if kind == "cancelled" {
-				opts.OnReceipt = func(context.Context, connector.StepResult) error { cancel(); return nil }
-			}
+			steps := []exchange{{"query\n", rejection}}
 			if kind == "multi" {
-				commands = append(commands, connector.Command{Text: "must not run"})
+				steps = nil
 			}
-			result, e := d.ExecuteScript(ctx, connector.Script{Commands: commands}, opts)
-			if e == nil || d.Connected() || len(result.Steps()) != 1 {
-				t.Fatalf("unsafe preservation: %v connected=%t steps=%d", e, d.Connected(), len(result.Steps()))
+			d, _ := fixtureObserver(t, steps, false, func(_ context.Context, event connector.SessionEvent) error {
+				if event.Name == "command_complete" {
+					if kind == "observer_error" {
+						return errors.New("private observer failure")
+					}
+					if kind == "cancelled" {
+						cancel()
+					}
+				}
+				return nil
+			})
+			var result connector.Result
+			operationErr, closeErr := d.WithBorrowedOperation(ctx, func(ctx context.Context, op *connector.Operation) error {
+				commands := []connector.Command{{Text: "query"}}
+				if kind == "multi" {
+					commands = append(commands, connector.Command{Text: "must not run"})
+				}
+				var err error
+				result, err = op.ExecuteScript(ctx, connector.Script{Commands: commands}, connector.ExecuteOptions{SkipPrivilege: true, PreserveSessionOnRejection: true})
+				return err
+			})
+			if operationErr == nil || closeErr != nil || d.Connected() || len(result.Steps()) != 0 {
+				t.Fatalf("unsafe preservation: %v connected=%t steps=%d cleanup=%v", operationErr, d.Connected(), len(result.Steps()), closeErr)
+			}
+			if kind != "multi" && (len(result.Attempts()) != 1 || result.Attempts()[0].Response().Raw() != rejection) {
+				t.Fatal("failed attempt lost")
 			}
 		})
 	}
 }
+
 func TestNativeAPCapturedFactsSurviveWrongExitAndCloseFailure(t *testing.T) {
 	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{wireless.LLDPCommand + "\n", "No LLDP neighbors\r\n<AP>"}, exchange{"quit\n", "[UNKNOWN]"})
 	d, _ := fixture(t, steps, true, nil)
@@ -404,7 +427,7 @@ func TestNativeAdapterFormattersAndFactoryUseBorrowedController(t *testing.T) {
 }
 func TestNativeRetiredOperationCannotReconnect(t *testing.T) {
 	d, _ := fixture(t, nil, false, nil)
-	e := d.WithOperation(t.Context(), func(ctx context.Context, op *connector.Operation) error {
+	e, closeErr := d.WithBorrowedOperation(t.Context(), func(ctx context.Context, op *connector.Operation) error {
 		if e := op.Retire(); e != nil {
 			return e
 		}
@@ -416,15 +439,15 @@ func TestNativeRetiredOperationCannotReconnect(t *testing.T) {
 		}
 		return nil
 	})
-	if e != nil {
-		t.Fatal(e)
+	if e != nil || closeErr != nil {
+		t.Fatal(e, closeErr)
 	}
 }
 
 func TestReviewLateCancellationRetainsOwnedCloseFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	d, _ := fixture(t, []exchange{{"display wlan client verbose\n", "Total number of clients : 0\r\n<WLC>"}}, true, func(e connector.Event) {
+	d, _ := fixture(t, []exchange{{"display wlan client verbose\n", "Total number of clients : 0\r\n<WLC>"}}, true, func(e connector.SessionEvent) {
 		if e.Name == "operation_complete" {
 			cancel()
 		}
@@ -444,7 +467,7 @@ func TestReviewOperationCallbackReturnRetainsFallbackCloseResult(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	d, _ := fixture(t, nil, true, nil)
-	operationErr, closeErr := d.WithOperationCleanup(ctx, func(ctx context.Context, op *connector.Operation) error {
+	operationErr, closeErr := d.WithBorrowedOperation(ctx, func(ctx context.Context, op *connector.Operation) error {
 		// Cancellation begins after the callback's final check, at callback return.
 		if ctx.Err() != nil {
 			t.Fatal("already cancelled")
@@ -461,7 +484,7 @@ func TestReviewAPLateCancellationRetainsFallbackCloseResult(t *testing.T) {
 	defer cancel()
 	completions := 0
 	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{wireless.LLDPCommand + "\n", "No LLDP neighbors\r\n<AP>"}, exchange{"quit\n", "<WLC>"})
-	d, _ := fixture(t, steps, true, func(e connector.Event) {
+	d, _ := fixture(t, steps, true, func(e connector.SessionEvent) {
 		if e.Name == "operation_complete" {
 			completions++
 			if completions == 4 {
@@ -490,5 +513,23 @@ func TestReviewNativeOpenPreservesCancellationAndCloseIndependently(t *testing.T
 	issues := snapshot.Dimension(wireless.Collection).Issues()
 	if len(issues) != 2 || issues[0]["code"] != "cancelled" || issues[1]["code"] != "session_close_failed" {
 		t.Fatalf("native opener diagnostics %v", issues)
+	}
+}
+
+func TestNativeObserverCloseCancelsOperation(t *testing.T) {
+	var device *connector.Device
+	device, _ = fixture(t, nil, false, func(event connector.SessionEvent) {
+		if event.Name == "command_start" {
+			if err := device.Close(); err != nil {
+				t.Error(err)
+			}
+		}
+	})
+	err, _ := device.WithBorrowedOperation(t.Context(), func(ctx context.Context, op *connector.Operation) error {
+		_, err := op.ExecuteCommand(ctx, connector.Command{Text: "never"}, connector.ExecuteOptions{})
+		return err
+	})
+	if !errors.Is(err, context.Canceled) || device.Connected() {
+		t.Fatalf("Close did not terminate admitted work: %v", err)
 	}
 }

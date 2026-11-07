@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/gatework/go-net-connector/connector"
 	"github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/internal/nativeerr"
 	"net/netip"
 	"regexp"
 	"strings"
@@ -64,9 +65,10 @@ func (s operationSession) Execute(ctx context.Context, command string) (wireless
 	if command != "screen-length disable" && command != wireless.LLDPCommand {
 		return wireless.Receipt{}, wireless.NewFailure("invalid_command_result", "execute")
 	}
-	result, e := s.op.ExecuteBorrowedCommand(ctx, connector.Command{Text: command, Prompt: exactPrompt(s.prompt), OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true, PreserveSessionOnRejection: true, CapturePartialOutput: true})
-	rejection, ok := e.(*connector.Error)
-	*s.synchronized = ctx.Err() == nil && len(result.Steps()) == 1 && result.Steps()[0].Response().RawPrompt() != "" && (e == nil || ok && rejection.Code == "device_error")
+	result, e := s.op.ExecuteCommand(ctx, connector.Command{Text: command, Prompt: exactPrompt(s.prompt), OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true, PreserveSessionOnRejection: true})
+	// A live operation after an error is the connector's verified synchronized
+	// rejection case. The adapter only binds that state to this AP identity.
+	*s.synchronized = ctx.Err() == nil && s.op.Connected() && strings.TrimSpace(s.op.RawPrompt()) == s.prompt
 	return receipt(command, result, e), nil
 }
 func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out wireless.APOutcome, err error) {
@@ -91,7 +93,7 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out wireless.
 	}
 	acquired := false
 	var retirementErr error
-	e, retirementErr = a.device.WithOperationCleanup(ctx, func(op *connector.Operation) error {
+	e, retirementErr = a.device.WithBorrowedOperation(ctx, func(ctx context.Context, op *connector.Operation) error {
 		acquired = true
 		if !a.usable.Load() || !op.Connected() {
 			a.usable.Store(false)
@@ -115,15 +117,15 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out wireless.
 				if apPrompt != "" && current == original {
 					returned = true
 				} else if apPrompt != "" && current == apPrompt {
-					result, exitErr := op.ExecuteBorrowedCommand(ctx, connector.Command{Text: "quit", Prompt: exactPrompt(original), Sensitive: true, OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true})
+					result, exitErr := op.ExecuteCommand(ctx, connector.Command{Text: "quit", Prompt: exactPrompt(original), Sensitive: true, OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true})
 					returned = exitErr == nil && len(result.Steps()) == 1 && strings.TrimSpace(op.RawPrompt()) == original
 				}
 				a.usable.Store(returned && op.Connected() && strings.TrimSpace(op.RawPrompt()) == original)
 			}
 			if !a.usable.Load() {
 				out.CleanupError = wireless.NewFailure("ap_exit_failed", "cleanup")
-				if closeErr := op.Retire(); closeErr != nil {
-					out.CloseError = wireless.NewFailure("session_close_failed", "close")
+				if op.Connected() {
+					_ = op.Retire() // WithBorrowedOperation retains the cleanup result.
 				}
 			}
 		}()
@@ -132,9 +134,9 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out wireless.
 			interactions = append([]connector.Interaction{{Pattern: textPattern(`(?i)(?:login|username):\s*\z`), Reply: a.credentials.Username + "\n", Sensitive: true, Limit: 1}}, interactions...)
 		}
 		timeout := 10 * time.Second
-		login, loginErr := op.ExecuteBorrowedCommand(ctx, connector.Command{Text: "telnet " + address.String(), Prompt: textPattern(`(?:\A|[\r\n])[ \t\x00]*<[^<>\r\n]+>[ \t\x00]*[\r\n]*\z`), Timeout: &timeout, Interactions: interactions, Sensitive: true, OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true, CapturePartialOutput: true})
+		login, loginErr := op.ExecuteCommand(ctx, connector.Command{Text: "telnet " + address.String(), Prompt: textPattern(`(?:\A|[\r\n])[ \t\x00]*<[^<>\r\n]+>[ \t\x00]*[\r\n]*\z`), Timeout: &timeout, Interactions: interactions, Sensitive: true, OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true})
 		if loginErr != nil {
-			out.Error = failure(loginErr, "ap_connection_failed", "login")
+			out.Error = nativeerr.Failure(loginErr, "ap_connection_failed", "login")
 			return nil
 		}
 		if len(login.Steps()) != 1 {
@@ -167,7 +169,7 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out wireless.
 		reader, _ := wireless.NewReader(operationSession{op, apPrompt, &synchronized}, a.clock)
 		prep, prepErr := reader.Read(ctx, "screen-length disable")
 		if prepErr != nil {
-			out.Error = failure(prepErr, "command_execution_failed", "prepare")
+			out.Error = nativeerr.Failure(prepErr, "command_execution_failed", "prepare")
 			return nil
 		}
 		if !prep.Success() {
@@ -180,7 +182,7 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out wireless.
 		}
 		cap, capErr := reader.Read(ctx, wireless.LLDPCommand)
 		if capErr != nil {
-			out.Error = failure(capErr, "command_execution_failed", "execute")
+			out.Error = nativeerr.Failure(capErr, "command_execution_failed", "execute")
 			return nil
 		}
 		out.Result = &cap
@@ -196,7 +198,7 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out wireless.
 	}
 	if e != nil {
 		if out.Error == nil {
-			out.Error = failure(e, "ap_collection_failed", "execute")
+			out.Error = nativeerr.Failure(e, "ap_collection_failed", "execute")
 		}
 		if !acquired {
 			out.Skipped = true

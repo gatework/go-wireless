@@ -17,7 +17,7 @@ import (
 // Failure contains only validated diagnostic vocabulary, never an external error.
 type Failure struct{ code, stage string }
 
-var failureCodes = strings.Fields(`invalid_command_result command_failed command_execution_failed command_processing_failed command_aborted session_closed session_state_failed session_busy session_scope_ended connection_failed connection_closed authentication_error transport_error prompt_error login_timeout command_timeout write_timeout output_limit_exceeded script_output_limit_exceeded device_error log_error receipt_callback_failed step_callback_failed prepare_failed after_command_failed invalid_output_encoding cancelled deadline_exceeded controller_session_lost controller_prompt_mismatch ap_address_unavailable ap_not_online ap_authentication_failed ap_connection_failed ap_login_not_confirmed ap_session_lost ap_response_missing ap_exit_failed session_close_failed ap_collection_failed ap_session_setup_failed invalid_ap_credentials invalid_ap_connection invalid_ap_session`)
+var failureCodes = strings.Fields(`invalid_command_result command_failed command_execution_failed command_processing_failed command_aborted session_closed session_state_failed session_busy session_scope_ended connection_failed connection_closed authentication_error transport_error prompt_error login_timeout command_timeout write_timeout output_limit_exceeded script_output_limit_exceeded device_error log_error receipt_callback_failed step_callback_failed prepare_failed after_command_failed invalid_output_encoding cleanup_failed session_observer_failed cancelled deadline_exceeded controller_session_lost controller_prompt_mismatch ap_address_unavailable ap_not_online ap_authentication_failed ap_connection_failed ap_login_not_confirmed ap_session_lost ap_response_missing ap_exit_failed session_close_failed ap_collection_failed ap_session_setup_failed invalid_ap_credentials invalid_ap_connection invalid_ap_session`)
 
 func NewFailure(code, stage string) *Failure {
 	valid := false
@@ -82,25 +82,27 @@ func validCommand(s string) bool {
 }
 
 // Receipt retains output before decoding and validates one command at the Reader boundary.
-// Body and Output are deliberately explicit accessors; formatting never exposes them.
+// Body and Raw are deliberately explicit accessors; formatting never exposes them.
 type Receipt struct {
-	command, output, body string
-	steps                 int
-	success, valid        bool
-	failure               *Failure
+	command, raw, body string
+	steps              int
+	success, valid     bool
+	attempted          bool
+	failure            *Failure
 }
 type ReceiptOptions struct {
-	Command, Output, Body string
-	Steps                 int
-	Success               bool
-	Failure               *Failure
+	Command, Raw, Body string
+	Attempted          bool
+	Steps              int
+	Success            bool
+	Failure            *Failure
 }
 
 func NewReceipt(o ReceiptOptions) Receipt {
-	return Receipt{o.Command, o.Output, o.Body, o.Steps, o.Success, true, cloneFailure(o.Failure)}
+	return Receipt{command: o.Command, raw: o.Raw, body: o.Body, steps: o.Steps, success: o.Success, valid: true, attempted: o.Attempted, failure: cloneFailure(o.Failure)}
 }
-func (r Receipt) Output() string { return r.output }
-func (r Receipt) Body() string   { return r.body }
+func (r Receipt) Raw() string  { return r.raw }
+func (r Receipt) Body() string { return r.body }
 func (r Receipt) String() string {
 	return fmt.Sprintf("wireless.Receipt{steps:%d success:%t}", r.steps, r.success)
 }
@@ -238,9 +240,11 @@ func (r *Reader) Read(ctx context.Context, command string) (Capture, error) {
 	var evidence []Record
 	var body *string
 	if receipt.valid {
-		sum := sha256.Sum256([]byte(receipt.output))
-		evidence = []Record{{"command": command, "sha256": hex.EncodeToString(sum[:]), "bytes": len(receipt.output)}}
-		if receipt.command != command || receipt.success && (receipt.steps != 1 || receipt.failure != nil) {
+		if receipt.attempted {
+			sum := sha256.Sum256([]byte(receipt.raw))
+			evidence = []Record{{"command": command, "sha256": hex.EncodeToString(sum[:]), "bytes": len(receipt.raw)}}
+		}
+		if receipt.command != command || receipt.success && (!receipt.attempted || receipt.steps != 1 || receipt.failure != nil) {
 			if failure == nil {
 				failure = NewFailure("invalid_command_result", "response")
 			}

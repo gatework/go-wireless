@@ -1,4 +1,4 @@
-// Package adapter borrows the frozen native connector; it never implements a second transport.
+// Package adapter borrows the versioned native connector; it never implements a second transport.
 package adapter
 
 import (
@@ -7,6 +7,7 @@ import (
 	expect "github.com/gatework/go-expect"
 	"github.com/gatework/go-net-connector/connector"
 	"github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/internal/nativeerr"
 	"strings"
 	"sync/atomic"
 )
@@ -32,9 +33,6 @@ func Open(device *connector.Device) wireless.OpenSession {
 		if device == nil || run == nil {
 			return wireless.NewFailure("connection_failed", "connect")
 		}
-		if e := device.Connect(ctx); e != nil {
-			return failure(e, "connection_failed", "connect")
-		}
 		session, _ := Borrow(device)
 		defer func() {
 			closeErr := device.Close()
@@ -45,6 +43,9 @@ func Open(device *connector.Device) wireless.OpenSession {
 				err = errors.Join(err, wireless.NewFailure("session_close_failed", "close"))
 			}
 		}()
+		if e := device.Connect(ctx); e != nil {
+			return nativeerr.Failure(e, "connection_failed", "connect")
+		}
 		return run(session)
 	}
 }
@@ -69,32 +70,10 @@ func queryAllowed(platform, command string) bool {
 	}
 	return false
 }
-func failure(err error, fallback, stage string) *wireless.Failure {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, context.Canceled) {
-		return wireless.NewFailure("cancelled", stage)
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return wireless.NewFailure("deadline_exceeded", stage)
-	}
-	if errors.Is(err, connector.ErrBusy) {
-		return wireless.NewFailure("session_busy", stage)
-	}
-	if errors.Is(err, connector.ErrScope) {
-		return wireless.NewFailure("session_scope_ended", stage)
-	}
-	var e *connector.Error
-	if errors.As(err, &e) {
-		return wireless.NewFailure(e.Code, stage)
-	}
-	return wireless.NewFailure(fallback, stage)
-}
 func receipt(command string, result connector.Result, err error) wireless.Receipt {
 	steps := result.Steps()
 	body := ""
-	f := failure(err, "command_execution_failed", "execute")
+	f := nativeerr.Failure(err, "command_execution_failed", "execute")
 	if err == nil {
 		if len(steps) != 1 || steps[0].Command().Text != command || steps[0].Response().RawPrompt() == "" {
 			f = wireless.NewFailure("invalid_command_result", "response")
@@ -106,37 +85,32 @@ func receipt(command string, result connector.Result, err error) wireless.Receip
 			}
 		}
 	}
-	output, outputErr := result.JoinedOutput()
-	if outputErr != nil && f == nil {
-		f = wireless.NewFailure("invalid_command_result", "response")
+	attempts := result.Attempts()
+	var raw strings.Builder
+	for _, attempt := range attempts {
+		raw.WriteString(attempt.Response().Raw())
 	}
-	return wireless.NewReceipt(wireless.ReceiptOptions{Command: command, Output: output, Body: body, Steps: len(steps), Success: f == nil, Failure: f})
+	return wireless.NewReceipt(wireless.ReceiptOptions{
+		Command: command, Raw: raw.String(), Body: body, Steps: len(steps),
+		Attempted: len(attempts) > 0, Success: f == nil, Failure: f,
+	})
 }
 func (s *Session) Execute(ctx context.Context, command string) (wireless.Receipt, error) {
-	if !queryAllowed(s.device.Name(), command) {
+	if !queryAllowed(s.device.ProfileName(), command) {
 		return wireless.Receipt{}, wireless.NewFailure("invalid_command_result", "execute")
 	}
 	var result connector.Result
 	var commandErr error
-	err, closeErr := s.device.WithOperationCleanup(ctx, func(op *connector.Operation) error {
-		if !op.Connected() {
-			return connector.ErrConnection
-		}
+	err, closeErr := s.device.WithBorrowedOperation(ctx, func(ctx context.Context, op *connector.Operation) error {
 		prompt := strings.TrimSpace(op.RawPrompt())
 		if prompt == "" {
 			return wireless.NewFailure("controller_prompt_mismatch", "session")
 		}
-		var e error
-		result, e = op.ExecuteBorrowedCommand(ctx, connector.Command{Text: command, Prompt: exactPrompt(prompt), OutputSensitive: true}, connector.ExecuteOptions{Borrowed: true, SkipPrivilege: true, PreserveSessionOnRejection: true, CapturePartialOutput: true})
-		commandErr = e
-		// Only the original synchronized rejection may keep the borrowed session.
-		rejected, ok := e.(*connector.Error)
-		preserved := ok && rejected.Code == "device_error" && ctx.Err() == nil && len(result.Steps()) == 1 && result.Steps()[0].Response().RawPrompt() != ""
-		if e != nil && !preserved {
-			if closeErr := op.Retire(); closeErr != nil {
-				s.closeFailure.CompareAndSwap(nil, wireless.NewFailure("session_close_failed", "close"))
-			}
-		}
+		result, commandErr = op.ExecuteCommand(ctx,
+			connector.Command{Text: command, Prompt: exactPrompt(prompt), OutputSensitive: true},
+			connector.ExecuteOptions{SkipPrivilege: true, PreserveSessionOnRejection: true})
+		// The connector owns rejection preservation and retirement. The failed
+		// command remains evidence even when this query does not end the scope.
 		return nil
 	})
 	if closeErr != nil {
@@ -144,7 +118,7 @@ func (s *Session) Execute(ctx context.Context, command string) (wireless.Receipt
 	}
 	// The retained native failure must not be turned into a successful receipt.
 	if commandErr != nil {
-		err = commandErr
+		err = errors.Join(commandErr, err)
 	}
 	return receipt(command, result, err), nil
 }
@@ -156,22 +130,6 @@ func (s *Session) CloseFailure() *wireless.Failure {
 		return nil
 	}
 	return wireless.NewFailure(f.Code(), f.Stage())
-}
-
-// SafeFailure preserves one typed diagnostic through the existing allowlisted
-// boundary. Hosts must visit joined causes separately to retain their order.
-// It never retains an arbitrary message, output, source or underlying cause.
-func SafeFailure(err error, fallback, stage string) *wireless.Failure {
-	if f, ok := err.(*wireless.Failure); ok {
-		return wireless.NewFailure(f.Code(), f.Stage())
-	}
-	if f, ok := err.(*connector.Error); ok {
-		if original := wireless.NewFailure(f.Code, f.Phase).Stage(); original != "" {
-			stage = original
-		}
-		return wireless.NewFailure(f.Code, stage)
-	}
-	return failure(err, fallback, stage)
 }
 
 // textPattern compiles adapter-owned static prompt expressions.

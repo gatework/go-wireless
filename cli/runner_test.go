@@ -55,7 +55,7 @@ func (s *fixtureSession) Execute(_ context.Context, command string) (wireless.Re
 	if s.body != "" && command == "display wlan ap all verbose" {
 		body = s.body
 	}
-	return wireless.NewReceipt(wireless.ReceiptOptions{Command: command, Output: command + "\n" + body + "<WLC>", Body: body, Steps: 1, Success: true}), nil
+	return wireless.NewReceipt(wireless.ReceiptOptions{Attempted: true, Command: command, Raw: command + "\n" + body + "<WLC>", Body: body, Steps: 1, Success: true}), nil
 }
 func fixtureFactory(closed *atomic.Int32) SessionFactory {
 	return func(_ context.Context, d wireless.Record, cfg connector.ConnectionConfig) (Connection, error) {

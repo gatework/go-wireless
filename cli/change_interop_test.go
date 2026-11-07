@@ -26,7 +26,7 @@ func (s configSession) Execute(_ context.Context, cmd string) (wireless.Receipt,
 	default:
 		return wireless.Receipt{}, fmt.Errorf("unexpected query")
 	}
-	return wireless.NewReceipt(wireless.ReceiptOptions{Command: cmd, Output: cmd + "\n" + body + "<WLC>", Body: body, Steps: 1, Success: true}), nil
+	return wireless.NewReceipt(wireless.ReceiptOptions{Attempted: true, Command: cmd, Raw: cmd + "\n" + body + "<WLC>", Body: body, Steps: 1, Success: true}), nil
 }
 func collectChangeFixture(t *testing.T) (string, string) {
 	t.Helper()

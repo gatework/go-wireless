@@ -37,7 +37,7 @@ func (s *testSession) Execute(_ context.Context, command string) (Receipt, error
 	}
 	body := s.output[command]
 	f := s.failures[command]
-	return NewReceipt(ReceiptOptions{Command: command, Output: command + "\n" + body + "<WLC>", Body: body, Success: f == nil, Steps: 1, Failure: f}), nil
+	return NewReceipt(ReceiptOptions{Attempted: true, Command: command, Raw: command + "\n" + body + "<WLC>", Body: body, Success: f == nil, Steps: 1, Failure: f}), nil
 }
 func controllerFixture() *testSession {
 	return &testSession{connected: true, output: map[string]string{"screen-length disable": "", "display wlan ap all verbose": "Total number of APs : 0\n", "display wlan client verbose": "Total number of clients : 0\n"}, failures: map[string]*Failure{}}
@@ -409,7 +409,7 @@ func TestReaderEvidenceImmutableSafeAndFirstFailure(t *testing.T) {
 	}
 }
 func TestReaderRejectsMalformedReceiptsAndReentry(t *testing.T) {
-	for _, response := range []Receipt{{}, NewReceipt(ReceiptOptions{Command: "other", Success: true, Steps: 1}), NewReceipt(ReceiptOptions{Command: "query", Success: true, Steps: 2}), NewReceipt(ReceiptOptions{Command: "query", Success: true, Steps: 1, Failure: NewFailure("device_error", "")}), NewReceipt(ReceiptOptions{Command: "query", Success: false})} {
+	for _, response := range []Receipt{{}, NewReceipt(ReceiptOptions{Attempted: true, Command: "other", Success: true, Steps: 1}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: true, Steps: 2}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: true, Steps: 1, Failure: NewFailure("device_error", "")}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: false})} {
 		s := controllerFixture()
 		s.receipt = func(string) Receipt { return response }
 		r, _ := NewReader(s, nil)
@@ -510,7 +510,7 @@ func TestTransportObjectsDoNotExposeCredentialsBodiesOrCallbacks(t *testing.T) {
 	s := controllerFixture()
 	r, _ := NewReader(s, func() time.Time { t.Fatal("formatter called clock"); return time.Now() })
 	c := NewCollector(CollectorOptions{Clock: func() time.Time { t.Fatal("formatter called clock"); return time.Now() }})
-	receipt := NewReceipt(ReceiptOptions{Command: "query", Output: "private receipt", Body: "private receipt", Success: true, Steps: 1})
+	receipt := NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Raw: "private receipt", Body: "private receipt", Success: true, Steps: 1})
 	values := []any{receipt, r, c, APCredentials{Username: "private credential", Password: "private credential"}, APOutcome{Error: NewFailure("private error", "private stage")}, NewFailure("private error", "private stage")}
 	for _, v := range values {
 		j, e := json.Marshal(v)
@@ -522,7 +522,7 @@ func TestTransportObjectsDoNotExposeCredentialsBodiesOrCallbacks(t *testing.T) {
 			t.Fatalf("secret leaked: %T", v)
 		}
 	}
-	if receipt.Output() != "private receipt" || receipt.Body() != "private receipt" {
+	if receipt.Raw() != "private receipt" || receipt.Body() != "private receipt" {
 		t.Fatal("explicit receipt access lost")
 	}
 }

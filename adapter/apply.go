@@ -5,23 +5,26 @@ import (
 	"errors"
 	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/internal/nativeerr"
 	"strings"
 )
 
 // Apply opens once and owns one operation for preparation, precheck, all writes
 // and readback. Both operation and cleanup errors survive lease retirement.
-func Apply(ctx context.Context, device *connector.Device, run func(wireless.ApplySession) error) (error, error) {
+func Apply(ctx context.Context, device *connector.Device, run func(context.Context, wireless.ApplySession) error) (error, error) {
 	if device == nil || run == nil {
 		return wireless.ErrChangePlan, nil
 	}
 	if e := device.Connect(ctx); e != nil {
-		return failure(e, "connection_failed", "connect"), nil
+		return nativeerr.Failure(e, "connection_failed", "connect"), device.Close()
 	}
 	entered := false
-	operationErr, closeErr := device.WithOperationCleanup(ctx, func(op *connector.Operation) error {
+	operationErr, closeErr := device.WithBorrowedOperation(ctx, func(ctx context.Context, op *connector.Operation) error {
 		entered = true
-		e := run(&applySession{op: op})
-		_ = op.Retire()
+		e := run(ctx, &applySession{op: op})
+		if op.Connected() {
+			_ = op.Retire() // The scope returns the first retirement error separately.
+		}
 		return e
 	})
 	if !entered {
@@ -44,7 +47,7 @@ func (s *applySession) execute(ctx context.Context, command string, query bool) 
 		}
 		cmd.Prompt = exactPrompt(prompt)
 	}
-	result, e := s.op.ExecuteBorrowedCommand(ctx, cmd, connector.ExecuteOptions{Borrowed: true, SkipPrivilege: true, CapturePartialOutput: true})
+	result, e := s.op.ExecuteCommand(ctx, cmd, connector.ExecuteOptions{SkipPrivilege: true})
 	if e != nil {
 		return result, e
 	}
