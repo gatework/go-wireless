@@ -1,4 +1,4 @@
-package cli
+package apply
 
 import (
 	"context"
@@ -6,18 +6,18 @@ import (
 
 	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
-	"github.com/gatework/go-wireless/adapter"
+	"github.com/gatework/go-wireless/internal/nativeerr"
 	"github.com/gatework/go-wireless/report"
 )
 
-// applyDiagnostics retains independent, ordered safe evidence. The visitor
+// diagnostics retains independent, ordered safe evidence. The visitor
 // follows joined/wrapped causes; no Error() text enters execution or stderr.
-type applyDiagnostics struct {
+type diagnostics struct {
 	fields wireless.Record
 	seen   map[string]map[string]bool
 }
 
-func (d *applyDiagnostics) append(field string, entry wireless.Record) {
+func (d *diagnostics) append(field string, entry wireless.Record) {
 	if d.fields == nil {
 		d.fields = wireless.Record{}
 		d.seen = map[string]map[string]bool{}
@@ -34,7 +34,7 @@ func (d *applyDiagnostics) append(field string, entry wireless.Record) {
 	entries, _ := d.fields[field].([]wireless.Record)
 	d.fields[field] = append(entries, entry)
 }
-func (d *applyDiagnostics) failure(field string, f *wireless.Failure) {
+func (d *diagnostics) failure(field string, f *wireless.Failure) {
 	if f == nil {
 		return
 	}
@@ -43,7 +43,7 @@ func (d *applyDiagnostics) failure(field string, f *wireless.Failure) {
 	}
 	d.append(field, f.ToMap())
 }
-func (d *applyDiagnostics) collect(err error, field, fallback, stage string) {
+func (d *diagnostics) collect(err error, field, fallback, stage string) {
 	var visit func(error, bool)
 	visit = func(err error, unknown bool) {
 		if err == nil {
@@ -59,10 +59,10 @@ func (d *applyDiagnostics) collect(err error, field, fallback, stage string) {
 			}
 			return
 		case *wireless.Failure:
-			d.failure(field, adapter.SafeFailure(e, fallback, stage))
+			d.failure(field, nativeerr.Classify(e, fallback, stage))
 			return
 		case *connector.Error:
-			d.failure(field, adapter.SafeFailure(e, fallback, stage))
+			d.failure(field, nativeerr.Classify(e, fallback, stage))
 			visit(e.Unwrap(), false)
 			return
 		}
@@ -77,12 +77,12 @@ func (d *applyDiagnostics) collect(err error, field, fallback, stage string) {
 			return
 		}
 		if unknown || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			d.failure(field, adapter.SafeFailure(err, fallback, stage))
+			d.failure(field, nativeerr.Classify(err, fallback, stage))
 		}
 	}
 	visit(err, true)
 }
-func (d *applyDiagnostics) attach(state wireless.Record) {
+func (d *diagnostics) attach(state wireless.Record) {
 	for field, value := range d.fields {
 		state[field] = value
 	}

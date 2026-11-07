@@ -47,12 +47,12 @@ func TestApplyRetainsIndependentSafeDiagnostics(t *testing.T) {
 			var store *report.Report
 			opens := 0
 			failedPublication := false
-			code := Run(ctx, []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + hash[:12] + "\n"), Output: &out, Error: &stderr, Terminal: func(any) bool { return true }, Environment: map[string]string{"NC_DEVICE_USERNAME": "fixture"}, Discovery: Discovery{Directories: []string{}}, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
+			code := Run(ctx, []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + hash[:12] + "\n"), Output: &out, Error: &stderr, Terminal: func(any) bool { return true }, Environment: map[string]string{"NC_DEVICE_USERNAME": "fixture"}, Discovery: Discovery{Directories: []string{}}, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
 				opens++
 				if mode == "connection" {
 					return wireless.NewFailure("authentication_error", "connect"), nil
 				}
-				e := run(session)
+				e := run(ctx, session)
 				if mode == "cleanup_publication" {
 					return e, errors.Join(wireless.NewFailure("transport_error", "cleanup"), errors.New(private))
 				}

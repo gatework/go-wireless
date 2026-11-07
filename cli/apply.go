@@ -9,18 +9,17 @@ import (
 	"github.com/gatework/go-net-connector/vendors"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/adapter"
-	"github.com/gatework/go-wireless/report"
+	"github.com/gatework/go-wireless/internal/apply"
 	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 // ApplyFactory owns one synchronous borrowed session callback and returns
 // operation and close diagnostics separately. Native defaults take one lease.
-type ApplyFactory func(context.Context, wireless.Record, connector.ConnectionConfig, func(wireless.ApplySession) error) (error, error)
+type ApplyFactory func(context.Context, wireless.Record, connector.ConnectionConfig, func(context.Context, wireless.ApplySession) error) (error, error)
 
 func applyCommand(ctx context.Context, args []string, r *Runner) int {
 	flags, help, e := commandFlags(args, []string{"--plan", "--env-file", "--directory", "--port"}, nil)
@@ -97,11 +96,11 @@ func applyCommand(ctx context.Context, args []string, r *Runner) int {
 	if e != nil {
 		return r.failure("缺少设备凭据")
 	}
-	profile, e := vendors.Profile("h3c_wireless")
+	platform, e := vendors.NewBuiltinRegistry().Lookup("h3c_wireless")
 	if e != nil {
 		return r.failure("下发平台错误")
 	}
-	native, e := connector.New(profile, cfg)
+	native, e := connector.New(platform.Profile(), cfg)
 	if e != nil {
 		return r.failure("连接参数无效")
 	}
@@ -120,169 +119,31 @@ func applyCommand(ctx context.Context, args []string, r *Runner) int {
 	if e != nil {
 		return r.failure("执行日志目录错误")
 	}
-	state := wireless.Record{"status": "confirmed", "device": device, "plan_sha256": hash, "expected_config_sha256": plan["expected_config_sha256"], "commands": commands, "steps": []wireless.Record{}}
-	started := false
-	stage := "connect"
-	fail := func(cause error, cleanup error) int {
-		state["status"] = "failed"
-		if started {
-			state["status"] = "uncertain"
-		}
-		state["error"] = "apply_failed"
-		if ctx.Err() != nil {
-			state["error"] = "interrupted"
-		}
-		diagnostics := &applyDiagnostics{}
-		fallback := "command_execution_failed"
-		if stage == "connect" {
-			fallback = "connection_failed"
-		} else if stage == "response" {
-			fallback = "invalid_command_result"
-		}
-		diagnostics.collect(cause, "operation_errors", fallback, stage)
-		diagnostics.collect(ctx.Err(), "cancellation_errors", fallback, stage)
-		diagnostics.collect(cleanup, "cleanup_errors", "session_close_failed", "close")
-		diagnostics.attach(state)
-		if cleanup != nil {
-			state["cleanup_error"] = "session_close_failed"
-		}
-		if e := store.WriteExecution(context.Background(), state); e != nil {
-			diagnostics.collect(e, "report_errors", "command_execution_failed", stage)
-			diagnostics.attach(state)
-			_, _ = fmt.Fprintln(r.Error, "执行日志收尾未确认；新增诊断仅保留在终端，已有检查点保留，禁止据此重放配置。")
-		}
-		summary := wireless.Record{"status": state["status"], "error": state["error"]}
-		if pending, ok := state["pending_command"]; ok {
-			summary["pending_command"] = pending
-		}
-		diagnostics.attach(summary)
-		if safeJSON, encodeErr := wireless.MarshalJSON(summary); encodeErr == nil {
-			_, _ = fmt.Fprintf(r.Error, "安全诊断：%s\n", safeJSON)
-		}
-		_, _ = fmt.Fprintln(r.Error, "下发停止；先回读核对，不自动重放、回退或保存配置。")
-		if ctx.Err() != nil {
-			return 130
-		}
-		return 2
-	}
-	if e = store.WriteExecution(ctx, state); e != nil {
-		return fail(e, nil)
-	}
-	change := plan["change"].(wireless.Record)
 	factory := r.ApplyFactory
 	if factory == nil {
-		factory = func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
+		factory = func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
 			return adapter.Apply(ctx, native, run)
 		}
 	}
-	operation := func(session wireless.ApplySession) error {
-		if session == nil {
-			return wireless.ErrChangePlan
-		}
-		stage = "response"
-		before, e := session.ReadConfiguration(ctx)
-		if e != nil {
-			return e
-		}
-		fingerprint, e := wireless.Fingerprint(before)
-		if e != nil || fingerprint != plan["expected_config_sha256"] || !wireless.ChangeEligible(before, change) {
-			return wireless.ErrChangePlan
-		}
-		for i, command := range commands {
-			stage = "execute"
-			if e = ctx.Err(); e != nil {
-				return e
-			}
-			state["status"] = "executing"
-			state["pending_command"] = i
-			if e = store.WriteExecution(ctx, state); e != nil {
-				var pe *report.Error
-				if errors.As(e, &pe) && pe.Committed {
-					started = true
-				}
-				return e
-			}
-			started = true
-			if e = ctx.Err(); e != nil {
-				return e
-			}
-			if e = session.Write(ctx, command); e != nil {
-				return e
-			}
-			steps := state["steps"].([]wireless.Record)
-			state["steps"] = append(steps, wireless.Record{"index": i, "status": "acknowledged"})
-			delete(state, "pending_command")
-			if e = store.WriteExecution(context.WithoutCancel(ctx), state); e != nil {
-				return e
-			}
-			if e = ctx.Err(); e != nil {
-				return e
-			}
-		}
-		stage = "response"
-		after, e := session.ReadConfiguration(ctx)
-		if e != nil {
-			return e
-		}
-		if !wireless.ChangeSatisfied(after, change) {
-			return errors.New("wireless: readback not satisfied")
-		}
-		fingerprint, e = wireless.Fingerprint(after)
-		if e != nil {
-			return e
-		}
-		state["observed_config_sha256"] = fingerprint
-		state["readback_verified"] = true
-		return ctx.Err()
+	open := func(ctx context.Context, run func(context.Context, wireless.ApplySession) error) (error, error) {
+		return factory(ctx, device, cfg, run)
 	}
-	operationErr, cleanupErr := ownedApply(ctx, factory, device, cfg, operation)
-	if operationErr != nil || cleanupErr != nil || ctx.Err() != nil {
-		return fail(operationErr, cleanupErr)
-	}
-	state["status"] = "configuration_verified"
-	if e = store.FinalizeExecution(ctx, state); e != nil {
-		return fail(e, nil)
-	}
-	if ctx.Err() != nil {
-		return fail(ctx.Err(), nil)
+	result, err := apply.Run(ctx, plan, hash, open, store)
+	if err != nil {
+		if result.ReportUnconfirmed {
+			_, _ = fmt.Fprintln(r.Error, "执行日志收尾未确认；新增诊断仅保留在终端，已有检查点保留，禁止据此重放配置。")
+		}
+		if safeJSON, encodeErr := wireless.MarshalJSON(result.Summary); encodeErr == nil {
+			_, _ = fmt.Fprintf(r.Error, "安全诊断：%s\n", safeJSON)
+		}
+		_, _ = fmt.Fprintln(r.Error, "下发停止；先回读核对，不自动重放、回退或保存配置。")
+		if result.Interrupted {
+			return 130
+		}
+		return 2
 	}
 	if _, e = fmt.Fprintf(r.Output, "配置回读已确认；仍需完成业务验收，未执行保存配置。日志：%s/execution.json\n", store.Directory()); e != nil {
 		return 2
 	}
 	return 0
-}
-
-// Host callbacks cannot replay writes, outlive the factory or race its return.
-func ownedApply(ctx context.Context, factory ApplyFactory, device wireless.Record, cfg connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
-	var mu sync.Mutex
-	active, started := true, false
-	done := make(chan struct{})
-	var callbackErr error
-	opErr, closeErr := factory(ctx, device, cfg, func(s wireless.ApplySession) error {
-		mu.Lock()
-		if !active || started {
-			mu.Unlock()
-			return wireless.ErrChangePlan
-		}
-		started = true
-		mu.Unlock()
-		e := run(s)
-		mu.Lock()
-		callbackErr = e
-		close(done)
-		mu.Unlock()
-		return e
-	})
-	mu.Lock()
-	active = false
-	admitted := started
-	mu.Unlock()
-	if !admitted {
-		if opErr == nil {
-			opErr = wireless.ErrChangePlan
-		}
-		return opErr, closeErr
-	}
-	<-done
-	return errors.Join(opErr, callbackErr, ctx.Err()), closeErr
 }

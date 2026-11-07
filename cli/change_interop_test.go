@@ -83,8 +83,8 @@ func TestCollectReviewApplyFullFingerprintRoundtrip(t *testing.T) {
 		_, before, after := applySetup(t)
 		session := &applyFixture{before: before, after: after}
 		hash := fmt.Sprintf("%x", sha256.Sum256(body))
-		code := Run(context.Background(), []string{"apply", "--plan", path, "--directory", filepath.Join(root, "executions")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + hash[:12] + "\n"), Output: &out, Error: &errs, Terminal: func(any) bool { return true }, Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
-			return run(session), nil
+		code := Run(context.Background(), []string{"apply", "--plan", path, "--directory", filepath.Join(root, "executions")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + hash[:12] + "\n"), Output: &out, Error: &errs, Terminal: func(any) bool { return true }, Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
+			return run(ctx, session), nil
 		}})
 		if code != 0 || session.writes != 8 {
 			t.Fatal(code, session.writes, errs.String())

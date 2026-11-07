@@ -34,9 +34,9 @@ func TestApplyRealTTYConfirmationAndCancellation(t *testing.T) {
 			opened := 0
 			done := make(chan int, 1)
 			go func() {
-				done <- Run(ctx, []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: console.Tty(), Output: console.Tty(), Error: console.Tty(), Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
+				done <- Run(ctx, []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: console.Tty(), Output: console.Tty(), Error: console.Tty(), Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
 					opened++
-					return run(session), nil
+					return run(ctx, session), nil
 				}})
 			}()
 			if cancelInput {

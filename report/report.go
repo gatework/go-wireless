@@ -424,7 +424,7 @@ func (r *Report) invalidateComplete(relative string) {
 	}
 }
 
-func (r *Report) WriteExecution(ctx context.Context, state any) error {
+func (r *Report) WriteExecution(ctx context.Context, state wireless.Record) error {
 	b, e := jsonBody(state)
 	if e != nil {
 		return e

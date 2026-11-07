@@ -81,12 +81,12 @@ func TestApplyDurableIntentReadbackAndNoReplay(t *testing.T) {
 				var e error
 				store, e = report.New(root, o)
 				return store, e
-			}, ApplyFactory: func(ctx context.Context, device wireless.Record, cfg connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
+			}, ApplyFactory: func(ctx context.Context, device wireless.Record, cfg connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
 				opens++
 				if cfg.HostKeyPolicy != "strict" || cfg.Username != "process" {
 					t.Fatal(cfg)
 				}
-				return run(session), nil
+				return run(ctx, session), nil
 			}}
 			session.inspect = func(n int) error {
 				b, e := os.ReadFile(filepath.Join(store.Directory(), "execution.json"))
@@ -133,7 +133,7 @@ func TestApplyRejectsTTYAndTamperingBeforeFactory(t *testing.T) {
 			os.WriteFile(path, b, 0600)
 			var out, err bytes.Buffer
 			calls := 0
-			code := Run(context.Background(), []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("wrong\n"), Output: &out, Error: &err, Terminal: func(any) bool { return mode != "tty" }, ApplyFactory: func(context.Context, wireless.Record, connector.ConnectionConfig, func(wireless.ApplySession) error) (error, error) {
+			code := Run(context.Background(), []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("wrong\n"), Output: &out, Error: &err, Terminal: func(any) bool { return mode != "tty" }, ApplyFactory: func(context.Context, wireless.Record, connector.ConnectionConfig, func(context.Context, wireless.ApplySession) error) (error, error) {
 				calls++
 				return nil, nil
 			}})
@@ -156,8 +156,8 @@ func TestApplyIntentPublicationFailureStopsWrites(t *testing.T) {
 	var out, errs bytes.Buffer
 	writes := 0
 	var store *report.Report
-	code := Run(context.Background(), []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + sha[:12] + "\n"), Output: &out, Error: &errs, Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, Terminal: func(any) bool { return true }, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
-		return run(session), nil
+	code := Run(context.Background(), []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + sha[:12] + "\n"), Output: &out, Error: &errs, Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, Terminal: func(any) bool { return true }, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
+		return run(ctx, session), nil
 	}, NewReport: func(root string, o report.Options) (*report.Report, error) {
 		o.Write = func(ctx context.Context, path string, b []byte) (storage.Receipt, error) {
 			writes++
@@ -199,8 +199,8 @@ func TestApplyFailureBoundaries(t *testing.T) {
 			var out, errs bytes.Buffer
 			var store *report.Report
 			publicationFailed := false
-			code := Run(ctx, []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + sha[:12] + "\n"), Output: &out, Error: &errs, Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, Terminal: func(any) bool { return true }, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
-				e := run(session)
+			code := Run(ctx, []string{"apply", "--plan", path, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + sha[:12] + "\n"), Output: &out, Error: &errs, Environment: map[string]string{"NC_DEVICE_USERNAME": "x"}, Discovery: Discovery{Directories: []string{}}, Terminal: func(any) bool { return true }, ApplyFactory: func(ctx context.Context, _ wireless.Record, _ connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
+				e := run(ctx, session)
 				if mode == "cleanup" {
 					return e, errors.New("sensitive close error")
 				}
@@ -297,12 +297,12 @@ func TestApplyCredentialDiscoveryAndExplicitLastProcessFirst(t *testing.T) {
 	var out, errs bytes.Buffer
 	session := &applyFixture{before: before, after: after}
 	seen := false
-	code := Run(context.Background(), []string{"apply", "--plan", path, "--env-file", explicit, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + sha[:12] + "\n"), Output: &out, Error: &errs, Environment: map[string]string{"NC_DEVICE_USERNAME": "process", "NC_HOST_KEY_POLICY": "accept_new"}, Discovery: Discovery{CWD: root, Directories: []string{root}}, Terminal: func(any) bool { return true }, ApplyFactory: func(ctx context.Context, _ wireless.Record, cfg connector.ConnectionConfig, run func(wireless.ApplySession) error) (error, error) {
+	code := Run(context.Background(), []string{"apply", "--plan", path, "--env-file", explicit, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + sha[:12] + "\n"), Output: &out, Error: &errs, Environment: map[string]string{"NC_DEVICE_USERNAME": "process", "NC_HOST_KEY_POLICY": "accept_new"}, Discovery: Discovery{CWD: root, Directories: []string{root}}, Terminal: func(any) bool { return true }, ApplyFactory: func(ctx context.Context, _ wireless.Record, cfg connector.ConnectionConfig, run func(context.Context, wireless.ApplySession) error) (error, error) {
 		seen = true
 		if cfg.Username != "process" || cfg.Password != "explicit-password" || cfg.KnownHosts != filepath.Join(root, "known-hosts") || cfg.HostKeyPolicy != "strict" || cfg.AllowTelnetFallback || cfg.AllowLegacySSH {
 			t.Fatal("credential precedence/trust boundary", cfg)
 		}
-		return run(session), nil
+		return run(ctx, session), nil
 	}})
 	if code != 0 || !seen {
 		t.Fatal(code, errs.String())
