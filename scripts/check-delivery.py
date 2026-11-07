@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify source provenance and a workspace-free, versioned consumer.
 
-The unpublished wireless source is served by a temporary file module proxy.
+The current wireless source is served by a temporary file module proxy.
 Its connector dependencies must be published modules; no replace is permitted.
 """
 import hashlib
@@ -87,7 +87,7 @@ def check_modules(root, env):
 def export_source(root, exported):
     allowed_dirs = {"adapter", "cli", "cmd", "internal", "dependencies", "docs", "examples",
                     "report", "scripts", "testdata", ".github"}
-    allowed_root = {"go.mod", "go.sum", "LICENSE", "README.md", "GLOSSARY.md", ".gitignore", ".golangci.yml"}
+    allowed_root = {"go.mod", "go.sum", "LICENSE", "README.md", "GLOSSARY.md", "VERSION", ".gitignore", ".golangci.yml"}
     forbidden = {".env", ".git", ".work", ".superpowers", "wireless-reports", "wireless-executions"}
     selected = []
     for path in sorted(root.rglob("*")):

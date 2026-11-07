@@ -20,6 +20,7 @@ import (
 	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/adapter"
+	"github.com/gatework/go-wireless/internal/buildinfo"
 	"github.com/gatework/go-wireless/report"
 	"golang.org/x/term"
 )
@@ -115,7 +116,7 @@ func (r *Runner) Run(ctx context.Context, argv []string) int {
 			if len(args) != 1 {
 				return r.failure("未知命令或多余参数")
 			}
-			if _, e := fmt.Fprintln(r.Output, Version); e != nil {
+			if _, e := fmt.Fprintln(r.Output, buildinfo.String(Version)); e != nil {
 				return 2
 			}
 			return 0

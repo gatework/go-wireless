@@ -47,3 +47,40 @@ jobs:
           version: v2.15.0
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       - run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - run: python3 scripts/test_release.py -v
+  package:
+    needs: [test, quality]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.x'
+          check-latest: true
+      - name: Package exact committed source and four platform binaries
+        run: python3 scripts/release.py package --sha "$GITHUB_SHA"
+      - name: Verify immutable assets, installed CLI and extracted source
+        run: |
+          python3 scripts/release.py verify --sha "$GITHUB_SHA"
+          package_tmp=$(mktemp -d)
+          trap 'rm -rf "$package_tmp"' EXIT
+          tar -xzf "dist/go-wireless_$(cat VERSION)_${GITHUB_SHA}_linux_amd64.tar.gz" -C "$package_tmp"
+          "$package_tmp/bin/wireless" --version | grep -Fx "go-wireless $(cat VERSION) revision $GITHUB_SHA"
+          printf 'sysname Release-WLC\nreturn\n' | "$package_tmp/bin/wireless" parse --complete --json > "$package_tmp/result.json"
+          python3 -c 'import json,sys; r=json.load(open(sys.argv[1])); sys.exit(0 if r["status"]=="complete" and r["records"][0]["global_settings"]["hostname"]=="Release-WLC" else 1)' "$package_tmp/result.json"
+          mkdir "$package_tmp/source"
+          tar -xzf "dist/go-wireless_$(cat VERSION)_${GITHUB_SHA}_source.tar.gz" -C "$package_tmp/source"
+          cd "$package_tmp/source/go-wireless"
+          go mod verify
+          go mod tidy -diff
+          go test -race -shuffle=on -count=1 ./...
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-${{ github.sha }}-${{ github.run_attempt }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30

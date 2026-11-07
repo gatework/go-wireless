@@ -2,7 +2,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export GOWORK=off GOFLAGS=-mod=readonly GOTOOLCHAIN=local
-format_files=$(go run golang.org/x/tools/cmd/goimports@v0.52.0 -l .)
+format_files=$(python3 - <<'PY'
+from pathlib import Path
+import subprocess
+directories = subprocess.check_output(['go', 'list', '-f', '{{.Dir}}', './...'], text=True).splitlines()
+files = sorted(str(path) for directory in directories for path in Path(directory).glob('*.go'))
+subprocess.run(['go', 'run', 'golang.org/x/tools/cmd/goimports@v0.52.0', '-l', *files], check=True)
+PY
+)
 if [[ -n "$format_files" ]]; then
   printf 'Go files require formatting:\n%s\n' "$format_files"
   exit 1

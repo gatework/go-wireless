@@ -3,6 +3,7 @@
 go.work
 go.work.sum
 bin/
+dist/
 coverage.out
 wireless-reports/
 wireless-executions/
