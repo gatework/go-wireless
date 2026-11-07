@@ -516,7 +516,6 @@ func (r *Runner) collect(ctx context.Context, argv []string) int {
 			// Observe it after recovery and publish interrupted state if possible.
 			if ctx.Err() != nil {
 				if !finish.Interrupted {
-					interrupted = true
 					finish.Interrupted = true
 					if recoveryErr != nil {
 						finish.ReportError = reportError(recoveryErr)

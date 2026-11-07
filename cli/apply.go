@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/gatework/go-net-connector/connector"
-	"github.com/gatework/go-net-connector/vendors"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/adapter"
 	"github.com/gatework/go-wireless/internal/apply"
@@ -102,7 +101,7 @@ func applyCommand(ctx context.Context, args []string, r *Runner) int {
 	if e != nil {
 		return r.failure("缺少设备凭据")
 	}
-	platform, e := vendors.NewBuiltinRegistry().Lookup("h3c_wireless")
+	platform, e := r.Registry.Lookup("h3c_wireless")
 	if e != nil {
 		return r.failure("下发平台错误")
 	}

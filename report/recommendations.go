@@ -3,9 +3,10 @@ package report
 import (
 	"context"
 	"fmt"
-	wireless "github.com/gatework/go-wireless"
 	"regexp"
 	"strings"
+
+	wireless "github.com/gatework/go-wireless"
 )
 
 // RecommendationHook enriches collect's exact published document. No source

@@ -105,10 +105,10 @@ func fixtureObserver(t *testing.T, steps []exchange, closeFail bool, event func(
 	if e != nil {
 		t.Fatal(e)
 	}
+	t.Cleanup(func() { _ = d.Close() })
 	if e = d.Connect(t.Context()); e != nil {
 		t.Fatal(e)
 	}
-	t.Cleanup(func() { _ = d.Close() })
 	return d, transport
 }
 
@@ -248,25 +248,26 @@ func TestNativeLeaseBusyReentryStaleAndCancellationRetire(t *testing.T) {
 	d, _ = fixture(t, []exchange{{"show\n", "<WLC>"}}, false, event)
 	a := makeAP(t, d)
 	var saved *connector.Operation
-	e, closeErr := d.WithBorrowedOperation(t.Context(), func(ctx context.Context, o *connector.Operation) error {
+	operationCtx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	e, closeErr := d.WithBorrowedOperation(operationCtx, func(ctx context.Context, o *connector.Operation) error {
 		op = o
 		saved = o
-		out, err := a.Read(t.Context(), apRecord())
+		out, err := a.Read(ctx, apRecord())
 		if err != nil || !out.Skipped || out.Error.Code() != "session_busy" || !d.Connected() {
 			t.Fatal("busy operation changed controller")
 		}
-		_, err = o.ExecuteCommand(t.Context(), connector.Command{Text: "show"}, connector.ExecuteOptions{})
+		_, err = o.ExecuteCommand(ctx, connector.Command{Text: "show"}, connector.ExecuteOptions{})
 		if err != nil {
 			return err
 		}
-		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		if ctx.Err() == nil {
 			t.Fatal("expected cancelled child context")
 		}
 		return o.Retire()
 	})
-	if e != nil || closeErr != nil || events != 1 || d.Connected() {
+	if !errors.Is(e, context.Canceled) || closeErr != nil || events != 1 || d.Connected() {
 		t.Fatalf("retire %v %d", e, events)
 	}
 	if !errors.Is(saved.Retire(), connector.ErrScope) {
@@ -394,6 +395,22 @@ func TestNativeInvalidEncodingRetainsReceipt(t *testing.T) {
 	cap, e := r.Read(t.Context(), command)
 	if e != nil || cap.Success() || cap.Failure().Code() != "invalid_output_encoding" || cap.Evidence()[0]["bytes"] != len(output) || d.Connected() {
 		t.Fatal(cap, e, cap.Evidence())
+	}
+}
+
+func TestNativeDecodedBodyRetainsRawWireEvidence(t *testing.T) {
+	command := "display wlan client verbose"
+	wire := command + "\r\n  \xd6\xd0\xce\xc4\r\n<WLC>"
+	d, _ := fixture(t, []exchange{{command + "\n", wire}}, false, nil)
+	s, _ := Borrow(d)
+	r, _ := wireless.NewReader(s, nil)
+	capture, err := r.Read(t.Context(), command)
+	evidence := capture.Evidence()
+	if err != nil || !capture.Success() || capture.Body() != "  中文\n" || len(evidence) != 1 {
+		t.Fatalf("decoded body %q, success=%t, err=%v", capture.Body(), capture.Success(), err)
+	}
+	if evidence[0]["bytes"] != len(wire) || evidence[0]["sha256"] != fmt.Sprintf("%x", sha256.Sum256([]byte(wire))) {
+		t.Fatal("wire bytes were replaced by decoded or accepted output", evidence)
 	}
 }
 

@@ -3,11 +3,12 @@ package adapter
 import (
 	"context"
 	"errors"
-	"github.com/gatework/go-net-connector/connector"
-	wireless "github.com/gatework/go-wireless"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/gatework/go-net-connector/connector"
+	wireless "github.com/gatework/go-wireless"
 )
 
 func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {
@@ -69,6 +70,39 @@ func TestNativeApplyRejectedOrPartialReadRetires(t *testing.T) {
 			})
 			if opErr == nil || closeErr != nil || d.Connected() {
 				t.Fatal(opErr, closeErr, d.Connected())
+			}
+		})
+	}
+}
+
+func TestNativeOpenersDoNotCloseAnotherOperationsLease(t *testing.T) {
+	for _, mode := range []string{"collect", "apply"} {
+		t.Run(mode, func(t *testing.T) {
+			device, transport := fixture(t, nil, false, nil)
+			operationErr, cleanupErr := device.WithBorrowedOperation(t.Context(), func(ctx context.Context, op *connector.Operation) error {
+				var err, closeErr error
+				if mode == "collect" {
+					err = Open(device)(ctx, func(wireless.Session) error {
+						t.Error("busy opener invoked callback")
+						return nil
+					})
+				} else {
+					err, closeErr = Apply(ctx, device, func(context.Context, wireless.ApplySession) error {
+						t.Error("busy opener invoked callback")
+						return nil
+					})
+				}
+				failure, ok := errors.AsType[*wireless.Failure](err)
+				if !ok || failure.Code() != "session_busy" || closeErr != nil {
+					t.Fatalf("busy result: %v, cleanup=%v", err, closeErr)
+				}
+				if ctx.Err() != nil || !op.Connected() || transport.closes.Load() != 0 {
+					t.Fatal("opener retired another operation's session")
+				}
+				return nil
+			})
+			if operationErr != nil || cleanupErr != nil || !device.Connected() {
+				t.Fatal(operationErr, cleanupErr)
 			}
 		})
 	}

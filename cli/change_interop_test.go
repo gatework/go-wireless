@@ -5,13 +5,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"github.com/gatework/go-net-connector/connector"
-	wireless "github.com/gatework/go-wireless"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gatework/go-net-connector/connector"
+	wireless "github.com/gatework/go-wireless"
 )
 
 type configSession struct{ body string }

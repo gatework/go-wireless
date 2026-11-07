@@ -4,12 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	wireless "github.com/gatework/go-wireless"
-	"github.com/gatework/go-wireless/report"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/report"
 )
 
 // commandFlags keeps review/apply's small, frozen flag surfaces separate from

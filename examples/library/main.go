@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	wireless "github.com/gatework/go-wireless"
 	"os"
+
+	wireless "github.com/gatework/go-wireless"
 )
 
 func main() {

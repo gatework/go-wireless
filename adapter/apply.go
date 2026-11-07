@@ -3,10 +3,11 @@ package adapter
 import (
 	"context"
 	"errors"
+	"strings"
+
 	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/nativeerr"
-	"strings"
 )
 
 // Apply opens once and owns one operation for preparation, precheck, all writes
@@ -16,6 +17,9 @@ func Apply(ctx context.Context, device *connector.Device, run func(context.Conte
 		return wireless.ErrChangePlan, nil
 	}
 	if e := device.Connect(ctx); e != nil {
+		if errors.Is(e, connector.ErrBusy) {
+			return nativeerr.Failure(e, "connection_failed", "connect"), nil
+		}
 		return nativeerr.Failure(e, "connection_failed", "connect"), device.Close()
 	}
 	entered := false
@@ -27,7 +31,7 @@ func Apply(ctx context.Context, device *connector.Device, run func(context.Conte
 		}
 		return e
 	})
-	if !entered {
+	if !entered && !errors.Is(operationErr, connector.ErrBusy) {
 		closeErr = errors.Join(closeErr, device.Close())
 	}
 	return operationErr, closeErr

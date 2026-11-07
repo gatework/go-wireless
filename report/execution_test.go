@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"github.com/gatework/go-net-connector/storage"
-	wireless "github.com/gatework/go-wireless"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gatework/go-net-connector/storage"
+	wireless "github.com/gatework/go-wireless"
 )
 
 func TestExecutionFinalPublicationFailurePreservesCheckpoint(t *testing.T) {

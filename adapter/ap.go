@@ -3,9 +3,6 @@ package adapter
 import (
 	"context"
 	"errors"
-	"github.com/gatework/go-net-connector/connector"
-	"github.com/gatework/go-wireless"
-	"github.com/gatework/go-wireless/internal/nativeerr"
 	"net/netip"
 	"regexp"
 	"strings"
@@ -13,6 +10,10 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/gatework/go-net-connector/connector"
+	"github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/internal/nativeerr"
 )
 
 var devicePrompt = regexp.MustCompile(`\A<[^<>\r\n]+>\z`)

@@ -1,15 +1,6 @@
 package wireless
 
 // Vendor labels mirror the frozen Ruby parser declarations.
-var h3cCommon = map[string]string{
-	"ap name":         "ap_name",
-	"ap id":           "ap_id",
-	"radio id":        "radio_id",
-	"ssid":            "ssid",
-	"bssid":           "bssid",
-	"vlan id":         "vlan",
-	"service vlan id": "service_vlan",
-}
 var h3cClient = map[string]string{
 	"ap name":               "ap_name",
 	"ap id":                 "ap_id",

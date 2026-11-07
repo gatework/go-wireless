@@ -1,7 +1,5 @@
 package wireless
 
-import ()
-
 var hardwareVersionLabel = rx(`^hardware version (.+)$`)
 var hardwareVersionSource = rx(`(?i)^Hardware version (.+?)\s*:`)
 

@@ -4,12 +4,13 @@ package adapter
 import (
 	"context"
 	"errors"
+	"strings"
+	"sync/atomic"
+
 	expect "github.com/gatework/go-expect"
 	"github.com/gatework/go-net-connector/connector"
 	"github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/nativeerr"
-	"strings"
-	"sync/atomic"
 )
 
 type Session struct {
@@ -33,6 +34,11 @@ func Open(device *connector.Device) wireless.OpenSession {
 		if device == nil || run == nil {
 			return wireless.NewFailure("connection_failed", "connect")
 		}
+		connectErr := device.Connect(ctx)
+		if errors.Is(connectErr, connector.ErrBusy) {
+			// Admission failed: the active lease still belongs to its caller.
+			return nativeerr.Failure(connectErr, "connection_failed", "connect")
+		}
 		session, _ := Borrow(device)
 		defer func() {
 			closeErr := device.Close()
@@ -43,8 +49,8 @@ func Open(device *connector.Device) wireless.OpenSession {
 				err = errors.Join(err, wireless.NewFailure("session_close_failed", "close"))
 			}
 		}()
-		if e := device.Connect(ctx); e != nil {
-			return nativeerr.Failure(e, "connection_failed", "connect")
+		if connectErr != nil {
+			return nativeerr.Failure(connectErr, "connection_failed", "connect")
 		}
 		return run(session)
 	}
@@ -152,6 +158,12 @@ func responseBody(step connector.StepResult) (string, error) {
 	prompt, err := response.Prompt()
 	if err != nil {
 		return "", err
+	}
+	// A line-anchored prompt can include its preceding newline. That separator
+	// belongs to the preceding body line and must survive prompt removal.
+	prompt = strings.TrimPrefix(prompt, "\n")
+	if prompt == "" || !strings.HasSuffix(text, prompt) {
+		return "", wireless.NewFailure("invalid_command_result", "response")
 	}
 	text = strings.TrimSuffix(text, prompt)
 	first, rest, newline := strings.Cut(text, "\n")

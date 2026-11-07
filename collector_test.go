@@ -409,7 +409,7 @@ func TestReaderEvidenceImmutableSafeAndFirstFailure(t *testing.T) {
 	}
 }
 func TestReaderRejectsMalformedReceiptsAndReentry(t *testing.T) {
-	for _, response := range []Receipt{{}, NewReceipt(ReceiptOptions{Attempted: true, Command: "other", Success: true, Steps: 1}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: true, Steps: 2}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: true, Steps: 1, Failure: NewFailure("device_error", "")}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: false})} {
+	for _, response := range []Receipt{{}, NewReceipt(ReceiptOptions{Command: "query", Success: true, Steps: 1}), NewReceipt(ReceiptOptions{Attempted: true, Command: "other", Success: true, Steps: 1}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: true, Steps: 2}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: true, Steps: 1, Failure: NewFailure("device_error", "")}), NewReceipt(ReceiptOptions{Attempted: true, Command: "query", Success: false})} {
 		s := controllerFixture()
 		s.receipt = func(string) Receipt { return response }
 		r, _ := NewReader(s, nil)
@@ -436,6 +436,29 @@ func TestReaderRejectsMalformedReceiptsAndReentry(t *testing.T) {
 	cap, e := r.Read(t.Context(), "query")
 	if e != nil || !cap.Skipped() || cap.Failure().Code() != "session_state_failed" || len(s.calls) != 0 {
 		t.Fatal(cap, e)
+	}
+}
+
+func TestReaderDistinguishesNoAttemptFromEmptyReceivedBytes(t *testing.T) {
+	for _, attempted := range []bool{false, true} {
+		t.Run(fmt.Sprint(attempted), func(t *testing.T) {
+			s := controllerFixture()
+			s.receipt = func(command string) Receipt {
+				return NewReceipt(ReceiptOptions{Command: command, Attempted: attempted, Failure: NewFailure("command_timeout", "execute")})
+			}
+			reader, _ := NewReader(s, nil)
+			capture, err := reader.Read(t.Context(), "query")
+			if err != nil || capture.Success() || capture.Failure().Code() != "command_timeout" {
+				t.Fatal(capture, err)
+			}
+			evidence := capture.Evidence()
+			if !attempted && len(evidence) != 0 {
+				t.Fatal("unattempted command acquired byte evidence", evidence)
+			}
+			if attempted && (len(evidence) != 1 || evidence[0]["bytes"] != 0 || evidence[0]["sha256"] != fmt.Sprintf("%x", sha256.Sum256(nil))) {
+				t.Fatal("empty attempted response lost its evidence", evidence)
+			}
+		})
 	}
 }
 

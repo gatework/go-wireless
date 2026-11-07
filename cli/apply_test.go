@@ -7,14 +7,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gatework/go-net-connector/connector"
-	"github.com/gatework/go-net-connector/storage"
-	wireless "github.com/gatework/go-wireless"
-	"github.com/gatework/go-wireless/report"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/gatework/go-net-connector/connector"
+	"github.com/gatework/go-net-connector/storage"
+	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/report"
 )
 
 type applyFixture struct {

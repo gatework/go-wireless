@@ -4,11 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	wireless "github.com/gatework/go-wireless"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	wireless "github.com/gatework/go-wireless"
 )
 
 func TestReviewRubyFullConfiguration(t *testing.T) {
