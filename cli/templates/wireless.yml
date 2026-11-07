@@ -1,0 +1,48 @@
+# 无凭据公开配置。CLI > 进程环境 > YAML > .env > 默认。相对路径按来源文件目录解析。
+platform: h3c
+# 并发默认继承公共 NC_PARALLEL；仅需独立覆盖时设置 parallel。
+# parallel: 4
+directory: wireless-reports
+# null：每台控制器采集本平台已支持维度，不包含 AP LLDP。
+# 按需指定：[access_points, radios, clients, configuration]
+dimensions: null
+ap_names: []
+ssh:
+  host_key_policy: accept_new
+  command_timeout: 60
+  login_timeout: 15
+# 与 net-connector/examples 相同的 Netdisco 配置字段。
+# HTTP 凭据：ND_URL、ND_USERNAME / ND_PASSWORD，或 ND_API_KEY。
+# PostgreSQL：source 改为 postgres，并填写 query；ND_DB_* 留在 .env。
+netdisco:
+  source: http
+  cache_enabled: true
+  cache_mode: prefer
+  cache_ttl: 259200
+  cache_directory: .cache/wireless/inventory
+  page_size: 500
+  max_pages: 10000
+  max_response_bytes: 16777216
+  max_inventory_bytes: 134217728
+  max_devices: 100000
+  inventory_timeout: 300
+  allow_insecure_http: false
+inventory:
+  include_hosts: []
+  exclude_hosts: []
+  include_names: []
+  exclude_names: []
+  name_match: contains
+  # 默认只选可识别的 H3C 控制器，避免将通用交换机当作无线设备。
+  # Huawei 控制器使用 [huawei]，并以名称/IP 精确约束现场范围。
+  include_vendors: [h3c_wireless]
+  exclude_vendors: []
+  vendor_overrides: {}
+  host_overrides: {}
+  device_rules: []
+# 使用静态设备时删除 netdisco 和 inventory 两段，再填写 devices。
+devices: []
+#  - host: 192.0.2.10
+#    name: WLC-01
+#    platform: h3c
+#    model: WX3540

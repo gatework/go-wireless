@@ -1,0 +1,6 @@
+用法：wireless apply --plan FILE [--env-file FILE]（必须真实终端明确确认）
+        --plan FILE                  单设备类型化计划 *.plan.json
+        --env-file FILE              显式凭据文件，进程环境优先
+        --directory DIR              私有执行日志目录
+        --port N                     SSH 端口，默认 22
+    -h, --help                       查看帮助，不连接设备

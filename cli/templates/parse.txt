@@ -1,0 +1,12 @@
+用法：wireless parse [选项]（离线文件或 stdin）
+        --file FILE                  读取文件，默认 stdin
+        --dimension NAME             configuration 或运行维度
+        --platform NAME              h3c / h3c_wireless / huawei，默认 h3c
+        --ap-name NAME               LLDP 关联的 AP 名称（必填）
+        --model NAME                 设备型号
+        --complete                   声明输入已完整采集，仍保留解析缺失诊断
+        --json                       输出事实 JSON，可能包含配置敏感信息
+    -h, --help                       查看帮助
+        --help-all                   查看全部选项
+        --examples                   查看示例
+维度：client_ip_conflicts, ap_models, access_points, radios, bsses, clients, configuration, ap_groups, service_templates, dot1x_connections, mab_connections, blocked_clients, lldp

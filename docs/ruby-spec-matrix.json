@@ -1,0 +1,463 @@
+[
+  {
+    "source": "spec/ap_radio_scopes_spec.rb",
+    "declared_blocks": 6,
+    "implementation": [
+      "h3c_access_points.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/ap_session_spec.rb",
+    "declared_blocks": 20,
+    "implementation": [
+      "adapter/ap.go"
+    ],
+    "tests": [
+      "adapter/native_test.go:TestNativeAPDialoguePaginationAndExactReturn",
+      "adapter/native_test.go:TestNativeAPCancellationRetiresInsideLease",
+      "adapter/native_test.go:TestNativeAPCapturedFactsSurviveWrongExitAndCloseFailure"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/bin_script_spec.rb",
+    "declared_blocks": 3,
+    "implementation": [
+      "cmd/wireless/main.go",
+      "cli/options.go"
+    ],
+    "tests": [
+      "cli/subprocess_test.go:TestSubprocessCLI",
+      "cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/apply_spec.rb",
+    "declared_blocks": 10,
+    "implementation": [
+      "cli/apply.go",
+      "adapter/apply.go"
+    ],
+    "tests": [
+      "cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay",
+      "cli/apply_test.go:TestApplyFailureBoundaries",
+      "cli/apply_pty_test.go:TestApplyRealTTYConfirmationAndCancellation",
+      "cli/apply_diagnostics_test.go:TestApplyRetainsIndependentSafeDiagnostics"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/collect_spec.rb",
+    "declared_blocks": 24,
+    "implementation": [
+      "cli/runner.go"
+    ],
+    "tests": [
+      "cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse",
+      "cli/runner_test.go:TestStoreFailureCancelsSiblingAndRetainsStartedEvidence",
+      "cli/runner_test.go:TestCredentialAndResourcePreflightBeforeReports",
+      "cli/runner_test.go:TestUserCancellationJoinsAndKeeps130OnSummaryFailure"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/connector_spec.rb",
+    "declared_blocks": 2,
+    "implementation": [
+      "cli/runner.go",
+      "adapter/session.go"
+    ],
+    "tests": [
+      "cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse",
+      "cli/runner_test.go:TestExplicitLLDPUsesIndependentLazyAPCredentials",
+      "adapter/native_test.go:TestNativeOpenCloseErrorKeepsControllerFacts"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/inventory_spec.rb",
+    "declared_blocks": 6,
+    "implementation": [
+      "cli/inventory.go",
+      "cli/inventory_schema.go"
+    ],
+    "tests": [
+      "cli/inventory_test.go:TestHTTPInventoryThroughNativePaginationAndControllerRules",
+      "cli/runner_test.go:TestNativeInventoryRulesFilteringAndExternalSourceInjection",
+      "cli/options_test.go:TestInvalidPublicConfiguration"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/options_spec.rb",
+    "declared_blocks": 21,
+    "implementation": [
+      "cli/options.go"
+    ],
+    "tests": [
+      "cli/options_test.go:TestLayeredConfigurationPathsAndSecrets",
+      "cli/options_test.go:TestSourceFieldsMatchRubyDotPathsAndEmptyOverlayKeepsOrigin",
+      "cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance",
+      "cli/options_test.go:TestInventoryEnvironmentMasking"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/parse_spec.rb",
+    "declared_blocks": 4,
+    "implementation": [
+      "cli/parse.go"
+    ],
+    "tests": [
+      "cli/runner_test.go:TestParseOfflineAndNumericIntent",
+      "cli/cancellation_review_test.go:TestReviewParseCancellationDuringBorrowedReadDiscardsFacts"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/report_spec.rb",
+    "declared_blocks": 12,
+    "implementation": [
+      "report/report.go"
+    ],
+    "tests": [
+      "report/report_test.go:TestFinalizePhaseFailuresNeverLeaveCompleteSummary",
+      "report/report_test.go:TestPrivateRootAndUTCCollisionSuffix",
+      "report/report_test.go:TestCancellationAfterFinalRenameSurvivesFailedRecovery"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli/review_spec.rb",
+    "declared_blocks": 8,
+    "implementation": [
+      "cli/review.go",
+      "report/recommendations.go"
+    ],
+    "tests": [
+      "cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput",
+      "report/recommendations_test.go:TestReviewRubyFullConfiguration",
+      "report/report_test.go:TestFinalizeReviewUsesSameRecoveryAndConfinesPath"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/cli_spec.rb",
+    "declared_blocks": 9,
+    "implementation": [
+      "cli/runner.go",
+      "cmd/wireless/main.go"
+    ],
+    "tests": [
+      "cli/subprocess_test.go:TestSubprocessCLI",
+      "cli/options_test.go:TestInformationalAndMissingConfigurationDoNotConsumeInput",
+      "cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/collector_spec.rb",
+    "declared_blocks": 28,
+    "implementation": [
+      "collector.go",
+      "collector_ap.go",
+      "capture.go"
+    ],
+    "tests": [
+      "collector_test.go:TestCollectorSharedQueriesFirstFactsAndNoSession",
+      "collector_test.go:TestCollectorLateAndConcurrentCallbacksNeverReplay",
+      "collector_test.go:TestCollectorAPLazyDependenciesSelectionAndBinding",
+      "collector_test.go:TestCollectorAPFailuresDoNotLoseFactsOrOtherAPs",
+      "collector_test.go:TestCollectorAPInvalidCapturesSetupAndMissingNames"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/compound_settings_spec.rb",
+    "declared_blocks": 3,
+    "implementation": [
+      "h3c_configuration_settings.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/config_spec.rb",
+    "declared_blocks": 4,
+    "implementation": [
+      "config.go",
+      "h3c_configuration.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "parser_api_test.go:TestConfigViewsAndNeighborAPI"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/configuration_integrity_spec.rb",
+    "declared_blocks": 12,
+    "implementation": [
+      "h3c_configuration.go",
+      "h3c_configuration_settings.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "domain_boundaries_test.go:TestConfigurationSourceCapturesAreOwnedAndRedacted"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/coverage_spec.rb",
+    "declared_blocks": 6,
+    "implementation": [
+      "coverage.go",
+      "projection.go"
+    ],
+    "tests": [
+      "parser_api_test.go:TestCoverageAllReasonBranches",
+      "core_test.go:TestCoverageFreshness",
+      "parser_api_test.go:TestCoverageFalseTimestampFallsBackLikeRuby"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/evidence_contract_spec.rb",
+    "declared_blocks": 5,
+    "implementation": [
+      "runtime_parser.go",
+      "huawei_access_points.go",
+      "h3c_neighbors.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "parser_api_test.go:TestProfileQueriesAliasesAndCopies"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/fields_spec.rb",
+    "declared_blocks": 4,
+    "implementation": [
+      "fields.go",
+      "fields_integer.go"
+    ],
+    "tests": [
+      "fields_test.go:TestRubyFieldCorpus",
+      "fields_test.go:TestIndependentFieldBoundaries",
+      "exact_numbers_test.go:TestExactControllerIntegers"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/h3c/configuration_and_lldp_spec.rb",
+    "declared_blocks": 7,
+    "implementation": [
+      "h3c_configuration.go",
+      "h3c_neighbors.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "parser_api_test.go:TestConfigViewsAndNeighborAPI"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/h3c/configuration_source_spec.rb",
+    "declared_blocks": 18,
+    "implementation": [
+      "configuration_source.go",
+      "h3c_configuration.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "parser_api_test.go:TestSourceLineAndObservationStates",
+      "domain_boundaries_test.go:TestConfigurationSourceCapturesAreOwnedAndRedacted"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/h3c/conflicts_and_models_spec.rb",
+    "declared_blocks": 8,
+    "implementation": [
+      "h3c_client_ip_conflicts.go",
+      "h3c_models.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/h3c/live_evidence_consistency_spec.rb",
+    "declared_blocks": 2,
+    "implementation": [
+      "h3c_client_ip_conflicts.go",
+      "h3c_fields.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/immutable_boundaries_spec.rb",
+    "declared_blocks": 9,
+    "implementation": [
+      "observation.go",
+      "snapshot.go",
+      "projection.go",
+      "coverage.go"
+    ],
+    "tests": [
+      "core_test.go:TestObservationOwnershipAndSafeFormatting",
+      "domain_boundaries_test.go:TestSnapshotProjectionAndCoverageOwnership",
+      "core_review_test.go:TestReviewCoverageCompositeStatusesAreOwned"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/live_formats_spec.rb",
+    "declared_blocks": 6,
+    "implementation": [
+      "h3c_access_points.go",
+      "h3c_fields.go",
+      "h3c_configuration.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/loading_spec.rb",
+    "declared_blocks": 2,
+    "implementation": [
+      "go.mod",
+      "runtime_parser.go",
+      "config.go"
+    ],
+    "tests": [
+      "parser_api_test.go:TestConfigViewsAndNeighborAPI",
+      "parser_api_test.go:TestParserConcurrentReuse"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/neighbor_parser_spec.rb",
+    "declared_blocks": 7,
+    "implementation": [
+      "neighbor_parser.go",
+      "h3c_neighbors.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "parser_api_test.go:TestConfigViewsAndNeighborAPI"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/parser_integrity_spec.rb",
+    "declared_blocks": 17,
+    "implementation": [
+      "h3c_record.go",
+      "h3c_configuration.go",
+      "h3c_neighbors.go",
+      "huawei_clients.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "domain_boundaries_test.go:TestIPBracketFamily",
+      "exact_numbers_test.go:TestExactControllerIntegers"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/platform_contract_spec.rb",
+    "declared_blocks": 5,
+    "implementation": [
+      "parser_registry.go",
+      "runtime_parser.go",
+      "collector.go"
+    ],
+    "tests": [
+      "parser_api_test.go:TestProfileQueriesAliasesAndCopies",
+      "core_test.go:TestRuntimeInvalidRequestsAndIndependentViews",
+      "collector_test.go:TestCollectorOrderingDependenciesUnsupportedAndParserCompleteness"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/recommendations_spec.rb",
+    "declared_blocks": 7,
+    "implementation": [
+      "recommendations.go",
+      "change_plan.go"
+    ],
+    "tests": [
+      "recommendations_test.go:TestRubyRecommendations",
+      "change_plan_test.go:TestTypedSecurityChange",
+      "report/recommendations_test.go:TestHistoricalExponentNameRemainsAdvisoryOnly"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/record_separator_spec.rb",
+    "declared_blocks": 2,
+    "implementation": [
+      "terminal.go",
+      "configuration_source.go"
+    ],
+    "tests": [
+      "fields_test.go:TestAllTextNewlinePolicies",
+      "core_test.go:TestRubyParserCorpus"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/replay_evidence_spec.rb",
+    "declared_blocks": 1,
+    "implementation": [
+      "terminal.go",
+      "runtime_parser.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/runtime_parser_spec.rb",
+    "declared_blocks": 14,
+    "implementation": [
+      "runtime_parser.go",
+      "h3c_access_points.go",
+      "h3c_fields.go",
+      "huawei_access_points.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "core_review_test.go:TestReviewLargePositiveRSSIMatchesRubyFloatRound"
+    ],
+    "status": "verified; corpus and focused tests"
+  },
+  {
+    "source": "spec/terminal_spec.rb",
+    "declared_blocks": 2,
+    "implementation": [
+      "terminal.go"
+    ],
+    "tests": [
+      "core_test.go:TestRubyParserCorpus",
+      "fields_test.go:TestAllTextNewlinePolicies"
+    ],
+    "status": "verified; corpus and focused tests"
+  }
+]

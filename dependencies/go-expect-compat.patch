@@ -1,0 +1,896 @@
+--- /dev/null
++++ b/compat.go
+@@ -0,0 +1,218 @@
++package expect
++
++import (
++	"context"
++	"errors"
++	"io"
++)
++
++// Poll matches buffered bytes and performs one OS readiness pass without waiting
++// for future input. No match returns ErrTimeout. A zero Expect timeout instead
++// disables that timer and continues waiting. Requires WithOSPolling.
++func (s *Session) Poll(ctx context.Context, cases []Case, opts ...ExpectOption) (Result, error) {
++	if s.osIO == nil {
++		return Result{CaseIndex: -1}, ErrPollUnsupported
++	}
++	opts = append(append([]ExpectOption(nil), opts...), func(o *expectOptions) error { o.poll = true; return nil })
++	return s.Expect(ctx, cases, opts...)
++}
++
++func (s *Session) acceptEvent(event readEvent) error {
++	s.staged = event.data
++	s.stagedErr = event.err
++	if len(event.data) == 0 && event.err != nil {
++		s.terminal = event.err
++		s.stagedErr = nil
++		return s.emit(nil, true)
++	}
++	return nil
++}
++
++// SendAll writes only the unsent suffix after positive partial writes. Its
++// context owns the complete deadline, including serialization; WithWriteTimeout
++// applies only to Send. Receive data is queued up to WithBufferLimit while the
++// peer writes before reading. Exceeding that bound fails instead of deadlocking.
++// Every error after transport entry closes the Session and reports total progress.
++func (s *Session) SendAll(ctx context.Context, text string) (int, error) {
++	return s.sendAll(ctx, text, false)
++}
++
++// SendAllPoll uses immediate OS write readiness for every suffix, permitting an
++// initial write without waiting. A blocked suffix returns ErrTimeout with total
++// progress and closes the Session. Requires WithOSPolling.
++func (s *Session) SendAllPoll(ctx context.Context, text string) (int, error) {
++	if s.osIO == nil {
++		return 0, ErrPollUnsupported
++	}
++	return s.sendAll(ctx, text, true)
++}
++func (s *Session) sendAll(ctx context.Context, text string, poll bool) (n int, err error) {
++	defer func() { s.notify(Event{Operation: "send_all", CaseIndex: -1, Bytes: n, Error: errorClass(err)}) }()
++	if ctx == nil {
++		return 0, errors.New("expect: nil context")
++	}
++	if err = ctx.Err(); err != nil {
++		return 0, err
++	}
++	select {
++	case s.writeGate <- struct{}{}:
++		defer func() { <-s.writeGate }()
++	case <-ctx.Done():
++		return 0, ctx.Err()
++	case <-s.done:
++		return 0, ErrClosed
++	}
++	if err = ctx.Err(); err != nil {
++		return 0, err
++	}
++	if s.isClosed() {
++		return 0, ErrClosed
++	}
++	if len(text) == 0 {
++		return 0, nil
++	}
++	s.lifeMu.Lock()
++	if s.isClosed() {
++		s.lifeMu.Unlock()
++		return 0, ErrClosed
++	}
++	results := make(chan writeResult, 1)
++	s.workers.Add(1)
++	go func() {
++		defer s.workers.Done()
++		total := 0
++		var e error
++		for total < len(text) {
++			if e = ctx.Err(); e != nil {
++				break
++			}
++			var count int
++			if poll {
++				count, e = s.osIO.writeNow([]byte(text[total:]))
++			} else {
++				count, e = s.transport.Write([]byte(text[total:]))
++			}
++			if count < 0 || count > len(text)-total {
++				count = 0
++				e = errors.Join(errors.New("expect: invalid write count"), e)
++			}
++			total += count
++			if e != nil {
++				break
++			}
++			if count == 0 {
++				e = io.ErrNoProgress
++				break
++			}
++		}
++		results <- writeResult{total, e}
++	}()
++	s.lifeMu.Unlock()
++	// Drain without competing with an active Expect receive. The input gate also
++	// preserves order when a later Expect claims queued input.
++	events := s.events
++	s.signalInput() // Inspect already published input before relying on future notifications.
++	for {
++		select {
++		case r := <-results:
++			n, err = r.n, r.err
++			if stop := ctx.Err(); stop != nil {
++				err = errors.Join(stop, err)
++			} else if s.isClosed() {
++				err = errors.Join(ErrClosed, err)
++			}
++			if err != nil {
++				s.Close()
++				return n, &WriteError{Written: n, Cause: err}
++			}
++			return n, nil
++		case <-ctx.Done():
++			s.Close()
++			r := <-results
++			return r.n, &WriteError{Written: r.n, Cause: errors.Join(ctx.Err(), r.err)}
++		case <-s.done:
++			r := <-results
++			return r.n, &WriteError{Written: r.n, Cause: errors.Join(ErrClosed, r.err)}
++		case <-s.inputReady:
++			// Reserve ownership only after a readiness notification, and never hold
++			// it while waiting for future input. Existing queued bytes stay visible.
++			select {
++			case s.inputGate <- struct{}{}:
++				select {
++				case event, ok := <-events:
++					if !ok {
++						events = nil
++					}
++					if ok {
++						if e := s.queueEvent(event); e != nil {
++							<-s.inputGate
++							s.Close()
++							r := <-results
++							return r.n, &WriteError{Written: r.n, Cause: errors.Join(e, r.err)}
++						}
++					}
++				default:
++				}
++				<-s.inputGate
++			case r := <-results:
++				n, err = r.n, r.err
++				if stop := ctx.Err(); stop != nil {
++					err = errors.Join(stop, err)
++				} else if s.isClosed() {
++					err = errors.Join(ErrClosed, err)
++				}
++				if err != nil {
++					s.Close()
++					return n, &WriteError{Written: n, Cause: err}
++				}
++				return n, nil
++			case <-ctx.Done():
++				s.Close()
++				r := <-results
++				return r.n, &WriteError{Written: r.n, Cause: errors.Join(ctx.Err(), r.err)}
++			case <-s.done:
++				r := <-results
++				return r.n, &WriteError{Written: r.n, Cause: errors.Join(ErrClosed, r.err)}
++			}
++		}
++	}
++}
++
++// queueEvent coalesces the queued stream into one ownership unit: at most limit
++// payload capacity plus one fixed readEvent header, regardless of read sizes.
++// The input gate protects both queue mutation and dequeue order. A terminal
++// event belongs after all its bytes and therefore remains at the coalesced end.
++func (s *Session) queueEvent(event readEvent) error {
++	if len(event.data) == 0 && event.err == nil {
++		return nil
++	}
++	if s.queuedBytes+len(event.data) > s.opts.limit {
++		return ErrBufferLimit
++	}
++	if len(s.queued) == 0 {
++		data := event.data
++		if cap(data) > s.opts.limit {
++			data = make([]byte, len(event.data))
++			copy(data, event.data)
++		}
++		s.queued = []readEvent{{data: data, err: event.err}}
++		s.queuedBytes = len(data)
++		return nil
++	}
++	queued := &s.queued[0]
++	size := len(queued.data) + len(event.data)
++	if size > cap(queued.data) {
++		capacity := min(s.opts.limit, max(size, 2*cap(queued.data)))
++		data := make([]byte, size, capacity)
++		copy(data, queued.data)
++		copy(data[len(queued.data):], event.data)
++		queued.data = data
++	} else {
++		queued.data = append(queued.data, event.data...)
++	}
++	if event.err != nil {
++		queued.err = event.err
++	}
++	s.queuedBytes = size
++	return nil
++}
+--- a/console.go
++++ b/console.go
+@@ -21,6 +21,7 @@
+ 	"io"
+ 	"os"
+ 	"sync"
++	"syscall"
+ 	"time"
+ 
+ 	"github.com/creack/pty"
+@@ -151,3 +152,11 @@
+ 	})
+ 	return p.err
+ }
++
++func (p *ptyTransport) SyscallConn() (syscall.RawConn, error) { return p.master.SyscallConn() }
++func (p *ptyTransport) normalizeReadError(err error) error {
++	if errors.Is(err, unix.EIO) {
++		return io.EOF
++	}
++	return err
++}
+--- a/expect.go
++++ b/expect.go
+@@ -72,6 +72,8 @@
+ 	defer timer.Stop()
+ 	// Literal scan positions are local to this call and reset on consumption.
+ 	scanned := make([]int, len(cases))
++	var pollAck chan struct{}
++	polled := false
+ 	for {
+ 		if err = ctx.Err(); err != nil {
+ 			return failure(err)
+@@ -101,10 +103,19 @@
+ 				return failure(e)
+ 			}
+ 			scanned[i] = len(s.pending)
+-			if ok && (chosen < 0 || hit.start < loc.start) {
++			if ok && (chosen < 0 || (!o.declaration && hit.start < loc.start)) {
+ 				chosen = i
+ 				loc = hit
+-			}
++				if o.declaration {
++					break
++				}
++			}
++		}
++		streaming := false
++		if chosen < 0 && o.streaming != nil && len(s.pending) >= 64<<10 {
++			chosen = len(cases)
++			loc = location{start: 0, end: 32 << 10}
++			streaming = true
+ 		}
+ 		eof := false
+ 		if chosen < 0 && s.terminal != nil {
+@@ -131,8 +142,12 @@
+ 			if s.isClosed() {
+ 				return failure(ErrClosed)
+ 			}
+-			result = Result{CaseIndex: chosen, Before: string(s.pending[:loc.start]), Match: string(s.pending[loc.start:loc.end]), Captures: loc.captures}
+-			if guards != nil && guards[chosen] != nil {
++			index := chosen
++			if streaming {
++				index = -1
++			}
++			result = Result{CaseIndex: index, Before: string(s.pending[:loc.start]), Match: string(s.pending[loc.start:loc.end]), Captures: loc.captures}
++			if !streaming && guards != nil && guards[chosen] != nil {
+ 				if err = guards[chosen](result); err != nil {
+ 					return result, err
+ 				}
+@@ -142,7 +157,12 @@
+ 			for i := range scanned {
+ 				scanned[i] = 0
+ 			}
+-			handler := cases[chosen].Handler
++			var handler Handler
++			if streaming {
++				handler = o.streaming
++			} else {
++				handler = cases[chosen].Handler
++			}
+ 			if handler == nil {
+ 				return result, nil
+ 			}
+@@ -164,7 +184,9 @@
+ 			case Return:
+ 				return result, operationError(ctx, relative, idle)
+ 			case Continue:
+-				relative = after(time.Now(), o.timeout)
++				if !streaming {
++					relative = after(time.Now(), o.timeout)
++				}
+ 			case ContinueWithoutReset:
+ 			default:
+ 				return result, errors.New("expect: invalid handler action")
+@@ -181,6 +203,9 @@
+ 		}
+ 		if len(s.staged) > 0 {
+ 			n := s.opts.limit - len(s.pending)
++			if o.streaming != nil && len(s.pending) < 64<<10 {
++				n = min(n, (64<<10)-len(s.pending))
++			}
+ 			if n > len(s.staged) {
+ 				n = len(s.staged)
+ 			}
+@@ -215,15 +240,88 @@
+ 			wake = timer.C
+ 		}
+ 		select {
++		case s.inputGate <- struct{}{}:
++		case <-wake:
++			continue
+ 		case <-ctx.Done():
++			return failure(ctx.Err())
++		case <-s.done:
++			return failure(ErrClosed)
++		}
++		if len(s.queued) > 0 {
++			event := s.queued[0]
++			s.queued[0] = readEvent{}
++			s.queued = nil
++			s.queuedBytes -= len(event.data)
++			<-s.inputGate
++			if e := s.acceptEvent(event); e != nil {
++				s.Close()
++				return failure(e)
++			}
++			continue
++		}
++		if o.poll && pollAck == nil && !polled {
++			pollAck = make(chan struct{})
++			select {
++			case s.pollRequests <- pollAck:
++			case event, ok := <-s.events:
++				pollAck = nil
++				<-s.inputGate
++				if !ok {
++					if s.terminal == nil {
++						s.terminal = io.EOF
++					}
++					continue
++				}
++				if e := s.acceptEvent(event); e != nil {
++					s.Close()
++					return failure(e)
++				}
++				continue
++			case <-ctx.Done():
++				<-s.inputGate
++				return failure(ctx.Err())
++			case <-s.done:
++				<-s.inputGate
++				return failure(ErrClosed)
++			}
++		}
++		if o.poll && polled {
++			select {
++			case event, ok := <-s.events:
++				<-s.inputGate
++				if ok {
++					if e := s.acceptEvent(event); e != nil {
++						s.Close()
++						return failure(e)
++					}
++					continue
++				}
++			default:
++				<-s.inputGate
++				return failure(ErrTimeout)
++			}
++			continue
++		}
++		select {
++		case <-pollAck:
++			<-s.inputGate
++			polled = true
++			pollAck = nil
++			continue
++		case <-ctx.Done():
++			<-s.inputGate
+ 			timer.Stop()
+ 			return failure(ctx.Err())
+ 		case <-s.done:
++			<-s.inputGate
+ 			timer.Stop()
+ 			return failure(ErrClosed)
+ 		case <-wake:
++			<-s.inputGate
+ 			continue
+ 		case event, ok := <-s.events:
++			<-s.inputGate
+ 			timer.Stop()
+ 			if !ok {
+ 				if s.terminal == nil {
+--- a/options.go
++++ b/options.go
+@@ -8,12 +8,13 @@
+ )
+ 
+ var (
+-	ErrClosed      = errors.New("expect: session closed")
+-	ErrBusy        = errors.New("expect: another expect operation is active")
+-	ErrTimeout     = errors.New("expect: timeout")
+-	ErrIdleTimeout = errors.New("expect: idle timeout")
+-	ErrBufferLimit = errors.New("expect: buffer limit reached")
+-	ErrEmptyMatch  = errors.New("expect: empty match")
++	ErrClosed          = errors.New("expect: session closed")
++	ErrBusy            = errors.New("expect: another expect operation is active")
++	ErrTimeout         = errors.New("expect: timeout")
++	ErrIdleTimeout     = errors.New("expect: idle timeout")
++	ErrBufferLimit     = errors.New("expect: buffer limit reached")
++	ErrEmptyMatch      = errors.New("expect: empty match")
++	ErrPollUnsupported = errors.New("expect: OS polling unsupported")
+ )
+ 
+ // WriteError reports a failed, non-retryable write. Error never prints payloads
+@@ -39,7 +40,7 @@
+ 	Error            string
+ }
+ 
+-// Observer is invoked once per completed public Expect or Send operation.
++// Observer is invoked once per completed public Expect, Send or SendAll operation.
+ // Observers run synchronously outside locks and must not block indefinitely.
+ type Observer func(Event)
+ 
+@@ -50,6 +51,7 @@
+ 	outputs               []io.Writer
+ 	observers             []Observer
+ 	logger                *log.Logger
++	osPolling             bool
+ }
+ 
+ // SessionOption configures a Session before it takes ownership of the transport.
+@@ -147,9 +149,14 @@
+ 	}
+ }
+ 
+-type expectOptions struct{ timeout, idle time.Duration }
+-
+-// ExpectOption changes the timing of a single Expect operation.
++type expectOptions struct {
++	timeout, idle time.Duration
++	declaration   bool
++	streaming     Handler
++	poll          bool
++}
++
++// ExpectOption configures matching or timing for a single Expect operation.
+ type ExpectOption func(*expectOptions) error
+ 
+ // WithTimeout sets the relative timer, including elapsed callback time.
+@@ -174,3 +181,29 @@
+ 		return nil
+ 	}
+ }
++
++// WithDeclarationPriority selects the first declared matching case, regardless
++// of its byte position. Without this option the earliest byte wins.
++func WithDeclarationPriority() ExpectOption {
++	return func(o *expectOptions) error { o.declaration = true; return nil }
++}
++
++// WithStreamingFallback consumes the first 32 KiB when 64 KiB are pending and
++// no ordinary case matches. Result.CaseIndex is -1 and Match is the consumed data.
++// Continue and ContinueWithoutReset both preserve all existing timers.
++func WithStreamingFallback(handler Handler) ExpectOption {
++	return func(o *expectOptions) error {
++		if handler == nil {
++			return errors.New("expect: nil streaming handler")
++		}
++		o.streaming = handler
++		return nil
++	}
++}
++
++// WithOSPolling enables sole-reader OS readiness coordination for Poll and
++// SendAllPoll. The transport must expose syscall.Conn and a nonblocking OS fd.
++// Unsupported transports fail construction before ownership transfers.
++func WithOSPolling() SessionOption {
++	return func(o *sessionOptions) error { o.osPolling = true; return nil }
++}
+--- /dev/null
++++ b/polling_other.go
+@@ -0,0 +1,11 @@
++//go:build !linux && !darwin
++
++package expect
++
++import "io"
++
++type osAccess struct{}
++
++func newOSAccess(io.ReadWriteCloser) (*osAccess, error) { return nil, ErrPollUnsupported }
++func (*osAccess) writeNow([]byte) (int, error)          { return 0, ErrPollUnsupported }
++func (s *Session) osReadLoop()                          { s.workers.Done(); close(s.events) }
+--- /dev/null
++++ b/polling_unix.go
+@@ -0,0 +1,144 @@
++//go:build linux || darwin
++
++package expect
++
++import (
++	"errors"
++	"io"
++	"syscall"
++
++	"golang.org/x/sys/unix"
++)
++
++type osAccess struct {
++	raw       syscall.RawConn
++	normalize func(error) error
++}
++
++func newOSAccess(transport io.ReadWriteCloser) (*osAccess, error) {
++	conn, ok := transport.(syscall.Conn)
++	if !ok {
++		return nil, ErrPollUnsupported
++	}
++	raw, e := conn.SyscallConn()
++	if e != nil {
++		return nil, errors.Join(ErrPollUnsupported, e)
++	}
++	var inner error
++	e = raw.Control(func(fd uintptr) { inner = unix.SetNonblock(int(fd), true) })
++	if e != nil || inner != nil {
++		return nil, errors.Join(ErrPollUnsupported, e, inner)
++	}
++	a := &osAccess{raw: raw}
++	if p, ok := transport.(*ptyTransport); ok {
++		a.normalize = p.normalizeReadError
++	}
++	return a, nil
++}
++func (a *osAccess) read(wait int) ([]byte, error, bool) {
++	var data []byte
++	var err error
++	ready := false
++	control := a.raw.Control(func(fd uintptr) {
++		poll := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLIN}}
++		n, e := unix.Poll(poll, wait)
++		if e == unix.EINTR {
++			return
++		}
++		if e != nil {
++			err = e
++			ready = true
++			return
++		}
++		if n == 0 {
++			return
++		}
++		data = make([]byte, readChunk)
++		n, e = unix.Read(int(fd), data)
++		if e == unix.EAGAIN || e == unix.EWOULDBLOCK || e == unix.EINTR {
++			data = nil
++			return
++		}
++		ready = true
++		if n < 0 {
++			n = 0
++		}
++		// A tiny read must transfer tiny storage, not retain the entire scratch
++		// allocation in a stalled sender's receive queue.
++		if n == 0 {
++			data = nil
++		} else if n < readChunk/2 {
++			small := make([]byte, n)
++			copy(small, data[:n])
++			data = small
++		} else {
++			data = data[:n]
++		}
++		err = e
++		if n == 0 && err == nil {
++			err = io.EOF
++		}
++	})
++	if control != nil {
++		return nil, control, true
++	}
++	if a.normalize != nil {
++		err = a.normalize(err)
++	}
++	return data, err, ready
++}
++func (a *osAccess) writeNow(data []byte) (int, error) {
++	n := 0
++	var err error
++	control := a.raw.Control(func(fd uintptr) {
++		fds := []unix.PollFd{{Fd: int32(fd), Events: unix.POLLOUT}}
++		count, e := unix.Poll(fds, 0)
++		if e != nil {
++			err = e
++			return
++		}
++		if count == 0 {
++			err = ErrTimeout
++			return
++		}
++		n, err = unix.Write(int(fd), data)
++		if n < 0 {
++			n = 0
++		}
++		if err == unix.EAGAIN || err == unix.EWOULDBLOCK {
++			err = ErrTimeout
++		}
++	})
++	return n, errors.Join(err, control)
++}
++
++func (s *Session) osReadLoop() {
++	defer s.workers.Done()
++	defer close(s.events)
++	for {
++		var ack chan struct{}
++		select {
++		case <-s.done:
++			return
++		case ack = <-s.pollRequests:
++		default:
++		}
++		wait := 10
++		if ack != nil {
++			wait = 0
++		}
++		data, err, ready := s.osIO.read(wait)
++		if ready && !s.publishRead(readEvent{data: data, err: err}) {
++			if ack != nil {
++				close(ack)
++			}
++			return
++		}
++		if ack != nil {
++			close(ack)
++		}
++		if err != nil {
++			return
++		}
++	}
++}
+--- a/session.go
++++ b/session.go
+@@ -19,20 +19,27 @@
+ // Session owns one duplex transport and one matching buffer. The transport must
+ // support concurrent Read/Write and guarantee Close interrupts both. After a
+ // successful NewSession, callers must not perform I/O on that transport.
+-// Expect is exclusive. Send is serialized; Close and Redact are concurrency safe.
++// Expect and Poll are exclusive. Sends are serialized; Close and Redact are
++// concurrency safe. SendAll may queue bounded input for the next Expect.
+ // Do not copy a Session. Callback and output execution is cooperative.
+ type Session struct {
+-	transport io.ReadWriteCloser
+-	opts      sessionOptions
+-	events    chan readEvent
+-	done      chan struct{}
+-	workers   sync.WaitGroup
+-	lifeMu    sync.Mutex
+-	closeOnce sync.Once
+-	closeErr  error
+-	writeGate chan struct{}
+-	expecting atomic.Bool
+-	// Only the active Expect accesses the protocol state below.
++	transport    io.ReadWriteCloser
++	opts         sessionOptions
++	events       chan readEvent
++	done         chan struct{}
++	workers      sync.WaitGroup
++	lifeMu       sync.Mutex
++	closeOnce    sync.Once
++	closeErr     error
++	writeGate    chan struct{}
++	inputGate    chan struct{}
++	inputReady   chan struct{}
++	queued       []readEvent
++	queuedBytes  int
++	osIO         *osAccess
++	pollRequests chan chan struct{}
++	expecting    atomic.Bool
++	// Only the active Expect/Poll accesses the protocol state below.
+ 	pending, staged     []byte
+ 	stagedErr, terminal error
+ 	diagMu              sync.Mutex
+@@ -55,7 +62,15 @@
+ 			return nil, err
+ 		}
+ 	}
+-	s := &Session{transport: transport, opts: o, events: make(chan readEvent, 1), done: make(chan struct{}), writeGate: make(chan struct{}, 1)}
++	var access *osAccess
++	if o.osPolling {
++		var err error
++		access, err = newOSAccess(transport)
++		if err != nil {
++			return nil, err
++		}
++	}
++	s := &Session{transport: transport, opts: o, events: make(chan readEvent, 1), done: make(chan struct{}), writeGate: make(chan struct{}, 1), inputGate: make(chan struct{}, 1), inputReady: make(chan struct{}, 1), osIO: access, pollRequests: make(chan chan struct{})}
+ 	s.workers.Add(1)
+ 	go s.readLoop()
+ 	return s, nil
+@@ -75,6 +90,10 @@
+ 	}
+ }
+ func (s *Session) readLoop() {
++	if s.osIO != nil {
++		s.osReadLoop()
++		return
++	}
+ 	defer s.workers.Done()
+ 	defer close(s.events)
+ 	empty := 0
+@@ -109,9 +128,7 @@
+ 		} else if n > 0 {
+ 			received = data[:n]
+ 		}
+-		select {
+-		case s.events <- readEvent{data: received, err: err}:
+-		case <-s.done:
++		if !s.publishRead(readEvent{data: received, err: err}) {
+ 			return
+ 		}
+ 		if err != nil {
+@@ -305,3 +322,22 @@
+ func (s *Session) SendLine(ctx context.Context, text string) (int, error) {
+ 	return s.Send(ctx, text+s.opts.lineEnding)
+ }
++
++// publishRead is called only by the sole pump. The notification can collapse:
++// receivers always inspect the event channel under inputGate before waiting.
++func (s *Session) publishRead(event readEvent) bool {
++	select {
++	case s.events <- event:
++		s.signalInput()
++		return true
++	case <-s.done:
++		return false
++	}
++}
++
++func (s *Session) signalInput() {
++	select {
++	case s.inputReady <- struct{}{}:
++	default:
++	}
++}
+--- /dev/null
++++ b/streaming_redactor.go
+@@ -0,0 +1,126 @@
++package expect
++
++import (
++	"bytes"
++	"errors"
++	"sync"
++)
++
++// Redactor filters one diagnostic stream independently of any Session. Rules,
++// retained prefixes and replacement runs are scoped to this instance. Methods
++// are concurrency safe. Formatting never exposes secrets or retained data.
++type Redactor struct {
++	mu          sync.Mutex
++	secrets     [][]byte
++	replacement []byte
++	pending     []byte
++	hidden      []bool
++	masking     bool
++}
++
++// NewRedactor copies literal secrets and the nonempty custom replacement.
++func NewRedactor(secrets []string, replacement string) (*Redactor, error) {
++	if replacement == "" {
++		return nil, errors.New("expect: empty replacement")
++	}
++	if err := validateSecrets(secrets); err != nil {
++		return nil, err
++	}
++	r := &Redactor{replacement: []byte(replacement)}
++	r.set(secrets)
++	return r, nil
++}
++func (*Redactor) String() string     { return "expect.Redactor" }
++func (r *Redactor) GoString() string { return r.String() }
++func validateSecrets(secrets []string) error {
++	for _, s := range secrets {
++		if s == "" {
++			return errors.New("expect: empty secret")
++		}
++	}
++	return nil
++}
++func (r *Redactor) set(secrets []string) {
++	r.secrets = nil
++	for _, s := range secrets {
++		r.secrets = append(r.secrets, []byte(s))
++	}
++}
++
++// SetSecrets ends the old rule scope and returns its safe final bytes. Suspected
++// old secret prefixes are masked before new rules take effect. Invalid rules
++// leave the existing scope untouched. Callers must deliver the returned bytes.
++func (r *Redactor) SetSecrets(secrets []string) ([]byte, error) {
++	if err := validateSecrets(secrets); err != nil {
++		return nil, err
++	}
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	out := r.append(nil, true)
++	r.set(secrets)
++	return out, nil
++}
++
++// Append returns only bytes that cannot begin a future secret match. It replaces
++// each contiguous union of overlapping or adjacent matches once, across chunks.
++func (r *Redactor) Append(data []byte) []byte {
++	r.mu.Lock()
++	defer r.mu.Unlock()
++	return r.append(data, false)
++}
++
++// Finish ends a stream and conservatively masks any retained secret prefix.
++// Repeated calls are empty; the instance may then filter a fresh stream.
++func (r *Redactor) Finish() []byte { r.mu.Lock(); defer r.mu.Unlock(); return r.append(nil, true) }
++func (r *Redactor) append(data []byte, finish bool) []byte {
++	r.pending = append(r.pending, data...)
++	r.hidden = append(r.hidden, make([]bool, len(data))...)
++	keep := 0
++	for _, secret := range r.secrets {
++		keep = max(keep, len(secret)-1)
++		for start := 0; start <= len(r.pending)-len(secret); {
++			i := bytes.Index(r.pending[start:], secret)
++			if i < 0 {
++				break
++			}
++			i += start
++			for j := i; j < i+len(secret); j++ {
++				r.hidden[j] = true
++			}
++			start = i + 1
++		}
++		if finish {
++			for n := min(len(secret)-1, len(r.pending)); n > 0; n-- {
++				if bytes.Equal(r.pending[len(r.pending)-n:], secret[:n]) {
++					for i := len(r.pending) - n; i < len(r.pending); i++ {
++						r.hidden[i] = true
++					}
++					break
++				}
++			}
++		}
++	}
++	end := max(0, len(r.pending)-keep)
++	if finish {
++		end = len(r.pending)
++	}
++	var out []byte
++	for i := 0; i < end; i++ {
++		if r.hidden[i] {
++			if !r.masking {
++				out = append(out, r.replacement...)
++			}
++			r.masking = true
++		} else {
++			out = append(out, r.pending[i])
++			r.masking = false
++		}
++	}
++	// Detach the retained window so a large append does not remain live.
++	r.pending = append([]byte(nil), r.pending[end:]...)
++	r.hidden = append([]bool(nil), r.hidden[end:]...)
++	if finish {
++		r.masking = false
++	}
++	return out
++}

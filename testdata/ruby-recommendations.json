@@ -1,0 +1,1341 @@
+{
+  "ruby": "4.0.7",
+  "json": "3.1.0",
+  "cases": [
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"service_templates\":[{\"name\":\"corp0\",\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}},{\"name\":\"corp1\",\"enabled\":false,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}},{\"name\":\"corp2\",\"enabled\":null,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}},{\"name\":\"blocked\",\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"tkip\"],\"security_ies\":[\"wpa\"]}}],\"access_points\":{\"z\":{\"radio\":{\"2\":{\"service_templates\":[{\"name\":\"missing\",\"vlan_id\":4},{\"name\":\"corp1\"}]}},\"configuration\":{\"service_templates\":[{\"name\":\"second\"}]}}},\"ap_groups\":[{\"name\":\"g\",\"service_templates\":[{\"name\":\"missing\"}]}]}],\"issues\":[]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template corp0",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": "corp0",
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template corp0",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template corp0",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": "corp0",
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          },
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template corp1",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": "corp1",
+              "enabled": false,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template corp1",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template corp1",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": "corp1",
+              "enabled": false,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          },
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template corp2",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": {
+              "name": "corp2",
+              "enabled": null,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [
+              "需确认模板启停状态、合法名称、CCMP/RSN 替代配置；缺少任一项不生成变更。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。"
+          },
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template blocked",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": {
+              "name": "blocked",
+              "enabled": true,
+              "cipher_suites": [
+                "tkip"
+              ],
+              "security_ies": [
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [
+              "需确认模板启停状态、合法名称、CCMP/RSN 替代配置；缺少任一项不生成变更。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。"
+          },
+          {
+            "code": "service_template_missing",
+            "scope": "service-template missing",
+            "title": "AP/组引用了未定义的服务模板",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": [
+              {
+                "name": "missing",
+                "path": "access_points/z/radio/2",
+                "vlan_id": 4
+              },
+              {
+                "name": "missing",
+                "path": "ap_groups/g",
+                "vlan_id": null
+              }
+            ],
+            "prerequisites": [],
+            "blockers": [
+              "需提供模板 SSID、安全认证、转发位置及 VLAN 设计，不能自动创建开放 WLAN。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan bss all verbose"
+            ],
+            "expected": "所有绑定引用存在且启停状态符合业务意图；运行 BSS 和实际认证验证通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "bound_service_template_disabled",
+            "scope": "service-template corp1",
+            "title": "已绑定的服务模板被明确禁用",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": [
+              {
+                "name": "corp1",
+                "path": "access_points/z/radio/2",
+                "vlan_id": null
+              }
+            ],
+            "prerequisites": [],
+            "blockers": [
+              "需确认是否有意停用及恢复窗口，不能仅凭绑定关系自动启用业务。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan bss all verbose"
+            ],
+            "expected": "所有绑定引用存在且启停状态符合业务意图；运行 BSS 和实际认证验证通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "service_template_missing",
+            "scope": "service-template second",
+            "title": "AP/组引用了未定义的服务模板",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": [
+              {
+                "name": "second",
+                "path": "access_points/z/configuration",
+                "vlan_id": null
+              }
+            ],
+            "prerequisites": [],
+            "blockers": [
+              "需提供模板 SSID、安全认证、转发位置及 VLAN 设计，不能自动创建开放 WLAN。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan bss all verbose"
+            ],
+            "expected": "所有绑定引用存在且启停状态符合业务意图；运行 BSS 和实际认证验证通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "candidate": 2,
+          "blocked": 5
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"radios\":{\"status\":\"partial\",\"records\":[{\"ap_name\":\"a\",\"radio_id\":2,\"admin_status\":\"Down\",\"protocol\":\"ax\"}],\"issues\":[]},\"access_points\":{\"status\":\"complete\",\"records\":[{\"name\":\"a\",\"operational_status\":\"Idle\",\"management_ip\":\"192.0.2.11\"}],\"issues\":[]},\"client_ip_conflicts\":{\"status\":\"complete\",\"records\":[{\"ip\":\"192.0.2.1\"}],\"issues\":[]},\"configuration\":{\"status\":\"failed\",\"records\":[],\"issues\":[]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "evidence_incomplete",
+            "scope": "radios",
+            "title": "证据不完整，先补采",
+            "category": "evidence",
+            "status": "investigate",
+            "evidence": {
+              "status": "partial",
+              "issues": []
+            },
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display wlan ap all verbose"
+            ],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "evidence_incomplete",
+            "scope": "configuration",
+            "title": "证据不完整，先补采",
+            "category": "evidence",
+            "status": "investigate",
+            "evidence": {
+              "status": "failed",
+              "issues": []
+            },
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration"
+            ],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "client_ip_conflict_history",
+            "scope": "client_ip_conflicts",
+            "title": "存在历史客户端 IP 冲突记录",
+            "category": "runtime",
+            "status": "investigate",
+            "evidence": [
+              {
+                "ip": "192.0.2.1"
+              }
+            ],
+            "prerequisites": [
+              "事件时间不含年份，不据此判断当前仍冲突；先重采并对照新旧 MAC/AP、DHCP 租约、静态地址和漫游记录。",
+              "定位具体地址的两个使用者后，在地址管理源修复重复分配；不自动清表、踢客户端或关闭冲突检测。"
+            ],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display wlan statistics client-ip-conflict",
+              "display wlan client verbose",
+              "display arp"
+            ],
+            "expected": "复核窗口内不再新增同一地址冲突，DHCP/静态地址分配唯一且终端通信正常。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "aps_not_running",
+            "scope": "access_points",
+            "title": "AP 未处于 Run 状态",
+            "category": "runtime",
+            "status": "investigate",
+            "evidence": [
+              {
+                "name": "a",
+                "operational_status": "Idle",
+                "management_ip": "192.0.2.11"
+              }
+            ],
+            "prerequisites": [
+              "核对这些 AP 是否应在线；按供电/交换机端口、管理 VLAN/DHCP、CAPWAP 连通性、授权和版本顺序定位，不自动重启。"
+            ],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display wlan ap all verbose",
+              "display wlan ap all"
+            ],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "radios_admin_down",
+            "scope": "radios",
+            "title": "存在管理状态 Down 的射频",
+            "category": "runtime",
+            "status": "investigate",
+            "evidence": [
+              {
+                "ap_name": "a",
+                "radio_id": 2,
+                "admin_status": "Down",
+                "protocol": "ax"
+              }
+            ],
+            "prerequisites": [
+              "核对 AP 自身、AP 组及型号配置的继承关系和射频规划；主动关闭频段可能是正常设计，不批量开启。"
+            ],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display wlan ap all verbose",
+              "display current-configuration"
+            ],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "investigate": 5
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "evidence_incomplete",
+            "scope": "configuration",
+            "title": "证据不完整，先补采",
+            "category": "evidence",
+            "status": "investigate",
+            "evidence": {
+              "status": "not_requested",
+              "issues": []
+            },
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration"
+            ],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "investigate": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"huawei\"},\"snapshot\":{\"dimensions\":{}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "huawei"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "evidence_incomplete",
+            "scope": "configuration",
+            "title": "证据不完整，先补采",
+            "category": "evidence",
+            "status": "investigate",
+            "evidence": {
+              "status": "not_requested",
+              "issues": []
+            },
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "platform_not_supported",
+            "scope": "platform",
+            "title": "此平台尚未提供修复规则",
+            "category": "runtime",
+            "status": "blocked",
+            "evidence": "huawei",
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "investigate": 1,
+          "blocked": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c\"},\"snapshot\":{\"dimensions\":{}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "evidence_incomplete",
+            "scope": "configuration",
+            "title": "证据不完整，先补采",
+            "category": "evidence",
+            "status": "investigate",
+            "evidence": {
+              "status": "not_requested",
+              "issues": []
+            },
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "platform_not_supported",
+            "scope": "platform",
+            "title": "此平台尚未提供修复规则",
+            "category": "runtime",
+            "status": "blocked",
+            "evidence": "h3c",
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "investigate": 1,
+          "blocked": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"x\",\"host\":\"192.0.2.2\"},\"snapshot\":null}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "x",
+          "host": "192.0.2.2"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "evidence_incomplete",
+            "scope": "configuration",
+            "title": "证据不完整，先补采",
+            "category": "evidence",
+            "status": "investigate",
+            "evidence": {
+              "status": "not_requested",
+              "issues": []
+            },
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          },
+          {
+            "code": "platform_not_supported",
+            "scope": "platform",
+            "title": "此平台尚未提供修复规则",
+            "category": "runtime",
+            "status": "blocked",
+            "evidence": null,
+            "prerequisites": [],
+            "blockers": [],
+            "commands": [],
+            "rollback": [],
+            "verify": [],
+            "expected": "重采事实并核对业务预期；没有命中建议不代表无线网络健康。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "investigate": 1,
+          "blocked": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"host\":\"192.0.2.10\",\"name\":\"Synthetic-WLC\",\"platform\":\"h3c_wireless\",\"model\":\"WX3540\"},\"status\":\"complete\",\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":1,\"issues\":[]}},\"duration_ms\":0,\"snapshot\":{\"target\":{\"host\":\"192.0.2.10\",\"name\":\"Synthetic-WLC\",\"platform\":\"h3c_wireless\",\"model\":\"WX3540\"},\"dimensions\":{\"configuration\":{\"name\":\"configuration\",\"status\":\"complete\",\"records\":[{\"access_points\":{\"AP1\":{\"name\":\"AP1\",\"model\":\"WA6530\",\"radios\":{\"1\":{\"service_templates\":[{\"name\":\"lab\",\"vlan_id\":10}],\"max_power\":20.0,\"rates\":{\"mandatory\":[1.0,5.5],\"supported\":[2.0,11.0]},\"anti_sticky\":{\"enabled\":true,\"rssi\":-0.0,\"interval\":30}}}}},\"ap_groups\":[],\"service_templates\":[{\"name\":\"lab\",\"ssid\":\"Lab <&>中文\",\"vlan_id\":null,\"enabled\":true,\"configuration\":{\"akm_modes\":[],\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]},\"authentication_type\":null}],\"global_settings\":{},\"blacklist\":[],\"whitelist\":[]}],\"issues\":[],\"evidence\":[],\"started_at\":null,\"completed_at\":null}},\"observed_at\":\"2026-10-26T00:00:00.000000Z\"},\"recommendations\":{\"schema_version\":1,\"review_only\":true,\"health_assessment\":\"not_performed\",\"device\":{\"host\":\"192.0.2.10\",\"name\":\"Synthetic-WLC\",\"platform\":\"h3c_wireless\",\"model\":\"WX3540\"},\"observed_at\":\"2026-10-26T00:00:00.000000Z\",\"items\":[{\"code\":\"legacy_wlan_security\",\"scope\":\"service-template lab\",\"title\":\"服务模板保留 TKIP/WPA 兼容配置\",\"category\":\"configuration\",\"status\":\"candidate\",\"evidence\":{\"name\":\"lab\",\"enabled\":true,\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]},\"prerequisites\":[\"此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。\",\"核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。\",\"重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。\"],\"blockers\":[],\"commands\":[\"system-view\",\"wlan service-template lab\",\" undo service-template enable\",\" undo security-ie wpa\",\" undo cipher-suite tkip\",\" service-template enable\",\"quit\",\"return\"],\"rollback\":[\"system-view\",\"wlan service-template lab\",\" undo service-template enable\",\" cipher-suite tkip\",\" security-ie wpa\",\" service-template enable\",\"quit\",\"return\"],\"verify\":[\"display current-configuration\",\"display wlan client verbose\",\"display wlan bss all verbose\"],\"expected\":\"保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。\",\"references\":[\"https://www.h3c.com/en/d_202210/1709621_294551_0.htm\"],\"impact\":\"停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。\",\"change\":{\"kind\":\"wireless_security\",\"name\":\"lab\",\"enabled\":true,\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}}],\"counts\":{\"candidate\":1}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "host": "192.0.2.10",
+          "name": "Synthetic-WLC",
+          "platform": "h3c_wireless",
+          "model": "WX3540"
+        },
+        "observed_at": "2026-10-26T00:00:00.000000Z",
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template lab",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": "lab",
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template lab",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template lab",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": "lab",
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          }
+        ],
+        "counts": {
+          "candidate": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"service_templates\":[{\"name\":12,\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}},{\"name\":false,\"enabled\":false}],\"access_points\":{\"AP1\":{\"service_templates\":[{\"name\":12},{\"name\":true}]}}}],\"issues\":[]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template 12",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": 12,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template 12",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template 12",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": 12,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          },
+          {
+            "code": "service_template_missing",
+            "scope": "service-template true",
+            "title": "AP/组引用了未定义的服务模板",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": [
+              {
+                "name": true,
+                "path": "access_points/AP1",
+                "vlan_id": null
+              }
+            ],
+            "prerequisites": [],
+            "blockers": [
+              "需提供模板 SSID、安全认证、转发位置及 VLAN 设计，不能自动创建开放 WLAN。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan bss all verbose"
+            ],
+            "expected": "所有绑定引用存在且启停状态符合业务意图；运行 BSS 和实际认证验证通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "candidate": 1,
+          "blocked": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"service_templates\":[{\"name\":1e+3,\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}}]}]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template 1000.0",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": 1000.0,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template 1000.0",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template 1000.0",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": 1000.0,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          }
+        ],
+        "counts": {
+          "candidate": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"service_templates\":[{\"name\":1e+15,\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}}]}]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template 1.0e+15",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": {
+              "name": 1e+15,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [
+              "需确认模板启停状态、合法名称、CCMP/RSN 替代配置；缺少任一项不生成变更。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。"
+          }
+        ],
+        "counts": {
+          "blocked": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"service_templates\":[{\"name\":1e-5,\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}}]}]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template 1.0e-05",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": 0.00001,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template 1.0e-05",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template 1.0e-05",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": 0.00001,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          }
+        ],
+        "counts": {
+          "candidate": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"service_templates\":[{\"name\":-0e+3,\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}}]}]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template -0.0",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": -0.0,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template -0.0",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template -0.0",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": -0.0,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          }
+        ],
+        "counts": {
+          "candidate": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"service_templates\":[{\"name\":5e-324,\"enabled\":true,\"configuration\":{\"cipher_suites\":[\"ccmp\",\"tkip\"],\"security_ies\":[\"rsn\",\"wpa\"]}}]}]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "legacy_wlan_security",
+            "scope": "service-template 5.0e-324",
+            "title": "服务模板保留 TKIP/WPA 兼容配置",
+            "category": "configuration",
+            "status": "candidate",
+            "evidence": {
+              "name": 5e-324,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            },
+            "prerequisites": [
+              "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+              "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+              "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+            ],
+            "blockers": [],
+            "commands": [
+              "system-view",
+              "wlan service-template 5.0e-324",
+              " undo service-template enable",
+              " undo security-ie wpa",
+              " undo cipher-suite tkip",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "rollback": [
+              "system-view",
+              "wlan service-template 5.0e-324",
+              " undo service-template enable",
+              " cipher-suite tkip",
+              " security-ie wpa",
+              " service-template enable",
+              "quit",
+              "return"
+            ],
+            "verify": [
+              "display current-configuration",
+              "display wlan client verbose",
+              "display wlan bss all verbose"
+            ],
+            "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ],
+            "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+            "change": {
+              "kind": "wireless_security",
+              "name": 5e-324,
+              "enabled": true,
+              "cipher_suites": [
+                "ccmp",
+                "tkip"
+              ],
+              "security_ies": [
+                "rsn",
+                "wpa"
+              ]
+            }
+          }
+        ],
+        "counts": {
+          "candidate": 1
+        }
+      }
+    },
+    {
+      "input_json": "{\"device\":{\"name\":\"wlc\",\"host\":\"192.0.2.10\",\"platform\":\"h3c_wireless\"},\"snapshot\":{\"dimensions\":{\"configuration\":{\"status\":\"complete\",\"records\":[{\"ap_groups\":[{\"name\":1e+3,\"service_templates\":[{\"name\":\"missing\"}]}]}]}}}}",
+      "advice": {
+        "schema_version": 1,
+        "review_only": true,
+        "health_assessment": "not_performed",
+        "device": {
+          "name": "wlc",
+          "host": "192.0.2.10",
+          "platform": "h3c_wireless"
+        },
+        "observed_at": null,
+        "items": [
+          {
+            "code": "service_template_missing",
+            "scope": "service-template missing",
+            "title": "AP/组引用了未定义的服务模板",
+            "category": "configuration",
+            "status": "blocked",
+            "evidence": [
+              {
+                "name": "missing",
+                "path": "ap_groups/1000.0",
+                "vlan_id": null
+              }
+            ],
+            "prerequisites": [],
+            "blockers": [
+              "需提供模板 SSID、安全认证、转发位置及 VLAN 设计，不能自动创建开放 WLAN。"
+            ],
+            "commands": [],
+            "rollback": [],
+            "verify": [
+              "display current-configuration",
+              "display wlan bss all verbose"
+            ],
+            "expected": "所有绑定引用存在且启停状态符合业务意图；运行 BSS 和实际认证验证通过。",
+            "references": [
+              "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+            ]
+          }
+        ],
+        "counts": {
+          "blocked": 1
+        }
+      }
+    }
+  ]
+}

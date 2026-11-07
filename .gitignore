@@ -1,0 +1,9 @@
+.work/
+.superpowers/
+go.work
+go.work.sum
+bin/
+coverage.out
+wireless-reports/
+wireless-executions/
+.env

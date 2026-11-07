@@ -1,0 +1,181 @@
+{
+  "device": {
+    "host": "192.0.2.10",
+    "name": "Synthetic-WLC",
+    "platform": "h3c_wireless",
+    "model": "WX3540"
+  },
+  "status": "complete",
+  "dimensions": {
+    "configuration": {
+      "status": "complete",
+      "records": 1,
+      "issues": []
+    }
+  },
+  "duration_ms": 0,
+  "snapshot": {
+    "target": {
+      "host": "192.0.2.10",
+      "name": "Synthetic-WLC",
+      "platform": "h3c_wireless",
+      "model": "WX3540"
+    },
+    "dimensions": {
+      "configuration": {
+        "name": "configuration",
+        "status": "complete",
+        "records": [
+          {
+            "access_points": {
+              "AP1": {
+                "name": "AP1",
+                "model": "WA6530",
+                "radios": {
+                  "1": {
+                    "service_templates": [
+                      {
+                        "name": "lab",
+                        "vlan_id": 10
+                      }
+                    ],
+                    "max_power": 20.0,
+                    "rates": {
+                      "mandatory": [
+                        1.0,
+                        5.5
+                      ],
+                      "supported": [
+                        2.0,
+                        11.0
+                      ]
+                    },
+                    "anti_sticky": {
+                      "enabled": true,
+                      "rssi": -0.0,
+                      "interval": 30
+                    }
+                  }
+                }
+              }
+            },
+            "ap_groups": [],
+            "service_templates": [
+              {
+                "name": "lab",
+                "ssid": "Lab <&>中文",
+                "vlan_id": null,
+                "enabled": true,
+                "configuration": {
+                  "akm_modes": [],
+                  "cipher_suites": [
+                    "ccmp",
+                    "tkip"
+                  ],
+                  "security_ies": [
+                    "rsn",
+                    "wpa"
+                  ]
+                },
+                "authentication_type": null
+              }
+            ],
+            "global_settings": {},
+            "blacklist": [],
+            "whitelist": []
+          }
+        ],
+        "issues": [],
+        "evidence": [],
+        "started_at": null,
+        "completed_at": null
+      }
+    },
+    "observed_at": "2026-10-26T00:00:00.000000Z"
+  },
+  "recommendations": {
+    "schema_version": 1,
+    "review_only": true,
+    "health_assessment": "not_performed",
+    "device": {
+      "host": "192.0.2.10",
+      "name": "Synthetic-WLC",
+      "platform": "h3c_wireless",
+      "model": "WX3540"
+    },
+    "observed_at": "2026-10-26T00:00:00.000000Z",
+    "items": [
+      {
+        "code": "legacy_wlan_security",
+        "scope": "service-template lab",
+        "title": "服务模板保留 TKIP/WPA 兼容配置",
+        "category": "configuration",
+        "status": "candidate",
+        "evidence": {
+          "name": "lab",
+          "enabled": true,
+          "cipher_suites": [
+            "ccmp",
+            "tkip"
+          ],
+          "security_ies": [
+            "rsn",
+            "wpa"
+          ]
+        },
+        "prerequisites": [
+          "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+          "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+          "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+        ],
+        "blockers": [],
+        "commands": [
+          "system-view",
+          "wlan service-template lab",
+          " undo service-template enable",
+          " undo security-ie wpa",
+          " undo cipher-suite tkip",
+          " service-template enable",
+          "quit",
+          "return"
+        ],
+        "rollback": [
+          "system-view",
+          "wlan service-template lab",
+          " undo service-template enable",
+          " cipher-suite tkip",
+          " security-ie wpa",
+          " service-template enable",
+          "quit",
+          "return"
+        ],
+        "verify": [
+          "display current-configuration",
+          "display wlan client verbose",
+          "display wlan bss all verbose"
+        ],
+        "expected": "保留 CCMP/RSN、模板恢复原启停状态；代表性终端重新关联和认证成功，业务验收通过。",
+        "references": [
+          "https://www.h3c.com/en/d_202210/1709621_294551_0.htm"
+        ],
+        "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+        "change": {
+          "kind": "wireless_security",
+          "name": "lab",
+          "enabled": true,
+          "cipher_suites": [
+            "ccmp",
+            "tkip"
+          ],
+          "security_ies": [
+            "rsn",
+            "wpa"
+          ]
+        }
+      }
+    ],
+    "counts": {
+      "candidate": 1
+    }
+  }
+}

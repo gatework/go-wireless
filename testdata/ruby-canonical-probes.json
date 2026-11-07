@@ -1,0 +1,137 @@
+[
+  {
+    "input_json": "null",
+    "canonical": "null",
+    "fingerprint": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+  },
+  {
+    "input_json": "true",
+    "canonical": "true",
+    "fingerprint": "b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+  },
+  {
+    "input_json": "false",
+    "canonical": "false",
+    "fingerprint": "fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+  },
+  {
+    "input_json": "0",
+    "canonical": "0",
+    "fingerprint": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+  },
+  {
+    "input_json": "0",
+    "canonical": "0",
+    "fingerprint": "5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+  },
+  {
+    "input_json": "1",
+    "canonical": "1",
+    "fingerprint": "6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+  },
+  {
+    "input_json": "-1267650600228229401496703205376",
+    "canonical": "-1267650600228229401496703205376",
+    "fingerprint": "a5577715f1e65fba7bcd108d30177fd124a7055d606a7d82b5f6fa471a2e43d2"
+  },
+  {
+    "input_json": "1267650600228229401496703205376",
+    "canonical": "1267650600228229401496703205376",
+    "fingerprint": "5ee7924f903dfefa9253b5f63147f53433516da9daf01f6e729331dcf31b28c6"
+  },
+  {
+    "input_json": "0.0",
+    "canonical": "0.0",
+    "fingerprint": "8aed642bf5118b9d3c859bd4be35ecac75b6e873cce34e7b6f554b06f75550d7"
+  },
+  {
+    "input_json": "-0.0",
+    "canonical": "-0.0",
+    "fingerprint": "c26617c7ccbcaa6631b45d851b8cf56e21d2ca624bdb1193afdbd4b560702cec"
+  },
+  {
+    "input_json": "1.0",
+    "canonical": "1.0",
+    "fingerprint": "d0ff5974b6aa52cf562bea5921840c032a860a91a3512f7fe8f768f6bbe005f6"
+  },
+  {
+    "input_json": "-1.0",
+    "canonical": "-1.0",
+    "fingerprint": "f006c4915bce75dd9588871a11328f1acac2cba2af8b786e66f70b6301469193"
+  },
+  {
+    "input_json": "0.1",
+    "canonical": "0.1",
+    "fingerprint": "14be4b45f18e0d8c67b4f719b5144eee88497e413709d11d85b096d8e2346310"
+  },
+  {
+    "input_json": "0.0001",
+    "canonical": "0.0001",
+    "fingerprint": "e539aebac7fd2ed8aba8854fedeaa65436962f8ee1c82341b394698f085b6496"
+  },
+  {
+    "input_json": "0.00001",
+    "canonical": "0.00001",
+    "fingerprint": "661710915adfa7c40b5dbd6b2122dfa65b1accb57a8b7cdee05423ecfe14b0c7"
+  },
+  {
+    "input_json": "0.000001",
+    "canonical": "0.000001",
+    "fingerprint": "159fb29a827ad04b260aa6c8ab6d8637f8f2b38af5c4f3cb49d6a21205e040f8"
+  },
+  {
+    "input_json": "0.0000001",
+    "canonical": "0.0000001",
+    "fingerprint": "4035c4eedb2f0cf061cb4aedac998085c68fc1a1f5a3cc5de86c5086ba770324"
+  },
+  {
+    "input_json": "1e+15",
+    "canonical": "1e+15",
+    "fingerprint": "796d542384e1636b6b0c827ce1ce9d421f0402d53cfca70e3fbded7f37cd26e9"
+  },
+  {
+    "input_json": "1e+16",
+    "canonical": "1e+16",
+    "fingerprint": "a144838520595009e7daf5aff8472573f9ce6a4bcd8c30673675618883464ab0"
+  },
+  {
+    "input_json": "1e+20",
+    "canonical": "1e+20",
+    "fingerprint": "7c18c9fbdcc8281573e9db9e04f04c3790b10696f3706f0f03fa87427d33e28b"
+  },
+  {
+    "input_json": "1e+21",
+    "canonical": "1e+21",
+    "fingerprint": "241c4643fa70b1dcde1205b71be4e3bebb17e9f880c8e1a33d0ead6c27271d3c"
+  },
+  {
+    "input_json": "2.2250738585072014e-308",
+    "canonical": "2.2250738585072014e-308",
+    "fingerprint": "8d51a73768cb59d15302f6b0a4c7147a04b0cce9df743b5bf50e31ab87b2d807"
+  },
+  {
+    "input_json": "1.7976931348623157e+308",
+    "canonical": "1.7976931348623157e+308",
+    "fingerprint": "c2784e1abd6317452708f3fbf9641c16b959561bc621a1d408c23a20aa2cb585"
+  },
+  {
+    "input_json": "\"<&>/\"",
+    "canonical": "\"<&>/\"",
+    "fingerprint": "b06b31d1cc3c65e25611a0dbd47a88d87b98859d3961d7a0f020a83e0ea935ae"
+  },
+  {
+    "input_json": "\"中文  \"",
+    "canonical": "\"中文  \"",
+    "fingerprint": "e89e8b006aee31bd770f58bb12e2796c1e012348adcddbc323bf644813bd4681"
+  },
+  {
+    "input_json": "\"\\u0000\\u0001\\b\\f\\n\\r\\t\"",
+    "canonical": "\"\\u0000\\u0001\\b\\f\\n\\r\\t\"",
+    "fingerprint": "e3d0765d4aa07675988cffd416f5ebf1c2aaba368c894b89cad0cf90709ec7ff"
+  },
+  {
+    "input_json": "{\"z\":[1.0,-0.0],\"a\":{\"x\":5.5}}",
+    "canonical": "{\"a\":{\"x\":5.5},\"z\":[1.0,-0.0]}",
+    "fingerprint": "428d983037cac533e3f2576c33ebffe229ed72056465594b9904f5e0c42fe19b"
+  }
+]

@@ -1,0 +1,5 @@
+用法：wireless review --batch DIR [--output DIR]（离线生成建议，不执行配置）
+        --batch DIR                  已采集批次，含 devices/*.json
+        --[no-]scripts               可选导出配置建议，默认仅诊断
+        --output DIR                 私有输出根目录，默认批次内 reviews
+    -h, --help                       查看帮助

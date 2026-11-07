@@ -1,0 +1,350 @@
+--- a/connector/device.go
++++ b/connector/device.go
+@@ -324,12 +324,14 @@
+ }
+ 
+ type execution struct {
+-	device       *Device
+-	values       map[string]string
+-	valuesMu     sync.Mutex
+-	bytes, limit int64
+-	strategy     ConfigStrategy
+-	archiveBytes bool
++	device            *Device
++	values            map[string]string
++	valuesMu          sync.Mutex
++	bytes, limit      int64
++	strategy          ConfigStrategy
++	archiveBytes      bool
++	capturePartial    bool
++	preserveRejection bool
+ }
+ 
+ type hookExecutor struct {
+@@ -371,25 +373,43 @@
+ 	if len(script.Commands) == 0 {
+ 		return result, ctx.Err()
+ 	}
+-	if err = d.connect(ctx); err != nil {
++	if opts.Borrowed && !d.Connected() {
++		return result, ErrConnection
++	}
++	if !opts.Borrowed {
++		if err = d.connect(ctx); err != nil {
++			return
++		}
++	}
++	if err = ctx.Err(); err != nil {
+ 		return
+ 	}
+-	x := &execution{device: d, values: make(map[string]string), limit: d.config.MaxScriptOutputBytes, strategy: strategy, archiveBytes: archiveBytes}
++	x := &execution{device: d, values: make(map[string]string), limit: d.config.MaxScriptOutputBytes, strategy: strategy, archiveBytes: archiveBytes, capturePartial: opts.CapturePartialOutput, preserveRejection: opts.PreserveSessionOnRejection}
+ 	if opts.MaxOutputBytes > 0 {
+ 		x.limit = opts.MaxOutputBytes
+ 	}
+ 	defer func() {
+-		if e := d.log.scope(d.baseSecrets(), true); err == nil && e != nil {
+-			err = fail("log_error", "logging", Command{}, e)
++		if e := d.log.scope(d.baseSecrets(), true); e != nil {
++			if err == nil {
++				err = fail("log_error", "logging", Command{}, e)
++			} else if opts.PreserveSessionOnRejection {
++				err = errors.Join(err, fail("log_error", "logging", Command{}, e))
++			}
+ 		}
+ 		level, status := "info", "completed"
+ 		if err != nil {
+ 			level, status = "error", "failed"
+ 		}
+-		if e := d.log.event("operation_complete", level, Command{}, status); err == nil && e != nil {
+-			err = e
+-		}
+-		if err != nil {
++		if e := d.log.event("operation_complete", level, Command{}, status); e != nil {
++			if err == nil {
++				err = e
++			} else if opts.PreserveSessionOnRejection {
++				err = errors.Join(err, e)
++			}
++		}
++		rejected, ok := err.(*Error)
++		preserved := opts.PreserveSessionOnRejection && len(script.Commands) == 1 && ok && rejected.Code == "device_error" && ctx.Err() == nil && len(result.steps) == 1 && result.steps[0].prompt != ""
++		if err != nil && !preserved && !opts.deferClose {
+ 			_ = d.closeResources()
+ 		}
+ 	}()
+@@ -434,7 +454,7 @@
+ 		}
+ 		var step StepResult
+ 		step, err = x.command(ctx, c)
+-		if step.prompt != "" {
++		if step.prompt != "" || opts.CapturePartialOutput && step.output != "" {
+ 			result.steps = append(result.steps, step)
+ 		}
+ 		if err == nil && d.profile.AfterCommand != nil {
+@@ -450,8 +470,12 @@
+ 			}
+ 		}
+ 		if step.prompt != "" && opts.OnReceipt != nil {
+-			if e := opts.OnReceipt(ctx, step); err == nil && e != nil {
+-				err = fail("receipt_callback_failed", "script", c, e)
++			if e := opts.OnReceipt(ctx, step); e != nil {
++				if err == nil {
++					err = fail("receipt_callback_failed", "script", c, e)
++				} else if opts.PreserveSessionOnRejection {
++					err = errors.Join(err, fail("receipt_callback_failed", "script", c, e))
++				}
+ 			}
+ 		}
+ 		if err != nil {
+@@ -492,8 +516,12 @@
+ 		return step, fail("log_error", "logging", c, e)
+ 	}
+ 	defer func() {
+-		if e := restore(); err == nil && e != nil {
+-			err = fail("log_error", "logging", c, e)
++		if e := restore(); e != nil {
++			if err == nil {
++				err = fail("log_error", "logging", c, e)
++			} else if x.preserveRejection {
++				err = errors.Join(err, fail("log_error", "logging", c, e))
++			}
+ 		}
+ 	}()
+ 	if e := d.log.event("command_start", "info", c, ""); e != nil {
+@@ -504,8 +532,12 @@
+ 		if err != nil {
+ 			level, status = "error", "failed"
+ 		}
+-		if e := d.log.event("command_complete", level, c, status); err == nil && e != nil {
+-			err = e
++		if e := d.log.event("command_complete", level, c, status); e != nil {
++			if err == nil {
++				err = e
++			} else if x.preserveRejection {
++				err = errors.Join(err, e)
++			}
+ 		}
+ 	}()
+ 	d.log.count = func(n int) { x.bytes += int64(n) }
+@@ -543,6 +575,9 @@
+ 	step, err = d.read(cc, c, prompt, replies, false, timeout == 0)
+ 	step.duration = time.Since(started)
+ 	if err != nil {
++		if x.capturePartial {
++			return step, err
++		}
+ 		return StepResult{}, err
+ 	}
+ 	diagnostic := regexp.MustCompile(`\x1b\[[0-9;]*m`).ReplaceAllString(step.output, "")
+@@ -555,10 +590,23 @@
+ 		rendered, renderErr = terminal.Render([]byte(step.output), true)
+ 	}
+ 	if renderErr != nil {
++		if x.capturePartial {
++			return step, fail("invalid_output_encoding", "parse", c, renderErr)
++		}
+ 		return StepResult{}, fail("invalid_output_encoding", "parse", c, renderErr)
+ 	}
+ 	for _, pattern := range d.profile.CommandErrors {
+ 		if pattern.MatchString(diagnostic) || pattern.MatchString(rendered) {
++			if x.preserveRejection {
++				d.prompt.Store(strings.TrimSpace(step.prompt))
++				if err = cc.Err(); err != nil {
++					return step, err
++				}
++				if x.limit > 0 && x.bytes > x.limit {
++					return step, fail("script_output_limit_exceeded", "script", c, ErrScriptLimit)
++				}
++				return step, fail("device_error", "command", c, ErrDevice)
++			}
+ 			return StepResult{}, fail("device_error", "command", c, ErrDevice)
+ 		}
+ 	}
+@@ -691,16 +739,22 @@
+ 	options := []expect.ExpectOption{expect.WithTimeout(0), expect.WithDeclarationPriority(), expect.WithStreamingFallback(func(_ context.Context, _ *expect.Session, r expect.Result) (expect.Action, error) {
+ 		return expect.ContinueWithoutReset, appendSegment(r, true)
+ 	})}
++	var pending expect.Result
+ 	if poll {
+-		_, err = d.session.Poll(ctx, cases, options...)
++		pending, err = d.session.Poll(ctx, cases, options...)
+ 	} else {
+-		_, err = d.session.Expect(ctx, cases, options...)
++		pending, err = d.session.Expect(ctx, cases, options...)
+ 	}
+ 	if err != nil && !completed {
++		if pending.CaseIndex < 0 {
++			raw.WriteString(pending.Before)
++			body.WriteString(pending.Before)
++		}
++		step = StepResult{command: c.clone(), raw: raw.String(), output: body.String()}
+ 		phase := map[bool]string{true: "login", false: "command"}[login]
+ 		var classified *Error
+ 		if errors.As(err, &classified) {
+-			return StepResult{}, err
++			return step, err
+ 		}
+ 		code := "transport_error"
+ 		switch {
+@@ -722,9 +776,9 @@
+ 				code = "command_timeout"
+ 			}
+ 		case errors.Is(err, context.Canceled):
+-			return StepResult{}, err
+-		}
+-		return StepResult{}, fail(code, phase, c, err)
++			return step, err
++		}
++		return step, fail(code, phase, c, err)
+ 	}
+ 	if completed {
+ 		return step, nil
+--- a/connector/operation.go
++++ b/connector/operation.go
+@@ -1,17 +1,29 @@
+ package connector
+ 
+-import "context"
++import (
++	"context"
++	"sync/atomic"
++)
+ 
+ // Operation lends sequential device methods to a single composite operation.
+ // It expires when WithOperation returns and never permits observer reentry.
+ type Operation struct {
+-	device *Device
+-	scope  *callScope
++	device   *Device
++	scope    *callScope
++	retired  atomic.Bool
++	closeErr error
+ }
+ 
+-func (d *Device) WithOperation(ctx context.Context, run func(*Operation) error) (err error) {
++func (d *Device) WithOperation(ctx context.Context, run func(*Operation) error) error {
++	err, _ := d.WithOperationCleanup(ctx, run)
++	return err
++}
++
++// WithOperationCleanup exposes the first retirement result, including fallback
++// retirement after callback return. Both errors are fixed before releasing the lease.
++func (d *Device) WithOperationCleanup(ctx context.Context, run func(*Operation) error) (err error, closeErr error) {
+ 	if run == nil {
+-		return ErrInvalid
++		return ErrInvalid, nil
+ 	}
+ 	if err = ctx.Err(); err != nil {
+ 		return
+@@ -25,9 +37,13 @@
+ 		if o.scope.end() && err == nil {
+ 			err = context.Canceled
+ 		}
+-		if err != nil {
+-			_ = d.closeResources()
++		if err == nil {
++			err = ctx.Err()
+ 		}
++		if err != nil && o.retired.CompareAndSwap(false, true) {
++			o.closeErr = d.closeResources()
++		}
++		closeErr = o.closeErr
+ 	}()
+ 	err = run(o)
+ 	if err == nil {
+@@ -51,6 +67,9 @@
+ 		return Result{}, e
+ 	}
+ 	defer leave()
++	if o.retired.Load() {
++		return Result{}, ErrScope
++	}
+ 	return o.device.execute(ctx, script, opts, nil, false)
+ }
+ func (o *Operation) RunningConfig(ctx context.Context) (Result, error) {
+@@ -59,6 +78,9 @@
+ 		return Result{}, e
+ 	}
+ 	defer leave()
++	if o.retired.Load() {
++		return Result{}, ErrScope
++	}
+ 	return o.device.runningConfig(ctx, false)
+ }
+ func (o *Operation) SaveConfig(ctx context.Context, opts ExecuteOptions) (Result, error) {
+@@ -74,3 +96,27 @@
+ func (o *Operation) CurrentPrompt() string { return o.device.CurrentPrompt() }
+ func (o *Operation) Name() string          { return o.device.Name() }
+ func (o *Operation) Host() string          { return o.device.Host() }
++
++// ExecuteBorrowedCommand does not reconnect or automatically retire on failure.
++// The lease holder must restore a confirmed state or call Retire before returning.
++func (o *Operation) ExecuteBorrowedCommand(ctx context.Context, c Command, opts ExecuteOptions) (Result, error) {
++	opts.Borrowed = true
++	opts.deferClose = true
++	return o.ExecuteCommand(ctx, c, opts)
++}
++
++// Retire closes resources while owning this operation. Admission checks still
++// reject expired scopes and reentry, but cancellation cannot suppress cleanup.
++func (o *Operation) Retire() error {
++	_, leave, err := o.scope.enter(context.Background())
++	if err != nil {
++		return err
++	}
++	defer leave()
++	if !o.retired.CompareAndSwap(false, true) {
++		return ErrScope
++	}
++	o.closeErr = o.device.closeResources()
++	return o.closeErr
++}
++func (o *Operation) Connected() bool { return o.device.Connected() }
+--- /dev/null
++++ b/connector/receipt_body.go
+@@ -0,0 +1,27 @@
++package connector
++
++import (
++	"github.com/gatework/go-net-connector/internal/terminal"
++	"strings"
++)
++
++// Body renders a single receipt after removing its exact prompt and first-line
++// command echo. It preserves subsequent matching lines and body indentation.
++func (s StepResult) Body() (string, error) {
++	// Prompt regexes consume the preceding line delimiter in Go. Keep that
++	// delimiter as body text, as the Ruby zero-width boundary does.
++	boundary := s.prompt[:len(s.prompt)-len(strings.TrimLeft(s.prompt, "\r\n"))]
++	body, err := terminal.Render([]byte(strings.TrimSuffix(s.output, s.prompt)+boundary), true)
++	if err != nil {
++		return "", err
++	}
++	first, _, _ := strings.Cut(body, "\n")
++	if strings.TrimSpace(first) == strings.TrimSpace(s.command.Text) {
++		if len(body) > len(first) {
++			body = body[len(first)+1:]
++		} else {
++			body = ""
++		}
++	}
++	return body, nil
++}
+--- a/connector/types.go
++++ b/connector/types.go
+@@ -201,6 +201,14 @@
+ }
+ 
+ type ExecuteOptions struct {
++	// Borrowed forbids reconnecting an externally owned session.
++	Borrowed bool
++	// PreserveSessionOnRejection retains only a synchronized single-query rejection.
++	PreserveSessionOnRejection bool
++	// CapturePartialOutput retains explicit partial receipts on transport failure.
++	CapturePartialOutput bool
++	deferClose           bool
++
+ 	// SkipPrivilege preserves the current view for native upload operations.
+ 	SkipPrivilege  bool
+ 	OnReceipt      func(context.Context, StepResult) error

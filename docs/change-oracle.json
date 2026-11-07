@@ -1,0 +1,40 @@
+{
+  "reference_head": "b328e1fba414ecf09ce891190b0eb375269dcae3",
+  "ruby": "4.0.7",
+  "json_gem": "3.1.0",
+  "fpconv": {
+    "source": "json-3.1.0/ext/json/ext/vendor/fpconv.c",
+    "sha256": "0487fd5cf86f501876c865f6a7505e6e7d82df95ee1446533838f89798ed74a2",
+    "license": "Boost Software License 1.0; preserved in fpconv.go",
+    "upstream": "https://github.com/night-shift/fpconv"
+  },
+  "source_sha256": {
+    "lib/wireless/change_plan.rb": "0c5f9f74804e7fb8b6ab9b9353e8a34702e0bdfe37034dae4cf3583adb1350c9",
+    "lib/wireless/recommendations.rb": "f1bc52b7b782a355a956784b0d3383daf9d5c7bc163c81541c8e6fd77956fe05",
+    "lib/wireless/cli/review.rb": "83b0fb6daa4411bff0f829357b442e10a7faa5539f7175933006c55895a85973",
+    "lib/wireless/cli/review/report.rb": "c748c84527b9486184073bbdd3e761742e1b64c8348481fa96003cd7d26fedfc",
+    "lib/wireless/cli/apply.rb": "ea7d27cbb945c04f67b1a5078d64482f206259b9986723e146aa207f12f87c0a",
+    "lib/wireless/cli/report.rb": "94da18665a80f7ff2847a7d32acbb47ec0863d2f99e1b826bcb822b67675b410",
+    "Gemfile.lock": "5bc44e8523b992ed1c8e2cb83dc72becae21ff4599a768adcb00295e867344d4"
+  },
+  "fixture_sha256": {
+    "testdata/ruby-canonical-probes.json": "470964d94fdce3bd8a670d90440a79d9520c267ab5c6990715ef8f9b0c4cf47c",
+    "testdata/ruby-fpconv.json.gz": "8ada631cd0a7a9d8fbb3b82f356d2f5ceb7afcf006a5c610eba556dcd90574d6",
+    "testdata/ruby-recommendations.json": "e532d9749d464777743e74f0b32f58e930077334fdf2bf807790fcf60ffff30f",
+    "testdata/ruby-interop/canonical.json": "bf17536e4c2eee7cbab55ed1aa4f64ac0cbd8d77186316487bb1909e646bcab0",
+    "testdata/ruby-interop/device.json": "2bdf20a7152aaf5f185d649f3d8541e18af2391cde15c1827e9c8a51e881842b",
+    "testdata/ruby-interop/fingerprint.txt": "d6f331ccde1907ab2c7ac596d2149d5f6c237feb4bcee41e7a36dbdffecc1f00",
+    "testdata/ruby-interop/security.plan.json": "7ad96291459713e438948592a29b49dd8e81b7f4f95ed208eea06a1b7c345831",
+    "testdata/ruby-interop/source.cfg": "936d6576fa6a94dc349aa2b6f1d3a907e4687b845716a69a35f34811f4bad037"
+  },
+  "fpconv_samples": {
+    "seed": 20261026,
+    "count": 16138,
+    "scope": "every binary exponent boundary +/- 1; deterministic random finite binary64 patterns; signed zero and extrema"
+  },
+  "recommendation_cases": 14,
+  "full_config_fingerprint": "294aea47c2657702a541a4d791b3376d5a96c3a9bcadbda1a606d64545d5d573",
+  "full_fixture_origin": "Original Ruby Config + Snapshot + CLI::Report(scripts:true); historical paths and timestamps retained as provenance, not runtime requirements",
+  "live_interop": "Optional TestRubyChangeInterop; bundle exec Ruby review of Go collect report and Ruby apply of Go typed plan through a real PTY and injected session; Go default tests use the original Ruby plan",
+  "runtime": "pure Go; Ruby used only as explicit read-only development oracle"
+}

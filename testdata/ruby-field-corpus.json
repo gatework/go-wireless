@@ -1,0 +1,3654 @@
+[
+  {
+    "method": "channel",
+    "args": [
+      "nonsense"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/compound_settings_spec.rb",
+      "line": 13
+    },
+    "id": "a4d86f5c47072c22"
+  },
+  {
+    "method": "channel",
+    "args": [
+      "1(auto)"
+    ],
+    "kwargs": {},
+    "expected": 1,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "a5c468e3abd3e238"
+  },
+  {
+    "method": "channel",
+    "args": [
+      "40"
+    ],
+    "kwargs": {},
+    "expected": 40,
+    "provenance": {
+      "file": "./spec/configuration_integrity_spec.rb",
+      "line": 81
+    },
+    "id": "adcb3a1a9444f04e"
+  },
+  {
+    "method": "channel",
+    "args": [
+      "36"
+    ],
+    "kwargs": {},
+    "expected": 36,
+    "provenance": {
+      "file": "./spec/compound_settings_spec.rb",
+      "line": 13
+    },
+    "id": "e67547ecb6654050"
+  },
+  {
+    "method": "channel_width_mhz",
+    "args": [
+      "40MHz"
+    ],
+    "kwargs": {},
+    "expected": 40,
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 82
+    },
+    "id": "35f55599e212dc83"
+  },
+  {
+    "method": "channel_width_mhz",
+    "args": [
+      "80MHz"
+    ],
+    "kwargs": {},
+    "expected": 80,
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "8b0caae67788cf77"
+  },
+  {
+    "method": "channel_width_mhz",
+    "args": [
+      "unknown"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 7
+    },
+    "id": "ff5f6313ef6859f7"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "1h"
+    ],
+    "kwargs": {},
+    "expected": 3600,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 69
+    },
+    "id": "24f28c57dc734735"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "2D:5H:48M:44S"
+    ],
+    "kwargs": {},
+    "expected": 193724,
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "4b664431cc46ea9f"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "0 days 4 hours 52 minutes"
+    ],
+    "kwargs": {},
+    "expected": 17520,
+    "provenance": null,
+    "id": "50c3779655d1e743"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "1d 2h 3m 4s"
+    ],
+    "kwargs": {},
+    "expected": 93784,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "5ed63dc1c48d414e"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "001:02:03:04"
+    ],
+    "kwargs": {},
+    "expected": 93784,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "6165be6180c31382"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      null
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 7
+    },
+    "id": "6e5eeaf88f68d814"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "0h 47m 56s"
+    ],
+    "kwargs": {},
+    "expected": 2876,
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "8077548f94e43c39"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "99999999999999999999999999999999999999999999999999999999999999999999999999999999 days"
+    ],
+    "kwargs": {},
+    "expected": 8639999999999999999999999999999999999999999999999999999999999999999999999999999913600,
+    "provenance": null,
+    "id": "8f68a166c8890c8b"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "2h"
+    ],
+    "kwargs": {},
+    "expected": 7200,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 69
+    },
+    "id": "d45ab9467f4d2d5b"
+  },
+  {
+    "method": "duration_seconds",
+    "args": [
+      "2D:5H:52M:38S"
+    ],
+    "kwargs": {},
+    "expected": 193958,
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "e39418b99bf0f0f5"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "5"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "1e2fb28c89a5b58e"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "1"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "36044df6d26c2d7d"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "5GHz / 6GHz"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "4371182cbb1749d5"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "802.11ax"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "4f6bdc5959cb2002"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "802.11ac 5GHz"
+    ],
+    "kwargs": {},
+    "expected": "5GHz",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "9c32f97f8de6a61d"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "233"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "a1c96f46c6579ae6"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "802.11b/g/n"
+    ],
+    "kwargs": {},
+    "expected": "2.4GHz",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "ad331dc8c280ea30"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "802.11ax 6GHz"
+    ],
+    "kwargs": {},
+    "expected": "6GHz",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "cd81ec7905c24fdb"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "5G"
+    ],
+    "kwargs": {},
+    "expected": "5GHz",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 127
+    },
+    "id": "cf5eb8982a9c0a1b"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "24GHz"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "d6b036bcfc9b21ae"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "149"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "daca702b14529dfb"
+  },
+  {
+    "method": "frequency_band",
+    "args": [
+      "16GHz"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 16
+    },
+    "id": "e6d1ace1e322ce62"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "20"
+    ],
+    "kwargs": {},
+    "expected": 20,
+    "provenance": null,
+    "id": "08fd1a1ee8a160d4"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "unknown"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 46
+    },
+    "id": "12fca8e0a1f1b659"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "99999999999999999999999999999999999999999999999999999999999999999999999999999999"
+    ],
+    "kwargs": {},
+    "expected": 99999999999999999999999999999999999999999999999999999999999999999999999999999999,
+    "provenance": null,
+    "id": "15b15e071b76dfd8"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "4094"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 4094,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "19ee691da2d4b56a"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "100"
+    ],
+    "kwargs": {},
+    "expected": 100,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "1a6b11b81099d0f6"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "40"
+    ],
+    "kwargs": {
+      "max": 233
+    },
+    "expected": 40,
+    "provenance": {
+      "file": "./spec/configuration_integrity_spec.rb",
+      "line": 81
+    },
+    "id": "1ee908f1f97bda6f"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "1"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 1,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "2269c12bb8190b44"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "1"
+    ],
+    "kwargs": {
+      "max": 233
+    },
+    "expected": 1,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "2eab21fa2d806012"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "300"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 300,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 20
+    },
+    "id": "3a59592c53491dbb"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "1"
+    ],
+    "kwargs": {},
+    "expected": 1,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "42e0d795e02cafd1"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "0"
+    ],
+    "kwargs": {},
+    "expected": 0,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "4e4e9531c48ef990"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "36"
+    ],
+    "kwargs": {
+      "max": 233
+    },
+    "expected": 36,
+    "provenance": {
+      "file": "./spec/compound_settings_spec.rb",
+      "line": 13
+    },
+    "id": "53076b4ab9981efd"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "100"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 100,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 20
+    },
+    "id": "5752a045cff635e3"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "16"
+    ],
+    "kwargs": {},
+    "expected": 16,
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 77
+    },
+    "id": "5a9aa44ab8f58d33"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "2000"
+    ],
+    "kwargs": {},
+    "expected": 2000,
+    "provenance": null,
+    "id": "5f63764a9ef34e60"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "010"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 10,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "63c75dd03a6668e0"
+  },
+  {
+    "method": "integer",
+    "args": [
+      null
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": null,
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 41
+    },
+    "id": "6b74d253e0c623a6"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "25507"
+    ],
+    "kwargs": {},
+    "expected": 25507,
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 77
+    },
+    "id": "70ad752e34555697"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "9999"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 48
+    },
+    "id": "774941c880aa62d5"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "60"
+    ],
+    "kwargs": {},
+    "expected": 60,
+    "provenance": null,
+    "id": "7c8fa80392a80a6b"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "2"
+    ],
+    "kwargs": {},
+    "expected": 2,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "83bc01ea81e5b628"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "1400"
+    ],
+    "kwargs": {},
+    "expected": 1400,
+    "provenance": null,
+    "id": "9c3810b9b1dd44fe"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "30"
+    ],
+    "kwargs": {},
+    "expected": 30,
+    "provenance": null,
+    "id": "a47c19a4b09a4f20"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "3"
+    ],
+    "kwargs": {},
+    "expected": 3,
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 46
+    },
+    "id": "a66cb9affb095514"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "101"
+    ],
+    "kwargs": {},
+    "expected": 101,
+    "provenance": null,
+    "id": "adf71312e74be442"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "10"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 10,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "b00a88945be730a9"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "25506"
+    ],
+    "kwargs": {},
+    "expected": 25506,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "c034ef3a8d38e36d"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "5"
+    ],
+    "kwargs": {},
+    "expected": 5,
+    "provenance": null,
+    "id": "ce59006c031adddc"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "7"
+    ],
+    "kwargs": {},
+    "expected": 7,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "d0108e9b637cf0fa"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "20"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 20,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "d1cf7b74a911acb5"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "200"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 200,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 20
+    },
+    "id": "d6f490bc7b50e38b"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "8"
+    ],
+    "kwargs": {},
+    "expected": 8,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "dc06bd8fac4bb1ce"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "0"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 0,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 92
+    },
+    "id": "dd278798c8a92b4b"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "4095"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "dd86a3ee61060940"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "121"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 121,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 9
+    },
+    "id": "e56ea77ac3fcfc29"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "1000"
+    ],
+    "kwargs": {},
+    "expected": 1000,
+    "provenance": null,
+    "id": "f31dab042a2eccb3"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "10"
+    ],
+    "kwargs": {},
+    "expected": 10,
+    "provenance": null,
+    "id": "f3d67d40fdbbdc3b"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "120"
+    ],
+    "kwargs": {
+      "max": 4094
+    },
+    "expected": 120,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 9
+    },
+    "id": "fa4a82e54edf1212"
+  },
+  {
+    "method": "integer",
+    "args": [
+      "50"
+    ],
+    "kwargs": {},
+    "expected": 50,
+    "provenance": null,
+    "id": "ffd068f92f65068d"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "::1:0"
+    ],
+    "kwargs": {},
+    "expected": "::0.1.0.0",
+    "provenance": null,
+    "id": "18dc3891467eeecb"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.101"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.101",
+    "provenance": null,
+    "id": "1f9f39bfda1fe248"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.7;shutdown"
+    ],
+    "kwargs": {},
+    "error": "IPAddr::InvalidAddressError",
+    "provenance": {
+      "file": "./spec/ap_session_spec.rb",
+      "line": 145
+    },
+    "id": "415fb0fb280e09ef"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.1"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.1",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "529dfb7acd925a12"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "::192.0.2.1"
+    ],
+    "kwargs": {},
+    "expected": "::192.0.2.1",
+    "provenance": null,
+    "id": "53d2219e9b468b3a"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "2001:db8::1"
+    ],
+    "kwargs": {},
+    "expected": "2001:db8::1",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "598aff93015eadd6"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "999.0.2.1"
+    ],
+    "kwargs": {},
+    "error": "IPAddr::InvalidAddressError",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 25
+    },
+    "id": "60632c115e15e9cc"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "::ffff:ffff"
+    ],
+    "kwargs": {},
+    "expected": "::255.255.255.255",
+    "provenance": null,
+    "id": "63f7676f51c81aa3"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.7"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.7",
+    "provenance": {
+      "file": "./spec/cli/connector_spec.rb",
+      "line": 43
+    },
+    "id": "64e7423329fa2a1d"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "2001:db8::2"
+    ],
+    "kwargs": {},
+    "expected": "2001:db8::2",
+    "provenance": null,
+    "id": "6552b93f5ebe16d9"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.3"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.3",
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "668562128ec7b7ca"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.9"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.9",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 8
+    },
+    "id": "730f81098728695a"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "::2"
+    ],
+    "kwargs": {},
+    "expected": "::2",
+    "provenance": null,
+    "id": "908ba7d4246536d5"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "2001:db8::101"
+    ],
+    "kwargs": {},
+    "expected": "2001:db8::101",
+    "provenance": null,
+    "id": "96523136b7919338"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.254"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.254",
+    "provenance": {
+      "file": "./spec/neighbor_parser_spec.rb",
+      "line": 8
+    },
+    "id": "a0d5a3654d2f94ee"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      null
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "a84db3e94fa1c259"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "192.0.2.2"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.2",
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 9
+    },
+    "id": "a919b17aad9f7ec8"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "::ffff:c000:201"
+    ],
+    "kwargs": {},
+    "expected": "::ffff:192.0.2.1",
+    "provenance": null,
+    "id": "bf6e411e4eb29738"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "300.0.2.254"
+    ],
+    "kwargs": {},
+    "error": "IPAddr::InvalidAddressError",
+    "provenance": {
+      "file": "./spec/h3c/configuration_and_lldp_spec.rb",
+      "line": 86
+    },
+    "id": "c84c4c1694faa5af"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "2001:0db8::0001"
+    ],
+    "kwargs": {},
+    "expected": "2001:db8::1",
+    "provenance": null,
+    "id": "d883eed725649862"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "::ffff"
+    ],
+    "kwargs": {},
+    "expected": "::ffff",
+    "provenance": null,
+    "id": "dca22a61e9306125"
+  },
+  {
+    "method": "ip_address",
+    "args": [
+      "::c000:201"
+    ],
+    "kwargs": {},
+    "expected": "::192.0.2.1",
+    "provenance": null,
+    "id": "e3869abad01907c9"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0001"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:00:01",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "2066c657d0237d3c"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0101"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:01:01",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 127
+    },
+    "id": "219ddfa0e49f3810"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "invalid-mac"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "23aa6cf16a5f211f"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-ABCD"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:ab:cd",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 83
+    },
+    "id": "3955d7e88c1b2d33"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0002"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:00:02",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "4f60296012b8ca25"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0003"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:00:03",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "5964ca88a27ac8a7"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "invalid"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 25
+    },
+    "id": "7e384c30a46b7a94"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0007"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:00:07",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 9
+    },
+    "id": "8262dbdce9d197c1"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0202"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:02:02",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 95
+    },
+    "id": "8fa1aba81b7b810b"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0201"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:02:01",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "e7e49d9213c79d2e"
+  },
+  {
+    "method": "mac_address",
+    "args": [
+      "0200-0000-0004"
+    ],
+    "kwargs": {},
+    "expected": "02:00:00:00:00:04",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "f0790a73fd7f1b3c"
+  },
+  {
+    "method": "number",
+    "args": [
+      "12"
+    ],
+    "kwargs": {},
+    "expected": 12.0,
+    "provenance": null,
+    "id": "036ebfb8aa33adf0"
+  },
+  {
+    "method": "number",
+    "args": [
+      "1"
+    ],
+    "kwargs": {},
+    "expected": 1.0,
+    "provenance": null,
+    "id": "04554ab69064290b"
+  },
+  {
+    "method": "number",
+    "args": [
+      "-62 dBm"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": -62.0,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "08bc9b43baa1ac71"
+  },
+  {
+    "method": "number",
+    "args": [
+      "20.5"
+    ],
+    "kwargs": {},
+    "expected": 20.5,
+    "provenance": null,
+    "id": "18efcdda2d590cc1"
+  },
+  {
+    "method": "number",
+    "args": [
+      "-75"
+    ],
+    "kwargs": {},
+    "expected": -75.0,
+    "provenance": null,
+    "id": "1a11f4a668cacf43"
+  },
+  {
+    "method": "number",
+    "args": [
+      "18"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": 18.0,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "3bc82ea4feb9f878"
+  },
+  {
+    "method": "number",
+    "args": [
+      "-78"
+    ],
+    "kwargs": {},
+    "expected": -78.0,
+    "provenance": null,
+    "id": "3fa7fb3f61b335f4"
+  },
+  {
+    "method": "number",
+    "args": [
+      "101"
+    ],
+    "kwargs": {
+      "unit": "%"
+    },
+    "expected": 101.0,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 133
+    },
+    "id": "410a24212f55e485"
+  },
+  {
+    "method": "number",
+    "args": [
+      "20"
+    ],
+    "kwargs": {},
+    "expected": 20.0,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 9
+    },
+    "id": "473597eb9d1f4b85"
+  },
+  {
+    "method": "number",
+    "args": [
+      "48"
+    ],
+    "kwargs": {},
+    "expected": 48.0,
+    "provenance": null,
+    "id": "53926956fc96684b"
+  },
+  {
+    "method": "number",
+    "args": [
+      "100000000000000000000"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": 1e+20,
+    "provenance": null,
+    "id": "6aeaac219ef44217"
+  },
+  {
+    "method": "number",
+    "args": [
+      "0"
+    ],
+    "kwargs": {
+      "unit": "%"
+    },
+    "expected": 0.0,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "74ac960bbce07765"
+  },
+  {
+    "method": "number",
+    "args": [
+      "24"
+    ],
+    "kwargs": {},
+    "expected": 24.0,
+    "provenance": null,
+    "id": "774e2b7475b8a71e"
+  },
+  {
+    "method": "number",
+    "args": [
+      "-65"
+    ],
+    "kwargs": {},
+    "expected": -65.0,
+    "provenance": null,
+    "id": "8a1b5a46fe9f2cd3"
+  },
+  {
+    "method": "number",
+    "args": [
+      "123456789012345680000"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": 1.2345678901234568e+20,
+    "provenance": null,
+    "id": "9ab99679b78a2f5b"
+  },
+  {
+    "method": "number",
+    "args": [
+      "-90 dBm"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": -90.0,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "a0e579ce64064184"
+  },
+  {
+    "method": "number",
+    "args": [
+      "2"
+    ],
+    "kwargs": {},
+    "expected": 2.0,
+    "provenance": null,
+    "id": "aed3a391ad04709e"
+  },
+  {
+    "method": "number",
+    "args": [
+      "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 38
+    },
+    "id": "b455b90bcb1623f2"
+  },
+  {
+    "method": "number",
+    "args": [
+      "0.5"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": 0.5,
+    "provenance": null,
+    "id": "bc21b2a7bcd86e57"
+  },
+  {
+    "method": "number",
+    "args": [
+      "36"
+    ],
+    "kwargs": {},
+    "expected": 36.0,
+    "provenance": null,
+    "id": "c1420d06c3cce8af"
+  },
+  {
+    "method": "number",
+    "args": [
+      "18"
+    ],
+    "kwargs": {},
+    "expected": 18.0,
+    "provenance": null,
+    "id": "c84fb1b71003c2fd"
+  },
+  {
+    "method": "number",
+    "args": [
+      "9"
+    ],
+    "kwargs": {},
+    "expected": 9.0,
+    "provenance": null,
+    "id": "cb3477c97d1ea23e"
+  },
+  {
+    "method": "number",
+    "args": [
+      "6"
+    ],
+    "kwargs": {},
+    "expected": 6.0,
+    "provenance": null,
+    "id": "cf9ea67d3db10f2f"
+  },
+  {
+    "method": "number",
+    "args": [
+      null
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": null,
+    "id": "d93bf1709592f4f3"
+  },
+  {
+    "method": "number",
+    "args": [
+      "-9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 dBm"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 29
+    },
+    "id": "e1c747be3bfae9fc"
+  },
+  {
+    "method": "number",
+    "args": [
+      "-60"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": -60.0,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 127
+    },
+    "id": "e1e9ca3e080c791d"
+  },
+  {
+    "method": "number",
+    "args": [
+      "54"
+    ],
+    "kwargs": {},
+    "expected": 54.0,
+    "provenance": null,
+    "id": "ea01c8b8127e42f0"
+  },
+  {
+    "method": "number",
+    "args": [
+      "18.5"
+    ],
+    "kwargs": {
+      "unit": "dBm"
+    },
+    "expected": 18.5,
+    "provenance": null,
+    "id": "f9c78e230e79ebf9"
+  },
+  {
+    "method": "online_status",
+    "args": [
+      "Idle"
+    ],
+    "kwargs": {},
+    "expected": "offline",
+    "provenance": {
+      "file": "./spec/ap_session_spec.rb",
+      "line": 145
+    },
+    "id": "5713343d59a05c48"
+  },
+  {
+    "method": "online_status",
+    "args": [
+      "idle"
+    ],
+    "kwargs": {},
+    "expected": "offline",
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "7d48524ecf132a0a"
+  },
+  {
+    "method": "online_status",
+    "args": [
+      "Run"
+    ],
+    "kwargs": {},
+    "expected": "online",
+    "provenance": {
+      "file": "./spec/cli/connector_spec.rb",
+      "line": 43
+    },
+    "id": "c1e09c76bcaee405"
+  },
+  {
+    "method": "online_status",
+    "args": [
+      "nor"
+    ],
+    "kwargs": {},
+    "expected": "online",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "f5e9869565b6b411"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      "1/99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 Tbps"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 29
+    },
+    "id": "2d0f9917c422c7cc"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      "12000/24000 Kbps"
+    ],
+    "kwargs": {},
+    "expected": [
+      12.0,
+      24.0
+    ],
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 7
+    },
+    "id": "4afc8a23f67fd16e"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      "1/2 Mbps"
+    ],
+    "kwargs": {},
+    "expected": [
+      1.0,
+      2.0
+    ],
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "6c7e1128ba55f375"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      null
+    ],
+    "kwargs": {},
+    "expected": [
+      null,
+      null
+    ],
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 7
+    },
+    "id": "ad40ec618c54e508"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      "1/2"
+    ],
+    "kwargs": {},
+    "expected": [
+      1.0,
+      2.0
+    ],
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 127
+    },
+    "id": "b448046f69a03720"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      "3/2 Mbps"
+    ],
+    "kwargs": {},
+    "expected": [
+      3.0,
+      2.0
+    ],
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "cf414c7104027580"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999/1 Mbps"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 38
+    },
+    "id": "dcf2b968a92d5344"
+  },
+  {
+    "method": "rates_mbps",
+    "args": [
+      "5500/12000 Kbps"
+    ],
+    "kwargs": {},
+    "expected": [
+      5.5,
+      12.0
+    ],
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "e4445a2c9795fc5f"
+  },
+  {
+    "method": "value",
+    "args": [
+      "wa6500a.ipe"
+    ],
+    "kwargs": {},
+    "expected": "wa6500a.ipe",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "03da1cad8c9d904d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "hidden"
+    ],
+    "kwargs": {},
+    "expected": "hidden",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 46
+    },
+    "id": "060aac7c2a52497e"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Static"
+    ],
+    "kwargs": {},
+    "expected": "Static",
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 55
+    },
+    "id": "06bc3a6ae1a25c9a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Enabled"
+    ],
+    "kwargs": {},
+    "expected": "Enabled",
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 55
+    },
+    "id": "076264ff3f079d85"
+  },
+  {
+    "method": "value",
+    "args": [
+      "::c000:201"
+    ],
+    "kwargs": {},
+    "expected": "::c000:201",
+    "provenance": null,
+    "id": "086ac7286b3691c5"
+  },
+  {
+    "method": "value",
+    "args": [
+      "121"
+    ],
+    "kwargs": {},
+    "expected": "121",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 95
+    },
+    "id": "0b1503dc8665d5f4"
+  },
+  {
+    "method": "value",
+    "args": [
+      "20"
+    ],
+    "kwargs": {},
+    "expected": "20",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "0b6cbd7be5b8e738"
+  },
+  {
+    "method": "value",
+    "args": [
+      "18"
+    ],
+    "kwargs": {},
+    "expected": "18",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "0cdfbaca60378f00"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP-B"
+    ],
+    "kwargs": {},
+    "expected": "AP-B",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "0dda359a2222e187"
+  },
+  {
+    "method": "value",
+    "args": [
+      "lab.example"
+    ],
+    "kwargs": {},
+    "expected": "lab.example",
+    "provenance": null,
+    "id": "11bc08701e5a7458"
+  },
+  {
+    "method": "value",
+    "args": [
+      "99999999999999999999999999999999999999999999999999999999999999999999999999999999 days"
+    ],
+    "kwargs": {},
+    "expected": "99999999999999999999999999999999999999999999999999999999999999999999999999999999 days",
+    "provenance": null,
+    "id": "1340e3dcff3ce098"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP-FIRST"
+    ],
+    "kwargs": {},
+    "expected": "AP-FIRST",
+    "provenance": {
+      "file": "./spec/collector_spec.rb",
+      "line": 43
+    },
+    "id": "13b4f75d665b7c61"
+  },
+  {
+    "method": "value",
+    "args": [
+      "H3C"
+    ],
+    "kwargs": {},
+    "expected": "H3C",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "15e0de5bf142afcb"
+  },
+  {
+    "method": "value",
+    "args": [
+      "40MHz"
+    ],
+    "kwargs": {},
+    "expected": "40MHz",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 82
+    },
+    "id": "15fca858659e8781"
+  },
+  {
+    "method": "value",
+    "args": [
+      "WPA2"
+    ],
+    "kwargs": {},
+    "expected": "WPA2",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "19a696479f791b77"
+  },
+  {
+    "method": "value",
+    "args": [
+      "WA6520"
+    ],
+    "kwargs": {},
+    "expected": "WA6520",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "1ca7067e62bf7f29"
+  },
+  {
+    "method": "value",
+    "args": [
+      "-90 dBm"
+    ],
+    "kwargs": {},
+    "expected": "-90 dBm",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "1d1e384763c92a10"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Run"
+    ],
+    "kwargs": {},
+    "expected": "Run",
+    "provenance": {
+      "file": "./spec/cli/connector_spec.rb",
+      "line": 43
+    },
+    "id": "1da48c3bbfd93ebc"
+  },
+  {
+    "method": "value",
+    "args": [
+      "3/2 Mbps"
+    ],
+    "kwargs": {},
+    "expected": "3/2 Mbps",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "1f36ac99c565ee46"
+  },
+  {
+    "method": "value",
+    "args": [
+      "802.11ax"
+    ],
+    "kwargs": {},
+    "expected": "802.11ax",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "224d1d41b4a23ec7"
+  },
+  {
+    "method": "value",
+    "args": [
+      "radio-two"
+    ],
+    "kwargs": {},
+    "expected": "radio-two",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "24259207ba8daf56"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0200-0000-0101"
+    ],
+    "kwargs": {},
+    "expected": "0200-0000-0101",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 9
+    },
+    "id": "26b982bae8a7fa72"
+  },
+  {
+    "method": "value",
+    "args": [
+      "200"
+    ],
+    "kwargs": {},
+    "expected": "200",
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 41
+    },
+    "id": "26fcd6b75c4c8630"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0.5"
+    ],
+    "kwargs": {},
+    "expected": "0.5",
+    "provenance": null,
+    "id": "291496031916b627"
+  },
+  {
+    "method": "value",
+    "args": [
+      "1h"
+    ],
+    "kwargs": {},
+    "expected": "1h",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 69
+    },
+    "id": "29b2391e576a2499"
+  },
+  {
+    "method": "value",
+    "args": [
+      "192.0.2.101"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.101",
+    "provenance": null,
+    "id": "2bab94ca8fbd75a9"
+  },
+  {
+    "method": "value",
+    "args": [
+      "-62 dBm"
+    ],
+    "kwargs": {},
+    "expected": "-62 dBm",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "2ffe9f589a929174"
+  },
+  {
+    "method": "value",
+    "args": [
+      "1(auto)"
+    ],
+    "kwargs": {},
+    "expected": "1(auto)",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "31aaa1997f5dcd39"
+  },
+  {
+    "method": "value",
+    "args": [
+      "18.5"
+    ],
+    "kwargs": {},
+    "expected": "18.5",
+    "provenance": null,
+    "id": "35ed5f696bf3486b"
+  },
+  {
+    "method": "value",
+    "args": [
+      "ap-two"
+    ],
+    "kwargs": {},
+    "expected": "ap-two",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "39cdf5e1086cce6a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "::192.0.2.1"
+    ],
+    "kwargs": {},
+    "expected": "::192.0.2.1",
+    "provenance": null,
+    "id": "3a2e211365c13487"
+  },
+  {
+    "method": "value",
+    "args": [
+      "second-session"
+    ],
+    "kwargs": {},
+    "expected": "second-session",
+    "provenance": null,
+    "id": "3abf57dcc13c307a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "6, 12, 24 Mbps"
+    ],
+    "kwargs": {},
+    "expected": "6, 12, 24 Mbps",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "3d5ebc9cdc67803d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Up"
+    ],
+    "kwargs": {},
+    "expected": "Up",
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 8
+    },
+    "id": "3df3e57df93950ba"
+  },
+  {
+    "method": "value",
+    "args": [
+      "3"
+    ],
+    "kwargs": {},
+    "expected": "3",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 46
+    },
+    "id": "407930dde7d4f91e"
+  },
+  {
+    "method": "value",
+    "args": [
+      "R2595P29"
+    ],
+    "kwargs": {},
+    "expected": "R2595P29",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 77
+    },
+    "id": "447caae54407e3e3"
+  },
+  {
+    "method": "value",
+    "args": [
+      "101"
+    ],
+    "kwargs": {},
+    "expected": "101",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 133
+    },
+    "id": "46352e4d8b2838fa"
+  },
+  {
+    "method": "value",
+    "args": [
+      "9, 18, 36, 48, 54 Mbps"
+    ],
+    "kwargs": {},
+    "expected": "9, 18, 36, 48, 54 Mbps",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "46b2b4eaaff7f2e8"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Success"
+    ],
+    "kwargs": {},
+    "expected": "Success",
+    "provenance": null,
+    "id": "4849f15db3ca785c"
+  },
+  {
+    "method": "value",
+    "args": [
+      "192.0.2.254"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.254",
+    "provenance": {
+      "file": "./spec/neighbor_parser_spec.rb",
+      "line": 8
+    },
+    "id": "48c0ffa04aea7327"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2026/10/16 18:00:00"
+    ],
+    "kwargs": {},
+    "expected": "2026/10/16 18:00:00",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "4da50e84baaa2deb"
+  },
+  {
+    "method": "value",
+    "args": [
+      "WLAN-BSS1"
+    ],
+    "kwargs": {},
+    "expected": "WLAN-BSS1",
+    "provenance": null,
+    "id": "501411e01b7bd66f"
+  },
+  {
+    "method": "value",
+    "args": [
+      "https://user:private-password@example.test"
+    ],
+    "kwargs": {},
+    "expected": "https://user:private-password@example.test",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 125
+    },
+    "id": "50593815f602f119"
+  },
+  {
+    "method": "value",
+    "args": [
+      "300.0.2.254"
+    ],
+    "kwargs": {},
+    "expected": "300.0.2.254",
+    "provenance": {
+      "file": "./spec/h3c/configuration_and_lldp_spec.rb",
+      "line": 86
+    },
+    "id": "5134776cbaeada6f"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0200-0000-0202"
+    ],
+    "kwargs": {},
+    "expected": "0200-0000-0202",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 95
+    },
+    "id": "523e97174204936d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "16"
+    ],
+    "kwargs": {},
+    "expected": "16",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 77
+    },
+    "id": "527ed6a2a5237e81"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Open"
+    ],
+    "kwargs": {},
+    "expected": "Open",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "58692452ddef70fb"
+  },
+  {
+    "method": "value",
+    "args": [
+      "100000000000000000000"
+    ],
+    "kwargs": {},
+    "expected": "100000000000000000000",
+    "provenance": null,
+    "id": "59d012ab694a341d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Lab A"
+    ],
+    "kwargs": {},
+    "expected": "Lab A",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 95
+    },
+    "id": "5a65be08b349bc55"
+  },
+  {
+    "method": "value",
+    "args": [
+      "-60"
+    ],
+    "kwargs": {},
+    "expected": "-60",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 127
+    },
+    "id": "5bb7d98eb424cefd"
+  },
+  {
+    "method": "value",
+    "args": [
+      "192.0.2.1"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.1",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "5d9a7d30a1e49bff"
+  },
+  {
+    "method": "value",
+    "args": [
+      "4094"
+    ],
+    "kwargs": {},
+    "expected": "4094",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "5e1e5bc8ac568206"
+  },
+  {
+    "method": "value",
+    "args": [
+      "EAP"
+    ],
+    "kwargs": {},
+    "expected": "EAP",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "5e6f9910ae3e78f9"
+  },
+  {
+    "method": "value",
+    "args": [
+      "4095"
+    ],
+    "kwargs": {},
+    "expected": "4095",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "5edff412ec042645"
+  },
+  {
+    "method": "value",
+    "args": [
+      "802.11b, 802.11g, 802.11gn, 802.11gax"
+    ],
+    "kwargs": {},
+    "expected": "802.11b, 802.11g, 802.11gn, 802.11gax",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "5f82a2cad74022bb"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP-LAB-01"
+    ],
+    "kwargs": {},
+    "expected": "AP-LAB-01",
+    "provenance": null,
+    "id": "602f486467723586"
+  },
+  {
+    "method": "value",
+    "args": [
+      "LAB"
+    ],
+    "kwargs": {},
+    "expected": "LAB",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "60310fcf8fbac82a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0 days 4 hours 52 minutes"
+    ],
+    "kwargs": {},
+    "expected": "0 days 4 hours 52 minutes",
+    "provenance": null,
+    "id": "60b3acd487d2c66b"
+  },
+  {
+    "method": "value",
+    "args": [
+      "25507"
+    ],
+    "kwargs": {},
+    "expected": "25507",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 77
+    },
+    "id": "60da131747498ad4"
+  },
+  {
+    "method": "value",
+    "args": [
+      "25506"
+    ],
+    "kwargs": {},
+    "expected": "25506",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "61e92b2263cee8b0"
+  },
+  {
+    "method": "value",
+    "args": [
+      "300"
+    ],
+    "kwargs": {},
+    "expected": "300",
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 41
+    },
+    "id": "68308c0ab0165ec0"
+  },
+  {
+    "method": "value",
+    "args": [
+      "sibling"
+    ],
+    "kwargs": {},
+    "expected": "sibling",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "6a06358f217c320f"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Authenticating"
+    ],
+    "kwargs": {},
+    "expected": "Authenticating",
+    "provenance": null,
+    "id": "6a442e50e9323039"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0200-0000-0002"
+    ],
+    "kwargs": {},
+    "expected": "0200-0000-0002",
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 72
+    },
+    "id": "6ccaa768e170023d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "802.11gax"
+    ],
+    "kwargs": {},
+    "expected": "802.11gax",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "6f88ae04b5ca4e5e"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP-LAB"
+    ],
+    "kwargs": {},
+    "expected": "AP-LAB",
+    "provenance": {
+      "file": "./spec/cli/connector_spec.rb",
+      "line": 43
+    },
+    "id": "708c58ce78aeaef6"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Dynamic"
+    ],
+    "kwargs": {},
+    "expected": "Dynamic",
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 55
+    },
+    "id": "71497e4b78258f92"
+  },
+  {
+    "method": "value",
+    "args": [
+      "--"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 79
+    },
+    "id": "71b6c14ffc76177f"
+  },
+  {
+    "method": "value",
+    "args": [
+      "::ffff"
+    ],
+    "kwargs": {},
+    "expected": "::ffff",
+    "provenance": null,
+    "id": "71ecf1c1e90433c5"
+  },
+  {
+    "method": "value",
+    "args": [
+      "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999/1 Mbps"
+    ],
+    "kwargs": {},
+    "expected": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999/1 Mbps",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 38
+    },
+    "id": "765c02355e167e50"
+  },
+  {
+    "method": "value",
+    "args": [
+      "1d 2h 3m 4s"
+    ],
+    "kwargs": {},
+    "expected": "1d 2h 3m 4s",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "781970ba25d74136"
+  },
+  {
+    "method": "value",
+    "args": [
+      "1"
+    ],
+    "kwargs": {},
+    "expected": "1",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "7df5f25cb71ac8b7"
+  },
+  {
+    "method": "value",
+    "args": [
+      "NSS1 0,1,2,3,4,5,6,7,8,9"
+    ],
+    "kwargs": {},
+    "expected": "NSS1 0,1,2,3,4,5,6,7,8,9",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "8049efd9a3cbf450"
+  },
+  {
+    "method": "value",
+    "args": [
+      "-"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "808c5b472a1b0430"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP"
+    ],
+    "kwargs": {},
+    "expected": "AP",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "80a87159bac184df"
+  },
+  {
+    "method": "value",
+    "args": [
+      "7"
+    ],
+    "kwargs": {},
+    "expected": "7",
+    "provenance": {
+      "file": "./spec/cli/connector_spec.rb",
+      "line": 43
+    },
+    "id": "815d10160d142f4a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"
+    ],
+    "kwargs": {},
+    "expected": "9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+    "provenance": {
+      "file": "./spec/fields_spec.rb",
+      "line": 38
+    },
+    "id": "8297609ac3363b44"
+  },
+  {
+    "method": "value",
+    "args": [
+      "unknown"
+    ],
+    "kwargs": {},
+    "expected": "unknown",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 46
+    },
+    "id": "82de8aa6a4155e32"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Lab B"
+    ],
+    "kwargs": {},
+    "expected": "Lab B",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 95
+    },
+    "id": "834e358ddee507c0"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Port 2"
+    ],
+    "kwargs": {},
+    "expected": "Port 2",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 69
+    },
+    "id": "83e0e54100344bbf"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0h 47m 56s"
+    ],
+    "kwargs": {},
+    "expected": "0h 47m 56s",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "85f6761cde16255b"
+  },
+  {
+    "method": "value",
+    "args": [
+      "40"
+    ],
+    "kwargs": {},
+    "expected": "40",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 60
+    },
+    "id": "866a7c28cbaf4d33"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Idle"
+    ],
+    "kwargs": {},
+    "expected": "Idle",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 74
+    },
+    "id": "8d5110c924f118de"
+  },
+  {
+    "method": "value",
+    "args": [
+      "5500/12000 Kbps"
+    ],
+    "kwargs": {},
+    "expected": "5500/12000 Kbps",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 114
+    },
+    "id": "8e461a055f5de914"
+  },
+  {
+    "method": "value",
+    "args": [
+      "99999999999999999999999999999999999999999999999999999999999999999999999999999999"
+    ],
+    "kwargs": {},
+    "expected": "99999999999999999999999999999999999999999999999999999999999999999999999999999999",
+    "provenance": null,
+    "id": "8f87e1473fe2f848"
+  },
+  {
+    "method": "value",
+    "args": [
+      "private-password"
+    ],
+    "kwargs": {},
+    "expected": "private-password",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 125
+    },
+    "id": "90a2ac38d2a608c1"
+  },
+  {
+    "method": "value",
+    "args": [
+      "100"
+    ],
+    "kwargs": {},
+    "expected": "100",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "912288caa91c54b6"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2001:db8::101"
+    ],
+    "kwargs": {},
+    "expected": "2001:db8::101",
+    "provenance": null,
+    "id": "94c9a5ee6f34c03a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "802.11a, 802.11an, 802.11ac, 802.11ax"
+    ],
+    "kwargs": {},
+    "expected": "802.11a, 802.11an, 802.11ac, 802.11ax",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "970d0d10675c986d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "123456789012345680000"
+    ],
+    "kwargs": {},
+    "expected": "123456789012345680000",
+    "provenance": null,
+    "id": "982657a73d2e186d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0200-0000-0007"
+    ],
+    "kwargs": {},
+    "expected": "0200-0000-0007",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "9add2230064093e8"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2D:5H:48M:44S"
+    ],
+    "kwargs": {},
+    "expected": "2D:5H:48M:44S",
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "9bcb7dcdf62b7fe7"
+  },
+  {
+    "method": "value",
+    "args": [
+      "::1:0"
+    ],
+    "kwargs": {},
+    "expected": "::1:0",
+    "provenance": null,
+    "id": "9beab0a46552d663"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2"
+    ],
+    "kwargs": {},
+    "expected": "2",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "9f23f8f983c45615"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0,1,2,3,4,5,6,7"
+    ],
+    "kwargs": {},
+    "expected": "0,1,2,3,4,5,6,7",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "a5fedb1e9a0548b8"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP-1"
+    ],
+    "kwargs": {},
+    "expected": "AP-1",
+    "provenance": {
+      "file": "./spec/collector_spec.rb",
+      "line": 385
+    },
+    "id": "a6193705b3281a53"
+  },
+  {
+    "method": "value",
+    "args": [
+      "lab-user"
+    ],
+    "kwargs": {},
+    "expected": "lab-user",
+    "provenance": null,
+    "id": "a61a84eb60f6fcec"
+  },
+  {
+    "method": "value",
+    "args": [
+      "192.0.2.2"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.2",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 127
+    },
+    "id": "a62702b8692f4a22"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2D:5H:52M:38S"
+    ],
+    "kwargs": {},
+    "expected": "2D:5H:52M:38S",
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "a68a29c3ea7ba1d4"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Not configured"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "a7018dcaa85374c0"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2h"
+    ],
+    "kwargs": {},
+    "expected": "2h",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 69
+    },
+    "id": "a8fe3389961f0c6c"
+  },
+  {
+    "method": "value",
+    "args": [
+      "::ffff:c000:201"
+    ],
+    "kwargs": {},
+    "expected": "::ffff:c000:201",
+    "provenance": null,
+    "id": "a9266a6ac0329acb"
+  },
+  {
+    "method": "value",
+    "args": [
+      "1/2 Mbps"
+    ],
+    "kwargs": {},
+    "expected": "1/2 Mbps",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "ac9e323344335723"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0200-0000-0201"
+    ],
+    "kwargs": {},
+    "expected": "0200-0000-0201",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 31
+    },
+    "id": "ad2c5d47c0776d9d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "::ffff:ffff"
+    ],
+    "kwargs": {},
+    "expected": "::ffff:ffff",
+    "provenance": null,
+    "id": "ae68f7eb222e7733"
+  },
+  {
+    "method": "value",
+    "args": [
+      "010"
+    ],
+    "kwargs": {},
+    "expected": "010",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "b011797bbbf7e7cb"
+  },
+  {
+    "method": "value",
+    "args": [
+      "192.0.2.7"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.7",
+    "provenance": {
+      "file": "./spec/cli/connector_spec.rb",
+      "line": 43
+    },
+    "id": "b3599581806f3cb4"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP-2"
+    ],
+    "kwargs": {},
+    "expected": "AP-2",
+    "provenance": {
+      "file": "./spec/collector_spec.rb",
+      "line": 385
+    },
+    "id": "b3da154627577ad2"
+  },
+  {
+    "method": "value",
+    "args": [
+      ": COMMON"
+    ],
+    "kwargs": {},
+    "expected": ": COMMON",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "b4099492957ab7d0"
+  },
+  {
+    "method": "value",
+    "args": [
+      "192.0.2.9"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.9",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "b4a9cc0d0177c23d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "120"
+    ],
+    "kwargs": {},
+    "expected": "120",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 95
+    },
+    "id": "b705da432bc357a3"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Corp"
+    ],
+    "kwargs": {},
+    "expected": "Corp",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "b9566cbc8add8531"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2001:0db8::0001"
+    ],
+    "kwargs": {},
+    "expected": "2001:0db8::0001",
+    "provenance": null,
+    "id": "c535fa9c1e97e681"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0"
+    ],
+    "kwargs": {},
+    "expected": "0",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "c5440a73542f776b"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Default"
+    ],
+    "kwargs": {},
+    "expected": "Default",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "c61fa294f4f7ba07"
+  },
+  {
+    "method": "value",
+    "args": [
+      "LAB-SWITCH"
+    ],
+    "kwargs": {},
+    "expected": "LAB-SWITCH",
+    "provenance": {
+      "file": "./spec/neighbor_parser_spec.rb",
+      "line": 8
+    },
+    "id": "cbd6df6d55b23741"
+  },
+  {
+    "method": "value",
+    "args": [
+      "8"
+    ],
+    "kwargs": {},
+    "expected": "8",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "cdfd08b2a43f6c81"
+  },
+  {
+    "method": "value",
+    "args": [
+      "WA6530"
+    ],
+    "kwargs": {},
+    "expected": "WA6530",
+    "provenance": {
+      "file": "./spec/h3c/conflicts_and_models_spec.rb",
+      "line": 35
+    },
+    "id": "cf3fa1bfad129de2"
+  },
+  {
+    "method": "value",
+    "args": [
+      "fixture-user"
+    ],
+    "kwargs": {},
+    "expected": "fixture-user",
+    "provenance": {
+      "file": "./spec/h3c/live_evidence_consistency_spec.rb",
+      "line": 18
+    },
+    "id": "d475611a8ac4e39a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "::2"
+    ],
+    "kwargs": {},
+    "expected": "::2",
+    "provenance": null,
+    "id": "d60f9fb4f5d2db21"
+  },
+  {
+    "method": "value",
+    "args": [
+      "001:02:03:04"
+    ],
+    "kwargs": {},
+    "expected": "001:02:03:04",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "d7ba5a3993ddaca6"
+  },
+  {
+    "method": "value",
+    "args": [
+      "192.0.2.3"
+    ],
+    "kwargs": {},
+    "expected": "192.0.2.3",
+    "provenance": {
+      "file": "./spec/evidence_contract_spec.rb",
+      "line": 28
+    },
+    "id": "da7f890b8e593119"
+  },
+  {
+    "method": "value",
+    "args": [
+      "NSS1 0,1,2,3,4,5,6,7,8,9,10,11"
+    ],
+    "kwargs": {},
+    "expected": "NSS1 0,1,2,3,4,5,6,7,8,9,10,11",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "db664f5a1f7c1c71"
+  },
+  {
+    "method": "value",
+    "args": [
+      "3000"
+    ],
+    "kwargs": {},
+    "expected": "3000",
+    "provenance": null,
+    "id": "df29ad560fcb0c68"
+  },
+  {
+    "method": "value",
+    "args": [
+      "802.11ax 6GHz"
+    ],
+    "kwargs": {},
+    "expected": "802.11ax 6GHz",
+    "provenance": {
+      "file": "./spec/runtime_parser_spec.rb",
+      "line": 49
+    },
+    "id": "e4cf83326aa4cb4c"
+  },
+  {
+    "method": "value",
+    "args": [
+      "internal"
+    ],
+    "kwargs": {},
+    "expected": "internal",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "e595e849f7a26be7"
+  },
+  {
+    "method": "value",
+    "args": [
+      ""
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "e6b60a951b85759d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "0200-0000-0001"
+    ],
+    "kwargs": {},
+    "expected": "0200-0000-0001",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "e9a30c88aed5d243"
+  },
+  {
+    "method": "value",
+    "args": [
+      "R2595P28"
+    ],
+    "kwargs": {},
+    "expected": "R2595P28",
+    "provenance": {
+      "file": "./spec/record_separator_spec.rb",
+      "line": 6
+    },
+    "id": "ebe0ac131c7789ee"
+  },
+  {
+    "method": "value",
+    "args": [
+      "changed"
+    ],
+    "kwargs": {},
+    "expected": "changed",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 43
+    },
+    "id": "f089f1200eab094c"
+  },
+  {
+    "method": "value",
+    "args": [
+      "AP-A"
+    ],
+    "kwargs": {},
+    "expected": "AP-A",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "f69a25e19edee29a"
+  },
+  {
+    "method": "value",
+    "args": [
+      "80MHz"
+    ],
+    "kwargs": {},
+    "expected": "80MHz",
+    "provenance": {
+      "file": "./spec/ap_radio_scopes_spec.rb",
+      "line": 53
+    },
+    "id": "f72a10731db89a70"
+  },
+  {
+    "method": "value",
+    "args": [
+      "Lab EAP"
+    ],
+    "kwargs": {},
+    "expected": "Lab EAP",
+    "provenance": null,
+    "id": "f7b78baf05c7d11d"
+  },
+  {
+    "method": "value",
+    "args": [
+      "10"
+    ],
+    "kwargs": {},
+    "expected": "10",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "fe2617e426256207"
+  },
+  {
+    "method": "value",
+    "args": [
+      "N/A"
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 41
+    },
+    "id": "ff3e9b2d52a9409e"
+  },
+  {
+    "method": "value",
+    "args": [
+      "2001:db8::1"
+    ],
+    "kwargs": {},
+    "expected": "2001:db8::1",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 113
+    },
+    "id": "ffea058967ab710e"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "4094"
+    ],
+    "kwargs": {},
+    "expected": 4094,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "03ceaf086c396450"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "120"
+    ],
+    "kwargs": {},
+    "expected": 120,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 9
+    },
+    "id": "079006b14d686c18"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      null
+    ],
+    "kwargs": {},
+    "expected": null,
+    "provenance": {
+      "file": "./spec/live_formats_spec.rb",
+      "line": 41
+    },
+    "id": "389b5b29b816e2ee"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "121"
+    ],
+    "kwargs": {},
+    "expected": 121,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 9
+    },
+    "id": "3b5ba4a293fca334"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "010"
+    ],
+    "kwargs": {},
+    "expected": 10,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "3ffc8410b8f2895b"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "0"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 92
+    },
+    "id": "81b415b5e6e20e0e"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "100"
+    ],
+    "kwargs": {},
+    "expected": 100,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 20
+    },
+    "id": "820e4e28f2976495"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "1"
+    ],
+    "kwargs": {},
+    "expected": 1,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "8d7763d4a2bea88e"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "200"
+    ],
+    "kwargs": {},
+    "expected": 200,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 20
+    },
+    "id": "ab41dcac47899d07"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "20"
+    ],
+    "kwargs": {},
+    "expected": 20,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "b92137ac168f0edd"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "10"
+    ],
+    "kwargs": {},
+    "expected": 10,
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 20
+    },
+    "id": "be0c3eeca51a4ff0"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "4095"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/parser_integrity_spec.rb",
+      "line": 135
+    },
+    "id": "d8690424c925f7c8"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "300"
+    ],
+    "kwargs": {},
+    "expected": 300,
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 20
+    },
+    "id": "ecec1c5b6f3ce32f"
+  },
+  {
+    "method": "vlan_id",
+    "args": [
+      "9999"
+    ],
+    "kwargs": {},
+    "error": "ArgumentError",
+    "provenance": {
+      "file": "./spec/config_spec.rb",
+      "line": 48
+    },
+    "id": "f31a551191523d9b"
+  }
+]

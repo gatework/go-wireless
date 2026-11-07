@@ -1,0 +1,9 @@
+# Read-only inventory; public settings only. This endpoint is intentionally invalid.
+platform: h3c_wireless
+netdisco:
+  source: http
+  url: https://netdisco.example.invalid
+  cache_enabled: true
+  cache_mode: prefer
+inventory:
+  include_vendors: [h3c_wireless]

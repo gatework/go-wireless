@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "platform": "h3c_wireless",
+  "device": {
+    "host": "192.0.2.10",
+    "name": "Synthetic-WLC",
+    "platform": "h3c_wireless",
+    "model": "WX3540"
+  },
+  "expected_config_sha256": "294aea47c2657702a541a4d791b3376d5a96c3a9bcadbda1a606d64545d5d573",
+  "source": "/Users/wenwu.yan/Works/go/go-wireless/.superpowers/sdd/wireless-port/ruby-interop-preflight/batches/2026-10-26_09-42-44/devices/Synthetic-WLC-192.0.2.10.json",
+  "source_sha256": "2bdf20a7152aaf5f185d649f3d8541e18af2391cde15c1827e9c8a51e881842b",
+  "change": {
+    "kind": "wireless_security",
+    "name": "lab",
+    "enabled": true,
+    "cipher_suites": [
+      "ccmp",
+      "tkip"
+    ],
+    "security_ies": [
+      "rsn",
+      "wpa"
+    ]
+  },
+  "commands": [
+    "system-view",
+    "wlan service-template lab",
+    " undo service-template enable",
+    " undo security-ie wpa",
+    " undo cipher-suite tkip",
+    " service-template enable",
+    "quit",
+    "return"
+  ],
+  "rollback": [
+    "system-view",
+    "wlan service-template lab",
+    " undo service-template enable",
+    " cipher-suite tkip",
+    " security-ie wpa",
+    " service-template enable",
+    "quit",
+    "return"
+  ],
+  "scope": "service-template lab",
+  "title": "服务模板保留 TKIP/WPA 兼容配置",
+  "prerequisites": [
+    "此项是加固建议，不代表当前业务故障；确认所有受影响终端支持 CCMP/RSN，且业务允许移除旧协议。",
+    "核对软件命令支持和模板绑定范围；维护窗口内操作，停用模板会断开相关终端。",
+    "重新采集并确认配置未变化；保留回退脚本。出现异常先回读，勿盲目重放。"
+  ],
+  "impact": "停用服务模板会中断所绑定 WLAN 的客户端连接，旧终端可能无法重连。",
+  "verify": [
+    "display current-configuration",
+    "display wlan client verbose",
+    "display wlan bss all verbose"
+  ]
+}

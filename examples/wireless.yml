@@ -1,0 +1,11 @@
+# Synthetic documentation addresses; --plan never connects.
+platform: h3c_wireless
+parallel: 2
+directory: ./wireless-reports
+dimensions: [access_points, radios, configuration]
+ssh:
+  host_key_policy: strict
+devices:
+  - host: 192.0.2.10
+    name: Example-WLC
+    model: WX3540

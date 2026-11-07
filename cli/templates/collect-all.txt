@@ -1,0 +1,38 @@
+用法：wireless collect [选项]（只读 WIRELESS 采集）
+        --config FILE                显式 YAML 最后叠加于自动发现的配置
+        --env-file FILE              显式环境文件最后叠加；进程环境优先
+    -p, --parallel N                 设备并发 1～500；继承 NC_PARALLEL，未配置时 4
+        --directory DIR              按设备保存报告的目录
+        --platform NAME              默认平台 h3c / h3c_wireless / huawei
+        --ap-name LIST               LLDP 仅选择指定 AP 名称，逗号分隔
+        --dimensions LIST            逗号分隔维度；--help 查看支持项
+        --host IP                    筛选已有清单，同类条件取并集，排除优先
+        --hosts LIST                 筛选已有清单，同类条件取并集，排除优先
+        --exclude-hosts LIST         筛选已有清单，同类条件取并集，排除优先
+        --name LIST                  筛选已有清单，同类条件取并集，排除优先
+        --exclude-name LIST          筛选已有清单，同类条件取并集，排除优先
+        --init                       创建缺失配置和环境模板后退出；已有文件不覆盖
+        --interactive                缺少配置时询问是否创建；要求真实终端
+        --non-interactive            禁用问答；创建文件须同时指定 --init
+        --plan, --inventory-only     预览筛选清单，不连接设备
+        --cache-only                 只读已验证清单缓存
+        --refresh-inventory          强制刷新清单，失败按缓存策略处理
+        --cache-mode MODE            清单缓存 prefer / only / refresh
+        --source SOURCE              清单来源 http / postgres
+        --show-config                查看公开有效配置
+        --json                       stdout 输出 JSON；默认显示可读摘要
+        --quiet, --no-progress       关闭 stderr 进度，可配合 --json
+        --[no-]scripts               可选导出配置建议，默认仅诊断
+        --verbose                    显示逐台结果及安全命令事件
+    -h, --help                       查看选项帮助
+        --help-all                   查看全部选项、路径与环境约定
+        --examples                   查看常用命令范例，不执行任务
+维度：client_ip_conflicts, ap_models, access_points, radios, bsses, clients, configuration, ap_groups, service_templates, dot1x_connections, mab_connections, blocked_clients, lldp
+默认按各设备平台采集全部控制器维度；AP LLDP 须显式请求，Huawei 当前支持 access_points、clients。
+优先级：CLI > 进程环境 > YAML > .env > 默认。退出码：0 完整/预览；1 未完成/无目标；2 参数/持久化错误；130 取消。
+环境默认：WIRELESS_CONFIG、WIRELESS_PLATFORM、WIRELESS_PARALLEL（或 NC_PARALLEL）、WIRELESS_DIRECTORY。
+连接与清单默认：NC_HOST_KEY_POLICY、NC_KNOWN_HOSTS、ND_CACHE_TTL；Netdisco 使用 ND_URL 和 ND_USERNAME / ND_PASSWORD 或 ND_API_KEY。
+凭据：NC_DEVICE_USERNAME / NC_DEVICE_PASSWORD，或 NC_H3C_WIRELESS_USERNAME / NC_H3C_WIRELESS_PASSWORD、NC_HUAWEI_USERNAME / NC_HUAWEI_PASSWORD；可选 NC_ENABLE_PASSWORD。
+AP LLDP 独立凭据：WIRELESS_AP_PASSWORD，可选 WIRELESS_AP_USERNAME；须显式请求 lldp。
+CLI > 进程环境 > YAML > .env > 默认；相对路径基于来源文件，CLI/进程路径基于启动目录。默认报告：/Users/wenwu.yan/Works/ruby/wireless/wireless-reports
+逐层发现：系统、用户配置目录、入口脚本目录、启动目录；每层 net-connector.yml 后 wireless.yml，显式文件最后叠加。

@@ -1,0 +1,82 @@
+package adapter
+
+import (
+	"context"
+	"errors"
+	"github.com/gatework/go-net-connector/connector"
+	wireless "github.com/gatework/go-wireless"
+	"strings"
+)
+
+// Apply opens once and owns one operation for preparation, precheck, all writes
+// and readback. Both operation and cleanup errors survive lease retirement.
+func Apply(ctx context.Context, device *connector.Device, run func(wireless.ApplySession) error) (error, error) {
+	if device == nil || run == nil {
+		return wireless.ErrChangePlan, nil
+	}
+	if e := device.Connect(ctx); e != nil {
+		return failure(e, "connection_failed", "connect"), nil
+	}
+	entered := false
+	operationErr, closeErr := device.WithOperationCleanup(ctx, func(op *connector.Operation) error {
+		entered = true
+		e := run(&applySession{op: op})
+		_ = op.Retire()
+		return e
+	})
+	if !entered {
+		closeErr = errors.Join(closeErr, device.Close())
+	}
+	return operationErr, closeErr
+}
+
+type applySession struct{ op *connector.Operation }
+
+func (s *applySession) execute(ctx context.Context, command string, query bool) (connector.Result, error) {
+	if !s.op.Connected() {
+		return connector.Result{}, wireless.NewFailure("session_closed", "execute")
+	}
+	cmd := connector.Command{Text: strings.TrimSpace(command), OutputSensitive: true}
+	if query {
+		prompt := strings.TrimSpace(s.op.RawPrompt())
+		if prompt == "" {
+			return connector.Result{}, wireless.ErrChangePlan
+		}
+		cmd.Prompt = exactPrompt(prompt)
+	}
+	result, e := s.op.ExecuteBorrowedCommand(ctx, cmd, connector.ExecuteOptions{Borrowed: true, SkipPrivilege: true, CapturePartialOutput: true})
+	if e != nil {
+		return result, e
+	}
+	steps := result.Steps()
+	if len(steps) != 1 || steps[0].Command().Text != cmd.Text || steps[0].Response().RawPrompt() == "" {
+		return result, wireless.NewFailure("invalid_command_result", "response")
+	}
+	return result, nil
+}
+func (s *applySession) Write(ctx context.Context, command string) error {
+	_, e := s.execute(ctx, command, false)
+	return e
+}
+func (s *applySession) ReadConfiguration(ctx context.Context) (wireless.Record, error) {
+	if _, e := s.execute(ctx, "screen-length disable", true); e != nil {
+		return nil, e
+	}
+	result, e := s.execute(ctx, "display current-configuration", true)
+	if e != nil {
+		return nil, e
+	}
+	body, e := responseBody(result.Steps()[0])
+	if e != nil {
+		return nil, e
+	}
+	parser, e := wireless.NewConfig("h3c_wireless", "")
+	if e != nil {
+		return nil, e
+	}
+	observation, e := parser.Parse(body, true)
+	if e != nil || observation.Status() != wireless.Complete || len(observation.Records()) != 1 {
+		return nil, wireless.NewFailure("invalid_command_result", "response")
+	}
+	return observation.Records()[0], nil
+}
