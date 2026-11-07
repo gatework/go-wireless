@@ -13,7 +13,7 @@ func String(version string) string {
 	}
 	version = "v" + version
 	revision, dirty := "unknown", false
-	if info, ok := debug.ReadBuildInfo(); ok {
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Path == "github.com/gatework/go-wireless" {
 		if info.Main.Version != "" && info.Main.Version != "(devel)" {
 			version = info.Main.Version
 		}
