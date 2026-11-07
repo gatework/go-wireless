@@ -1,9 +1,10 @@
 package cli
 
-// Frozen net-connector 0.14.2 inventory public schema.
+// Inventory settings supported by the connector v0.2 public schema.
 var inventoryFields = map[string]map[string]envField{
 	"netdisco": {
 		"cache_directory":     {"ND_CACHE_DIRECTORY", "string"},
+		"cache_namespace":     {"ND_CACHE_NAMESPACE", "optional_string"},
 		"cache_ttl":           {"ND_CACHE_TTL", "number"},
 		"cache_enabled":       {"ND_CACHE_ENABLED", "boolean"},
 		"cache_mode":          {"ND_CACHE_MODE", "string"},
@@ -29,6 +30,9 @@ var inventoryFields = map[string]map[string]envField{
 		"include_names":    {"NC_INCLUDE_NAMES", "list"},
 		"exclude_names":    {"NC_EXCLUDE_NAMES", "list"},
 		"name_match":       {"NC_NAME_MATCH", "string"},
+		"include_models":   {"NC_INCLUDE_MODELS", "list"},
+		"exclude_models":   {"NC_EXCLUDE_MODELS", "list"},
+		"model_match":      {"NC_MODEL_MATCH", "string"},
 		"exclude_vendors":  {"NC_EXCLUDE_VENDORS", "list"},
 		"include_vendors":  {"NC_INCLUDE_VENDORS", "list"},
 		"vendor_overrides": {"NC_VENDOR_OVERRIDES", "json"},

@@ -1,0 +1,14 @@
+# Shared connector settings use a flat schema. No common/wireless containers.
+# Wireless validates this file and consumes netdisco, inventory, and only
+# ssh.host_key_policy/known_hosts. Shared SSH protocol/logging fields do not
+# affect Wireless; it uses SSH. Put its port/timeouts/targets in wireless.yml.
+netdisco:
+  source: http
+  url: https://netdisco.example.invalid
+  cache_namespace: example-inventory-reader
+  cache_enabled: true
+inventory:
+  include_vendors: [h3c_wireless]
+ssh:
+  host_key_policy: strict
+  known_hosts: ~/.ssh/known_hosts

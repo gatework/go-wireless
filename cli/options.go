@@ -15,6 +15,8 @@ import (
 
 	ncconfig "github.com/gatework/go-net-connector/config"
 	"github.com/gatework/go-net-connector/inventory"
+	"github.com/gatework/go-net-connector/vendors"
+	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/sys/unix"
@@ -23,6 +25,9 @@ import (
 //go:embed templates/*
 var templates embed.FS
 var ErrOptions = errors.New("wireless: invalid public configuration or options")
+
+// ErrLegacyConfiguration identifies the removed common/wireless shared layout.
+var ErrLegacyConfiguration = fmt.Errorf("wireless: move common settings to the root of net-connector.yml and wireless settings to wireless.yml: %w", ErrOptions)
 
 type Discovery struct {
 	CWD, Home, Program string
@@ -44,10 +49,11 @@ type Options struct {
 	selectedConfig, selectedEnv, userDirectory string
 	explicitConfig, explicitEnv                bool
 	applicable                                 bool
+	registry                                   dialect.Registry
 }
 
 func parseOptions(argv []string, d Discovery) (*Options, error) {
-	o := &Options{discovery: d, overrides: wireless.Record{}, inventoryOverrides: wireless.Record{}}
+	o := &Options{discovery: d, overrides: wireless.Record{}, inventoryOverrides: wireless.Record{}, registry: vendors.NewBuiltinRegistry()}
 	for i := 0; i < len(argv); i++ {
 		arg := argv[i]
 		key, value, has := strings.Cut(arg, "=")
@@ -432,43 +438,21 @@ func (o *Options) loadFiles() (wireless.Record, wireless.Record, error) {
 		}
 		native := m
 		if filepath.Base(p) == "net-connector.yml" {
-			for k := range m {
-				if !in(k, "common", "wireless", "vxlan", "backup", "topology") {
-					return nil, nil, ErrOptions
-				}
+			native, e = o.sharedConfiguration(m, filepath.Dir(p))
+			if e != nil {
+				return nil, nil, e
 			}
-			common := wireless.Record{}
-			if v, ok := m["common"]; ok {
-				var valid bool
-				common, valid = v.(map[string]any)
-				if !valid {
-					return nil, nil, ErrOptions
-				}
-			}
-			for k := range common {
-				if !in(k, "netdisco", "inventory", "ssh") {
-					return nil, nil, ErrOptions
-				}
-			}
-			native = wireless.Record{}
-			if v, ok := m["wireless"]; ok {
-				var valid bool
-				native, valid = v.(map[string]any)
-				if !valid {
-					return nil, nil, ErrOptions
-				}
-				o.applicable = true
-			}
-			resolvePaths(common, filepath.Dir(p), o.discovery.Home, "")
-			recordFields(fields, common, data, p, "")
-			data = merge(data, common)
+			o.applicable = o.applicable || has(native, "netdisco") || has(native, "inventory")
 		} else {
+			if has(m, "common") || has(m, "wireless") {
+				return nil, nil, ErrLegacyConfiguration
+			}
 			o.applicable = true
+			resolvePaths(native, filepath.Dir(p), o.discovery.Home, "")
+			specific = merge(specific, native)
 		}
-		resolvePaths(native, filepath.Dir(p), o.discovery.Home, "")
 		recordFields(fields, native, data, p, "")
 		data = merge(data, native)
-		specific = merge(specific, native)
 		loaded = append(loaded, p)
 	}
 	if o.selectedConfig == "" && len(loaded) > 0 {
@@ -477,6 +461,42 @@ func (o *Options) loadFiles() (wireless.Record, wireless.Record, error) {
 	o.Sources["configuration_files"] = loaded
 	o.Sources["fields"] = fields
 	return data, specific, nil
+}
+
+// sharedConfiguration validates the flat connector schema without importing its
+// defaults or environment. Wireless consumes only its own inventory and trust
+// settings; connection timeouts, device targets and report policy stay local.
+func (o *Options) sharedConfiguration(data wireless.Record, directory string) (wireless.Record, error) {
+	if has(data, "common") || has(data, "wireless") {
+		return nil, ErrLegacyConfiguration
+	}
+	validated, err := ncconfig.Load(ncconfig.Options{
+		Name: "backup", CWD: directory, Home: o.discovery.Home,
+		Directories: []string{}, Environment: map[string]string{},
+		Defaults: wireless.Record{}, Overrides: data,
+	})
+	if err != nil {
+		return nil, ErrOptions
+	}
+	public := validated.Public()
+	projected := wireless.Record{}
+	for _, name := range []string{"netdisco", "inventory"} {
+		if value, ok := public[name]; ok {
+			projected[name] = value
+		}
+	}
+	if ssh, ok := public["ssh"].(map[string]any); ok {
+		trust := wireless.Record{}
+		for _, name := range []string{"host_key_policy", "known_hosts"} {
+			if value, ok := ssh[name]; ok {
+				trust[name] = value
+			}
+		}
+		if len(trust) > 0 {
+			projected["ssh"] = trust
+		}
+	}
+	return projected, nil
 }
 func in(s string, values ...string) bool {
 	for _, v := range values {
@@ -706,6 +726,11 @@ func (o *Options) validate() error {
 
 // Initialize writes only missing templates with exclusive hard-link publication.
 func (o *Options) Initialize(out io.Writer) error {
+	// The initializer writes Wireless-specific fields, which are not valid in
+	// the shared connector schema. Reject before creating either template.
+	if filepath.Base(o.selectedConfig) == "net-connector.yml" {
+		return ErrLegacyConfiguration
+	}
 	b, _ := templates.ReadFile("templates/wireless.yml")
 	data, e := ncconfig.ParseYAML(b)
 	if e != nil {
@@ -744,9 +769,6 @@ func (o *Options) Initialize(out io.Writer) error {
 	path := o.selectedConfig
 	if path == "" {
 		path = filepath.Join(o.userDirectory, "wireless.yml")
-	}
-	if filepath.Base(path) == "net-connector.yml" {
-		document = wireless.Record{"wireless": document}
 	}
 	body, e := yaml.Marshal(document)
 	if e != nil {

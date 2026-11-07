@@ -36,3 +36,7 @@
 AP LLDP 独立凭据：WIRELESS_AP_PASSWORD，可选 WIRELESS_AP_USERNAME；须显式请求 lldp。
 CLI > 进程环境 > YAML > .env > 默认；相对路径基于来源文件，CLI/进程路径基于启动目录。默认报告：/Users/wenwu.yan/Works/ruby/wireless/wireless-reports
 逐层发现：系统、用户配置目录、入口脚本目录、启动目录；每层 net-connector.yml 后 wireless.yml，显式文件最后叠加。
+net-connector.yml 使用平铺公共配置：netdisco、inventory、ssh；旧 common/wireless 容器须迁移。
+Wireless 仅继承公共 ssh.host_key_policy/known_hosts；共享 protocol、vendor_protocols、log_* 不生效，Wireless 使用 SSH。
+port、command_timeout、login_timeout、devices、parallel、directory 等无线专用配置放入 wireless.yml；默认主机密钥策略 strict。
+API key 启用清单缓存时，必须配置 ND_USERNAME 或非秘密 ND_CACHE_NAMESPACE，以账号身份隔离缓存；更换 key 不改变缓存身份。

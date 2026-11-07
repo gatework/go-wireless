@@ -5,5 +5,7 @@ netdisco:
   url: https://netdisco.example.invalid
   cache_enabled: true
   cache_mode: prefer
+  # Required with API-key caching when ND_USERNAME is absent; not a credential.
+  cache_namespace: example-inventory-reader
 inventory:
   include_vendors: [h3c_wireless]

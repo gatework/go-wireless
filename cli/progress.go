@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"sort"
@@ -92,13 +93,19 @@ func (p *progress) result(r report.Result) {
 		p.write(fmt.Sprintf("%s  %s\n", r.Device["host"], message), stringValue(r.Device["host"]))
 	}
 }
-func (p *progress) event(event connector.Event) {
+func (p *progress) event(ctx context.Context, event connector.SessionEvent) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.verbose {
-		return
+		return nil
 	}
 	p.write(fmt.Sprintf("%s  事件 %s %s\n", safe(event.Host), safe(event.Name), safe(event.Status)), event.Host)
+	// Progress failures remain batch output evidence; they must not prevent
+	// publishing an otherwise valid device result.
+	return nil
 }
 func (p *progress) finish(summary wireless.Record) {
 	p.mu.Lock()

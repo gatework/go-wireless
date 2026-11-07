@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/netip"
@@ -13,9 +12,10 @@ import (
 	"unicode"
 
 	ncconfig "github.com/gatework/go-net-connector/config"
+	"github.com/gatework/go-net-connector/fleet"
 	"github.com/gatework/go-net-connector/inventory"
 	"github.com/gatework/go-net-connector/netdisco"
-	"github.com/gatework/go-net-connector/vendors"
+	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 )
 
@@ -57,27 +57,12 @@ func (o *Options) loadInventoryPolicy() error {
 			return ErrOptions
 		}
 		if filepath.Base(path) == "net-connector.yml" {
-			for key := range all {
-				if !in(key, "common", "wireless", "vxlan", "backup", "topology") {
-					return ErrOptions
-				}
+			all, e = o.sharedConfiguration(all, filepath.Dir(path))
+			if e != nil {
+				return e
 			}
-			common, native := wireless.Record{}, wireless.Record{}
-			for key, target := range map[string]*wireless.Record{"common": &common, "backup": &native} {
-				if value, ok := all[key]; ok {
-					m, ok := value.(map[string]any)
-					if !ok {
-						return ErrOptions
-					}
-					*target = m
-				}
-			}
-			for key := range common {
-				if !in(key, "netdisco", "inventory", "ssh") {
-					return ErrOptions
-				}
-			}
-			all = merge(common, native)
+		} else if has(all, "common") || has(all, "wireless") {
+			return ErrLegacyConfiguration
 		}
 		for k := range all {
 			if !in(k, "netdisco", "inventory", "topology", "backup", "ssh", "tftp") {
@@ -123,7 +108,7 @@ func (o *Options) loadInventoryPolicy() error {
 	if e != nil {
 		return ErrOptions
 	}
-	if _, e = inventoryRules(data); e != nil {
+	if _, e = inventoryRules(data, o.registry); e != nil {
 		return e
 	}
 	n, _ := data["netdisco"].(map[string]any)
@@ -189,10 +174,10 @@ func (o *Options) loadInventoryPolicy() error {
 	}
 	return nil
 }
-func inventoryRules(data wireless.Record) (*netdisco.Rules, error) {
+func inventoryRules(data wireless.Record, registry dialect.Registry) (*fleet.Rules, error) {
 	i, _ := data["inventory"].(map[string]any)
 	lists := map[string][]string{}
-	for _, k := range []string{"include_hosts", "exclude_hosts", "include_names", "exclude_names", "include_vendors", "exclude_vendors"} {
+	for _, k := range []string{"include_hosts", "exclude_hosts", "include_names", "exclude_names", "include_models", "exclude_models", "include_vendors", "exclude_vendors"} {
 		if v, ok := i[k]; ok {
 			a, e := stringList(v)
 			if e != nil {
@@ -201,7 +186,7 @@ func inventoryRules(data wireless.Record) (*netdisco.Rules, error) {
 			lists[k] = a
 		}
 	}
-	mappings := []netdisco.Mapping{}
+	mappings := []fleet.Mapping{}
 	if v, ok := i["device_rules"]; ok {
 		a, ok := v.([]any)
 		if !ok {
@@ -217,7 +202,7 @@ func inventoryRules(data wireless.Record) (*netdisco.Rules, error) {
 					return nil, ErrOptions
 				}
 			}
-			rule := netdisco.Mapping{Vendor: stringValue(m["vendor"]), Connector: stringValue(m["connector"])}
+			rule := fleet.Mapping{Vendor: stringValue(m["vendor"]), Connector: stringValue(m["connector"])}
 			if strings.TrimSpace(rule.Vendor) == "" || strings.TrimSpace(rule.Connector) == "" {
 				return nil, ErrOptions
 			}
@@ -255,7 +240,16 @@ func inventoryRules(data wireless.Record) (*netdisco.Rules, error) {
 		}
 		overrides[k] = values
 	}
-	rules, e := netdisco.NewRules(netdisco.RuleOptions{Selection: inventory.SelectionOptions{IncludeHosts: lists["include_hosts"], ExcludeHosts: lists["exclude_hosts"], IncludeNames: lists["include_names"], ExcludeNames: lists["exclude_names"], NameMatch: stringValue(i["name_match"]), IncludeVendors: lists["include_vendors"], ExcludeVendors: lists["exclude_vendors"]}, Mappings: mappings, VendorOverrides: overrides["vendor_overrides"], HostOverrides: overrides["host_overrides"]}, vendors.Profile)
+	rules, e := fleet.NewRules(fleet.RuleOptions{
+		Selection: inventory.SelectionOptions{
+			IncludeHosts: lists["include_hosts"], ExcludeHosts: lists["exclude_hosts"],
+			IncludeNames: lists["include_names"], ExcludeNames: lists["exclude_names"],
+			IncludeModels: lists["include_models"], ExcludeModels: lists["exclude_models"],
+			IncludeVendors: lists["include_vendors"], ExcludeVendors: lists["exclude_vendors"],
+			NameMatch: stringValue(i["name_match"]), ModelMatch: stringValue(i["model_match"]),
+		},
+		Mappings: mappings, VendorOverrides: overrides["vendor_overrides"], HostOverrides: overrides["host_overrides"],
+	}, registry)
 	if e != nil {
 		return nil, ErrOptions
 	}
@@ -375,10 +369,31 @@ func defaultSource(o *Options) (netdisco.Source, string, error) {
 		if key == "" && username == "" {
 			return nil, "", ErrOptions
 		}
-		identity["url"] = strings.TrimRight(rawURL, "/")
+		u, err := url.Parse(rawURL)
+		if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || !in(u.Scheme, "https", "http") {
+			return nil, "", ErrOptions
+		}
+		u.Host = strings.ToLower(u.Host)
+		u.Path = strings.TrimRight(u.Path, "/")
+		identity["url"] = u.String()
 		identity["username"] = username
+		identity["authentication"] = "basic"
+		namespace := stringValue(n["cache_namespace"])
+		identity["namespace"] = namespace
 		if key != "" {
-			identity["api_key_hash"] = fmt.Sprintf("%x", sha256.Sum256([]byte(key)))
+			identity["authentication"] = "api_key"
+			cacheEnabled := !has(n, "cache_enabled") || boolValue(n["cache_enabled"])
+			if cacheEnabled && strings.TrimSpace(username) == "" && strings.TrimSpace(namespace) == "" {
+				return nil, "", &netdisco.InventoryError{Code: "cache_namespace_required"}
+			}
+		}
+		pageSize := limits.PageSize
+		if pageSize == 0 {
+			pageSize = 500
+		}
+		identity["query"] = wireless.Record{
+			"endpoint": "api/v1/search/device", "fields": "ip,name,dns,vendor,os,model,os_ver,serial",
+			"page_size": pageSize, "fallback_q": "%", "fallback_seeallcolumns": true,
 		}
 		if !only {
 			result, e = netdisco.NewHTTP(netdisco.HTTPOptions{URL: rawURL, Username: username, Password: password, APIKey: key, RequireHTTPS: !boolValue(n["allow_insecure_http"]), Limits: limits})
@@ -480,7 +495,7 @@ func (o *Options) inventory(ctx context.Context, factory SourceFactory) ([]wirel
 				return nil, 0, e
 			}
 		}
-		rules, e := inventoryRules(data)
+		rules, e := inventoryRules(data, o.registry)
 		if e != nil {
 			return nil, 0, e
 		}

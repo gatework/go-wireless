@@ -11,28 +11,10 @@ import (
 	"testing"
 )
 
-func write(t *testing.T, path, body string) {
-	t.Helper()
-	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
-		t.Fatal(e)
-	}
-	if e := os.WriteFile(path, []byte(body), 0600); e != nil {
-		t.Fatal(e)
-	}
-}
-func discovery(dir string) Discovery {
-	return Discovery{CWD: dir, Home: dir, Program: filepath.Join(dir, "bin/wireless"), Directories: []string{dir}}
-}
-func options(t *testing.T, body string, env map[string]string, args ...string) (*Options, error) {
-	t.Helper()
-	d := t.TempDir()
-	write(t, filepath.Join(d, "wireless.yml"), body)
-	return LoadOptions(args, env, discovery(d))
-}
 func TestLayeredConfigurationPathsAndSecrets(t *testing.T) {
 	d := t.TempDir()
 	low, high := filepath.Join(d, "low"), filepath.Join(d, "high")
-	write(t, filepath.Join(low, "net-connector.yml"), "common:\n  ssh: {host_key_policy: accept_new, known_hosts: keys}\n  netdisco: {source: http}\nwireless:\n  parallel: 7\n")
+	write(t, filepath.Join(low, "net-connector.yml"), "ssh: {host_key_policy: accept_new, known_hosts: keys}\nnetdisco: {source: http}\nbackup: {parallel: 7}\n")
 	write(t, filepath.Join(high, "wireless.yml"), "directory: reports\nparallel: 9\ndevices: [{host: '192.0.2.10'}]\n")
 	write(t, filepath.Join(high, ".env"), "WIRELESS_PARALLEL=6\nNC_DEVICE_USERNAME=dotenv\nNC_DEVICE_PASSWORD='private#value$literal'\nNC_KNOWN_HOSTS=dotenv-keys\n")
 	env := map[string]string{"NC_DEVICE_USERNAME": "process", "NC_PARALLEL": "8"}
@@ -48,7 +30,7 @@ func TestLayeredConfigurationPathsAndSecrets(t *testing.T) {
 		t.Fatal(o.Values)
 	}
 	if o.Dynamic() {
-		t.Fatal("dedicated static list inherited dynamic common source")
+		t.Fatal("dedicated static list inherited dynamic shared source")
 	}
 	if o.Environment["NC_DEVICE_USERNAME"] != "process" || o.Environment["NC_DEVICE_PASSWORD"] != "private#value$literal" {
 		t.Fatal("credential precedence")
@@ -62,7 +44,7 @@ func TestLayeredConfigurationPathsAndSecrets(t *testing.T) {
 	}
 }
 func TestInvalidPublicConfiguration(t *testing.T) {
-	bodies := []string{"parallel: 0", "parallel: 501", "parallel: false", "parallel: 1\nparallel: 2", "devices: []\n---\nparallel: 3", "devices: &d []\nap_names: *d", "devices: [{host: '192.0.2.10', password: private}]", "devices: [{host: '192.0.2.10'}, {host: '192.0.2.10'}]", "devices: [{host: '192.0.2.10/24'}]", "devices: [{host: '192.0.2.10', name: ''}]", "devices: [{host: '192.0.2.10', platform: unknown}]", "hosts: false", "exclude_names: null", "dimensions: []", "dimensions: [access_points, access_points]", "dimensions: [collection]", "ssh: {username: private}", "ssh: {host_key_policy: replace}", "ssh: {command_timeout: 0}", "ssh: {login_timeout: .inf}", "ssh: {port: 1.0}", "ssh: {port: 65536}", "platform: H3C", "directory: ''", "netdisco: null", "netdisco: {password: private}", "netdisco: {source: illegal}", "netdisco: {page_size: 0}", "netdisco: {cache_enabled: false, cache_mode: only}", "netdisco: {url: 'http://example.invalid'}", "netdisco: {url: 'https://name:private@example.invalid'}", "inventory: {include_models: []}", "inventory: {device_rules: [{vendor: H3C, connector: h3c_wireless, password: private}]}", "inventory: {host_overrides: {invalid: h3c_wireless}}", "netdisco: {}\ndevices: [{host: '192.0.2.10'}]", "netdisco_config: ''", "hosts: ['192.0.2.1-2']"}
+	bodies := []string{"parallel: 0", "parallel: 501", "parallel: false", "parallel: 1\nparallel: 2", "devices: []\n---\nparallel: 3", "devices: &d []\nap_names: *d", "devices: [{host: '192.0.2.10', password: private}]", "devices: [{host: '192.0.2.10'}, {host: '192.0.2.10'}]", "devices: [{host: '192.0.2.10/24'}]", "devices: [{host: '192.0.2.10', name: ''}]", "devices: [{host: '192.0.2.10', platform: unknown}]", "hosts: false", "exclude_names: null", "dimensions: []", "dimensions: [access_points, access_points]", "dimensions: [collection]", "ssh: {username: private}", "ssh: {host_key_policy: replace}", "ssh: {command_timeout: 0}", "ssh: {login_timeout: .inf}", "ssh: {port: 1.0}", "ssh: {port: 65536}", "platform: H3C", "directory: ''", "netdisco: null", "netdisco: {password: private}", "netdisco: {source: illegal}", "netdisco: {page_size: 0}", "netdisco: {cache_enabled: false, cache_mode: only}", "netdisco: {url: 'http://example.invalid'}", "netdisco: {url: 'https://name:private@example.invalid'}", "inventory: {include_models: WX}", "inventory: {model_match: invalid}", "inventory: {device_rules: [{vendor: H3C, connector: h3c_wireless, password: private}]}", "inventory: {host_overrides: {invalid: h3c_wireless}}", "netdisco: {}\ndevices: [{host: '192.0.2.10'}]", "netdisco_config: ''", "hosts: ['192.0.2.1-2']"}
 	for _, body := range bodies {
 		t.Run(body, func(t *testing.T) {
 			if _, e := options(t, body, map[string]string{}); e == nil {
@@ -189,14 +171,15 @@ func TestSourceFieldsMatchRubyDotPathsAndEmptyOverlayKeepsOrigin(t *testing.T) {
 	d := t.TempDir()
 	low := filepath.Join(d, "low")
 	high := filepath.Join(d, "high")
-	write(t, filepath.Join(low, "net-connector.yml"), "common: {ssh: {known_hosts: keys}}\nwireless: {parallel: 3}\n")
+	write(t, filepath.Join(low, "net-connector.yml"), "ssh: {known_hosts: keys}\n")
+	write(t, filepath.Join(low, "wireless.yml"), "parallel: 3\n")
 	write(t, filepath.Join(high, "wireless.yml"), "ssh: {}\n")
 	o, e := LoadOptions(nil, map[string]string{}, Discovery{CWD: d, Home: d, Directories: []string{low, high}})
 	if e != nil {
 		t.Fatal(e)
 	}
 	fields := o.Sources["fields"].(map[string]string)
-	if fields["parallel"] != filepath.Join(low, "net-connector.yml") || fields["ssh.known_hosts"] != filepath.Join(low, "net-connector.yml") {
+	if fields["parallel"] != filepath.Join(low, "wireless.yml") || fields["ssh.known_hosts"] != filepath.Join(low, "net-connector.yml") {
 		t.Fatal(fields)
 	}
 	if _, ok := fields["ssh"]; ok {

@@ -14,9 +14,10 @@ import (
 	"unicode"
 
 	"github.com/gatework/go-net-connector/connector"
+	"github.com/gatework/go-net-connector/netdisco"
 	"github.com/gatework/go-net-connector/parallel"
-	"github.com/gatework/go-net-connector/resources"
 	"github.com/gatework/go-net-connector/vendors"
+	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/adapter"
 	"github.com/gatework/go-wireless/report"
@@ -37,6 +38,7 @@ type Dependencies struct {
 	Input            io.Reader
 	Output, Error    io.Writer
 	Discovery        Discovery
+	Registry         dialect.Registry
 	SessionFactory   SessionFactory
 	ApplyFactory     ApplyFactory
 	SourceFactory    SourceFactory
@@ -81,7 +83,10 @@ func New(d Dependencies) *Runner {
 		d.RecommendationHook = report.RecommendationHook
 	}
 	if d.PrepareResources == nil {
-		d.PrepareResources = resources.Prepare
+		d.PrepareResources = prepareResources
+	}
+	if d.Registry == nil {
+		d.Registry = vendors.NewBuiltinRegistry()
 	}
 	if d.NewReport == nil {
 		d.NewReport = report.New
@@ -209,6 +214,7 @@ func (r *Runner) collect(ctx context.Context, argv []string) int {
 	if e != nil {
 		return r.failure("WIRELESS 参数错误")
 	}
+	o.registry = r.Registry
 	if o.Flags.Help || o.Flags.HelpAll {
 		return r.help("collect", o.Flags.HelpAll)
 	}
@@ -228,12 +234,18 @@ func (r *Runner) collect(ctx context.Context, argv []string) int {
 	}
 	if o.Flags.Init {
 		if e = o.Initialize(r.Output); e != nil {
+			if errors.Is(e, ErrLegacyConfiguration) {
+				return r.failure("初始化请指定 wireless.yml；net-connector.yml 仅保存公共配置")
+			}
 			return r.failure("WIRELESS 初始化错误")
 		}
 		return 0
 	}
 	data, specific, e := o.loadFiles()
 	if e != nil {
+		if errors.Is(e, ErrLegacyConfiguration) {
+			return r.failure("请将 common 配置移到 net-connector.yml 顶层，并将 wireless 配置移到 wireless.yml")
+		}
 		return r.failure("WIRELESS 配置文件错误")
 	}
 	if !o.applicable {
@@ -262,6 +274,9 @@ func (r *Runner) collect(ctx context.Context, argv []string) int {
 		return r.failure("配置不存在；请执行 --init 后填写设备，或使用 --config 指定配置")
 	}
 	if e = o.load(data, specific); e != nil {
+		if errors.Is(e, ErrLegacyConfiguration) {
+			return r.failure("请将 common 配置移到 net-connector.yml 顶层，并将 wireless 配置移到 wireless.yml")
+		}
 		return r.failure("WIRELESS 公开配置错误")
 	}
 	p := newProgress(r.Error, !o.Flags.Quiet, o.Flags.Verbose, r.Terminal(r.Error))
@@ -284,6 +299,10 @@ func (r *Runner) collect(ctx context.Context, argv []string) int {
 	if e != nil {
 		if ctx.Err() != nil {
 			return 130
+		}
+		var problem *netdisco.InventoryError
+		if errors.As(e, &problem) && problem.Code == "cache_namespace_required" {
+			return r.failure("API key 清单缓存需要 ND_USERNAME 或非秘密 ND_CACHE_NAMESPACE 来区分账号")
 		}
 		return r.failure("WIRELESS 清单读取或策略错误")
 	}
@@ -324,16 +343,16 @@ func (r *Runner) collect(ctx context.Context, argv []string) int {
 		if e != nil {
 			return r.failure("请设置 NC_DEVICE_USERNAME 或平台 NC_*_USERNAME，并检查设备连接参数")
 		}
-		cfg.OnEvent = p.event
+		cfg.OnSessionEvent = p.event
 		platform := stringValue(device["platform"])
 		if platform == "h3c" {
 			platform = "h3c_wireless"
 		}
-		profile, e := vendors.Profile(platform)
+		driver, e := r.Registry.Lookup(platform)
 		if e != nil {
 			return r.failure("WIRELESS 平台错误")
 		}
-		d, e := connector.New(profile, cfg)
+		d, e := connector.New(driver.Profile(), cfg)
 		if e != nil {
 			return r.failure("WIRELESS 连接参数错误")
 		}
@@ -369,7 +388,7 @@ func (r *Runner) collect(ctx context.Context, argv []string) int {
 		start := time.Now()
 		host := stringValue(device["host"])
 		p.start(device)
-		connection := Connection{Open: adapter.Open(native[host]), Platform: native[host].Name()}
+		connection := Connection{Open: adapter.Open(native[host]), Platform: native[host].ProfileName()}
 		var err error
 		if r.SessionFactory != nil {
 			connection, err = r.SessionFactory(taskCtx, copyMap(device), settings[host])
@@ -572,7 +591,13 @@ func connectionSettings(o *Options, device wireless.Record) (connector.Connectio
 	command, _ := number(ssh["command_timeout"])
 	login, _ := number(ssh["login_timeout"])
 	port, _ := ssh["port"].(int)
-	cfg := connector.ConnectionConfig{Host: stringValue(device["host"]), Username: username, Password: password, EnablePassword: secret(o.Environment, "NC_ENABLE_PASSWORD"), Port: port, HostKeyPolicy: stringValue(ssh["host_key_policy"]), KnownHosts: stringValue(ssh["known_hosts"]), CommandTimeout: time.Duration(command * 1e9), LoginTimeout: time.Duration(login * 1e9), LogLevel: "info"}
+	cfg := connector.ConnectionConfig{
+		Host: stringValue(device["host"]), Username: username, Password: password,
+		EnablePassword: secret(o.Environment, "NC_ENABLE_PASSWORD"),
+		Protocol:       connector.ProtocolSSH, Port: port,
+		HostKeyPolicy: connector.HostKeyPolicy(stringValue(ssh["host_key_policy"])), KnownHosts: stringValue(ssh["known_hosts"]),
+		CommandTimeout: time.Duration(command * 1e9), LoginTimeout: time.Duration(login * 1e9), LogLevel: "info",
+	}
 	return cfg, nil
 }
 func safe(v string) string {

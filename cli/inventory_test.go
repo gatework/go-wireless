@@ -147,7 +147,7 @@ func TestInitializationPreservesPublicSchemaDefaults(t *testing.T) {
 			t.Errorf("%s=%v want %v", k, n[k], v)
 		}
 	}
-	if o.Values["ssh"].(map[string]any)["host_key_policy"] != "accept_new" {
+	if o.Values["ssh"].(map[string]any)["host_key_policy"] != "strict" {
 		t.Fatal(o.Values)
 	}
 	ttl, _ := number(n["cache_ttl"])
