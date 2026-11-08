@@ -1,9 +1,10 @@
 # Collection and native transport API
 
-Package `github.com/gatework/go-wireless` adds collection without importing a
-transport. Package `github.com/gatework/go-wireless/adapter` binds the pinned native
-connector v0.3.0 and go-expect v0.4.0. Use `GOWORK=off`; no local workspace
-or replacement is required.
+Package `github.com/gatework/go-wireless/collect` owns single-device acquisition.
+It depends on evidence and a selected parser profile, with no transport or built-in
+vendor discovery. `adapter/netconnector` supplies the concrete Connector adapter.
+The source branch requires new Connector APIs; the published-version delivery
+gate remains separate from local workspace validation.
 
 ```go
 type Clock func() time.Time
@@ -16,7 +17,8 @@ type CollectorOptions struct { Clock Clock; APFactory APFactory }
 func NewCollector(CollectorOptions) *Collector
 type CollectOptions struct {
     Target Record
-    Platform, Model, ConnectorPlatform string
+    Profile *parser.Profile
+    ConnectorPlatform string
     Dimensions []Dimension
     APNames []string
     APCredentials APCredentialsSource
@@ -51,6 +53,7 @@ func NewReader(Session, Clock) (*Reader, error)
 func (*Reader) Read(context.Context, string) (Capture, error)
 func (*Reader) Failure(context.Context) *Failure
 
+// Capture and Failure remain in the root wireless package.
 type CaptureOptions struct {
     Command string
     Body *string
@@ -104,19 +107,20 @@ const LLDPCommand = "display lldp neighbor-information verbose"
 AP credentials are resolved lazily only when selected inventory is nonempty and
 an AP factory exists. The factory gets the actual borrowed controller as a
 separate argument, which credentials cannot override. Each result must be one
-valid capture for LLDP; skipped success is rejected. AP identity/command/status/
+valid capture for LLDP; skipped success is rejected. AP parsing uses the same selected profile as the controller, including custom
+LLDP callbacks, while AP model validation remains explicit. AP identity/command/status/
 attempted/count are bound by collection, overriding adapter evidence claims.
 Read, cleanup and close errors are independent, deduplicated by stable code while
 successful captured neighbor facts survive cleanup errors.
 
 ```go
-// package adapter
+// package netconnector
 func Borrow(*connector.Device) (*Session, error)
 func (*Session) CloseFailure() *wireless.Failure
-func Open(*connector.Device) wireless.OpenSession
-func APFactory(wireless.Clock) wireless.APFactory
-func NewAPSession(*connector.Device, wireless.APCredentials, wireless.Clock) (*APSession, error)
-func (*APSession) Read(context.Context, wireless.Record) (wireless.APOutcome, error)
+func Open(*connector.Device) collect.OpenSession
+func APFactory(collect.Clock) collect.APFactory
+func NewAPSession(*connector.Device, collect.APCredentials, collect.Clock) (*APSession, error)
+func (*APSession) Read(context.Context, wireless.Record) (collect.APOutcome, error)
 ```
 
 Construct the native device through `vendors.NewBuiltinRegistry().Lookup`,
@@ -158,7 +162,7 @@ failures. Collection issues retain their stable codes in original order, includi
 cancellation/deadline and explicit Failure codes, with duplicate codes removed.
 Only a generic untyped post-callback error is inferred as session_close_failed.
 
-Typed apply uses `adapter.Apply` and `wireless.ApplySession`, documented in
+Typed apply uses `netconnector.Apply` and `change.ApplySession`, documented in
 `docs/change-api.md`. It owns one `WithBorrowedOperation` lease across preparation,
 precheck, writes, readback and retirement; it never nests the collection adapter.
 Both Open and Apply reject busy admission without closing another caller's lease.

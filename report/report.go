@@ -1,4 +1,3 @@
-// Package report publishes private Wireless evidence through one durable writer.
 package report
 
 import (

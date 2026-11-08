@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gatework/go-wireless/vendors"
+
 	"github.com/gatework/go-net-connector/storage"
 	wireless "github.com/gatework/go-wireless"
 )
@@ -71,8 +73,8 @@ func TestDeviceSnapshotNumericKindsAndSingleHookWriter(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	parser, _ := wireless.NewConfig("h3c", "")
-	observation, e := parser.Parse(string(body), true)
+	parser, _ := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	observation, e := parser.Parse(wireless.Configuration, string(body), true)
 	if e != nil {
 		t.Fatal(e)
 	}

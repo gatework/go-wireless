@@ -1,4 +1,3 @@
-// Package buildinfo exposes the release identity without reading configuration.
 package buildinfo
 
 import "runtime/debug"

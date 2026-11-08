@@ -1,4 +1,4 @@
-package wireless
+package wireless_test
 
 import (
 	"bytes"
@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gatework/go-wireless/vendors"
+
+	wireless "github.com/gatework/go-wireless"
 )
 
 func TestJSONPreservesParsedFloatKinds(t *testing.T) {
@@ -16,8 +20,8 @@ func TestJSONPreservesParsedFloatKinds(t *testing.T) {
 		t.Fatal(err)
 	}
 	body = []byte(strings.Replace(string(body), "max-power 20.5", "max-power 20", 1))
-	p, _ := NewConfig("h3c", "")
-	observation, err := p.Parse(string(body), true)
+	p, _ := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	observation, err := p.Parse(wireless.Configuration, string(body), true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +32,7 @@ func TestJSONPreservesParsedFloatKinds(t *testing.T) {
 	if !bytes.Contains(wire, []byte(`"max_power":20.0`)) {
 		t.Fatalf("float max_power was lost: %s", wire)
 	}
-	var decoded Observation
+	var decoded wireless.Observation
 	if err = json.Unmarshal(wire, &decoded); err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +42,7 @@ func TestJSONPreservesParsedFloatKinds(t *testing.T) {
 	}
 }
 func TestJSONFloatAndIntegerIntent(t *testing.T) {
-	b, e := MarshalJSON(Record{"integer": 20, "float": float64(20), "zero": math.Copysign(0, -1), "number": json.Number("2e1")})
+	b, e := wireless.MarshalJSON(wireless.Record{"integer": 20, "float": float64(20), "zero": math.Copysign(0, -1), "number": json.Number("2e1")})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -47,7 +51,7 @@ func TestJSONFloatAndIntegerIntent(t *testing.T) {
 			t.Errorf("missing %s in %s", token, b)
 		}
 	}
-	if _, e = MarshalJSON(Record{"bad": math.Inf(1)}); e == nil {
+	if _, e = wireless.MarshalJSON(wireless.Record{"bad": math.Inf(1)}); e == nil {
 		t.Fatal("accepted infinity")
 	}
 }
@@ -56,18 +60,18 @@ func TestCoreJSONExportsRetainRealFloatAndNegativeZero(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	p, _ := NewConfig("h3c", "")
-	observation, e := p.Parse(string(body), true)
+	p, _ := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	observation, e := p.Parse(wireless.Configuration, string(body), true)
 	if e != nil {
 		t.Fatal(e)
 	}
-	snapshot, e := NewSnapshot(SnapshotOptions{Target: Record{"host": "192.0.2.10"}, Dimensions: map[Dimension]Observation{Configuration: observation}, ObservedAt: time.Now()})
+	snapshot, e := wireless.NewSnapshot(wireless.SnapshotOptions{Target: wireless.Record{"host": "192.0.2.10"}, Dimensions: map[wireless.Dimension]wireless.Observation{wireless.Configuration: observation}, ObservedAt: time.Now()})
 	if e != nil {
 		t.Fatal(e)
 	}
 	exports := []any{observation, observation.ToMap(), snapshot, snapshot.ToMap()}
 	for _, value := range exports {
-		wire, e := MarshalJSON(value)
+		wire, e := wireless.MarshalJSON(value)
 		if e != nil {
 			t.Fatal(e)
 		}

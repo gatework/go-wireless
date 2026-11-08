@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gatework/go-wireless/vendors"
+
 	wireless "github.com/gatework/go-wireless"
 )
 
 func main() {
-	parser, err := wireless.NewConfig("h3c", "")
+	parser, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
 	if err != nil {
 		panic(err)
 	}
-	observation, err := parser.Parse("sysname Example-WLC\nreturn\n", true)
+	observation, err := parser.Parse(wireless.Configuration, "sysname Example-WLC\nreturn\n", true)
 	if err != nil {
 		panic(err)
 	}

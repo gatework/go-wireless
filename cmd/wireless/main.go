@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/gatework/go-wireless/cli"
+	"github.com/gatework/go-wireless/internal/cli"
 )
 
 func main() {

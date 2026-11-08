@@ -30,7 +30,7 @@ func NewSnapshot(o SnapshotOptions) (Snapshot, error) {
 	}
 	dims := make(map[Dimension]Observation, len(o.Dimensions))
 	for n, obs := range o.Dimensions {
-		if (!supportedDimension(n) && n != Collection) || obs.Name() != n || obs.Status() == "" {
+		if (!n.Valid() && n != Collection) || obs.Name() != n || obs.Status() == "" {
 			return Snapshot{}, errors.New("invalid wireless snapshot")
 		}
 		dims[n] = obs

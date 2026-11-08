@@ -1,4 +1,3 @@
-// Package wireless parses wireless controller evidence without network or file operations.
 package wireless
 
 import (
@@ -8,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"regexp"
 	"time"
 )
 
@@ -178,7 +178,7 @@ type visit struct {
 	ptr  uintptr
 }
 
-var jsonNumberPattern = rx(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`)
+var jsonNumberPattern = regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`)
 
 func copyJSON(v any, seen map[visit]bool) (any, error) {
 	if v == nil {

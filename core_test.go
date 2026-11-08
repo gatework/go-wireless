@@ -1,4 +1,4 @@
-package wireless
+package wireless_test
 
 import (
 	"bytes"
@@ -12,6 +12,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gatework/go-wireless/vendors"
+
+	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/parser"
+	h3c "github.com/gatework/go-wireless/vendors/h3c"
 )
 
 func TestRubyParserCorpus(t *testing.T) {
@@ -42,8 +48,8 @@ func TestRubyParserCorpus(t *testing.T) {
 	if err = decoder.Decode(&cases); err != nil {
 		t.Fatal(err)
 	}
-	declarations := map[string][]Dimension{
-		"DisplayCurrentConfiguration": {Configuration}, "DisplayWlanApAllVerbose": {AccessPoints, Radios}, "DisplayWlanBssAllVerbose": {BSSes}, "DisplayWlanClientVerbose": {Clients}, "DisplayDot1xConnection": {Dot1xConnections}, "DisplayMacAuthenticationConnection": {MABConnections}, "DisplayWlanClientSecurityBlockMac": {BlockedClients}, "DisplayWlanStatisticsClientIpConflict": {ClientIPConflicts}, "DisplayWlanApModelAll": {APModels}, "DisplayLldpNeighborInformationVerbose": {LLDP}, "DisplayApAll": {AccessPoints}, "DisplayStationAll": {Clients},
+	declarations := map[string][]wireless.Dimension{
+		"DisplayCurrentConfiguration": {wireless.Configuration}, "DisplayWlanApAllVerbose": {wireless.AccessPoints, wireless.Radios}, "DisplayWlanBssAllVerbose": {wireless.BSSes}, "DisplayWlanClientVerbose": {wireless.Clients}, "DisplayDot1xConnection": {wireless.Dot1xConnections}, "DisplayMacAuthenticationConnection": {wireless.MABConnections}, "DisplayWlanClientSecurityBlockMac": {wireless.BlockedClients}, "DisplayWlanStatisticsClientIpConflict": {wireless.ClientIPConflicts}, "DisplayWlanApModelAll": {wireless.APModels}, "DisplayLldpNeighborInformationVerbose": {wireless.LLDP}, "DisplayApAll": {wireless.AccessPoints}, "DisplayStationAll": {wireless.Clients},
 	}
 	for _, c := range cases {
 		t.Run(c.Parser+"/"+c.ID, func(t *testing.T) {
@@ -60,24 +66,24 @@ func TestRubyParserCorpus(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, _ := NewRuntimeParser("")
-			out, err := p.ParseMany(dims, string(input), ParseOptions{Platform: platform, Complete: c.Complete})
+			p, _ := parser.NewRuntimeParser(vendors.NewBuiltinRegistry(), "")
+			out, err := p.ParseMany(dims, string(input), parser.ParseOptions{Platform: platform, Complete: c.Complete})
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			if c.Source != nil {
-				source, err := ParseConfigurationSource(string(input), c.Complete)
+				source, err := h3c.ParseConfigurationSource(string(input), c.Complete)
 				if err != nil {
 					t.Fatal(err)
 				}
 				captures := []any{}
 				for _, capture := range source.Captures() {
-					captures = append(captures, Record{"first_line": capture.FirstLine(), "last_line": capture.LastLine(), "content_base64": base64.StdEncoding.EncodeToString([]byte(capture.Content())), "path": capture.Path(), "data": capture.Data(), "complete": capture.Complete()})
+					captures = append(captures, wireless.Record{"first_line": capture.FirstLine(), "last_line": capture.LastLine(), "content_base64": base64.StdEncoding.EncodeToString([]byte(capture.Content())), "path": capture.Path(), "data": capture.Data(), "complete": capture.Complete()})
 				}
-				actual := Record{"checksum": source.Checksum(), "states": source.States(), "unparsed_base64": base64.StdEncoding.EncodeToString([]byte(source.UnparsedContent())), "captures": captures}
+				actual := wireless.Record{"checksum": source.Checksum(), "states": source.States(), "unparsed_base64": base64.StdEncoding.EncodeToString([]byte(source.UnparsedContent())), "captures": captures}
 				b, _ := json.Marshal(actual)
-				var normalized Record
+				var normalized wireless.Record
 				decodeOracleJSON(b, &normalized)
 				if !reflect.DeepEqual(numberMeanings(normalized), numberMeanings(c.Source)) {
 					t.Errorf("configuration source/capture mismatch for %s", c.ID)
@@ -114,57 +120,57 @@ func TestRubyParserCorpus(t *testing.T) {
 }
 
 func TestObservationOwnershipAndSafeFormatting(t *testing.T) {
-	source := Record{"secret": []any{Record{"token": "PRIVATE"}}}
-	o, err := NewObservation(ObservationOptions{Name: Clients, Status: Complete, Records: []Record{source}})
+	source := wireless.Record{"secret": []any{wireless.Record{"token": "PRIVATE"}}}
+	o, err := wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Clients, Status: wireless.Complete, Records: []wireless.Record{source}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	source["secret"].([]any)[0].(Record)["token"] = "MUTATED"
+	source["secret"].([]any)[0].(wireless.Record)["token"] = "MUTATED"
 	records := o.Records()
-	records[0]["secret"].([]any)[0].(Record)["token"] = "AGAIN"
-	if o.Records()[0]["secret"].([]any)[0].(Record)["token"] != "PRIVATE" {
+	records[0]["secret"].([]any)[0].(wireless.Record)["token"] = "AGAIN"
+	if o.Records()[0]["secret"].([]any)[0].(wireless.Record)["token"] != "PRIVATE" {
 		t.Fatal("ownership leaked")
 	}
 	if strings.Contains(o.String(), "PRIVATE") || strings.Contains(o.GoString(), "PRIVATE") {
 		t.Fatal("unsafe format")
 	}
-	if _, err := NewObservation(ObservationOptions{Name: Clients, Status: Failed, Records: []Record{{"x": 1}}}); err == nil {
+	if _, err := wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Clients, Status: wireless.Failed, Records: []wireless.Record{{"x": 1}}}); err == nil {
 		t.Fatal("failed observations cannot contain records")
 	}
 }
 func TestRuntimeInvalidRequestsAndIndependentViews(t *testing.T) {
-	p, _ := NewRuntimeParser("")
-	for _, names := range [][]Dimension{nil, {}, {Clients, Clients}, {""}} {
-		if _, err := p.ParseMany(names, "", ParseOptions{}); err == nil {
+	p, _ := parser.NewRuntimeParser(vendors.NewBuiltinRegistry(), "")
+	for _, names := range [][]wireless.Dimension{nil, {}, {wireless.Clients, wireless.Clients}, {""}} {
+		if _, err := p.ParseMany(names, "", parser.ParseOptions{}); err == nil {
 			t.Fatalf("accepted %v", names)
 		}
 	}
-	if _, err := p.ParseMany([]Dimension{Clients, AccessPoints}, "", ParseOptions{}); err == nil {
+	if _, err := p.ParseMany([]wireless.Dimension{wireless.Clients, wireless.AccessPoints}, "", parser.ParseOptions{}); err == nil {
 		t.Fatal("accepted unrelated shared output")
 	}
-	out, err := p.ParseMany([]Dimension{AccessPoints, Radios}, "Total APs: 1\nAP name: AP\n", ParseOptions{Complete: true})
+	out, err := p.ParseMany([]wireless.Dimension{wireless.AccessPoints, wireless.Radios}, "Total APs: 1\nAP name: AP\n", parser.ParseOptions{Complete: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !out[AccessPoints].Complete() || out[Radios].Complete() {
+	if !out[wireless.AccessPoints].Complete() || out[wireless.Radios].Complete() {
 		t.Fatal("AP count proves no radio coverage")
 	}
-	o, err := p.Parse(Radios, "", ParseOptions{Platform: "huawei", Complete: true})
-	if err != nil || o.Status() != Unsupported {
+	o, err := p.Parse(wireless.Radios, "", parser.ParseOptions{Platform: "huawei", Complete: true})
+	if err != nil || o.Status() != wireless.Unsupported {
 		t.Fatal("unsupported dimension")
 	}
 }
 func TestCoverageFreshness(t *testing.T) {
 	now := time.Date(2026, 10, 16, 8, 0, 0, 0, time.UTC)
-	history := Record{"access_points": Record{"latest": Record{"status": "complete", "observed_at": now.Format(time.RFC3339)}}}
-	c, err := NewCoverage(CoverageOptions{Observations: history, Dimensions: []Dimension{AccessPoints}, Now: now, StaleAfter: 3600})
+	history := wireless.Record{"access_points": wireless.Record{"latest": wireless.Record{"status": "complete", "observed_at": now.Format(time.RFC3339)}}}
+	c, err := wireless.NewCoverage(wireless.CoverageOptions{Observations: history, Dimensions: []wireless.Dimension{wireless.AccessPoints}, Now: now, StaleAfter: 3600})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c.ToMap()["state"] != "complete" {
 		t.Fatal(c.ToMap())
 	}
-	c, _ = NewCoverage(CoverageOptions{Observations: history, Projection: Record{"access_points": Record{"status": "blocked", "observed_at": now.Format(time.RFC3339)}}, Dimensions: []Dimension{AccessPoints}, Now: now, StaleAfter: 3600})
+	c, _ = wireless.NewCoverage(wireless.CoverageOptions{Observations: history, Projection: wireless.Record{"access_points": wireless.Record{"status": "blocked", "observed_at": now.Format(time.RFC3339)}}, Dimensions: []wireless.Dimension{wireless.AccessPoints}, Now: now, StaleAfter: 3600})
 	if c.ToMap()["state"] != "unknown" {
 		t.Fatal(c.ToMap())
 	}

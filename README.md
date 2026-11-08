@@ -2,17 +2,19 @@
 
 独立的 Go 无线控制器证据采集、离线解析、报告复核与受控变更库/CLI。移植基线为 Wireless Ruby `b328e1f`（2026-10-26）；运行和普通测试不需要 Ruby、Rails 或数据库。证据完整不代表网络健康。
 
-需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.3.0**、go-expect **v0.4.0**。当前版本 **v0.1.0**；Python 3 仅用于源码交付与发布验证。
+需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.4.0**、go-expect **v0.4.1**。当前版本 **v0.2.0**；Python 3 仅用于源码交付与发布验证。
+
+本版本重整公开业务包路径，CLI 实现已内部化。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.2.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.1.0) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
+从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.2.0) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
 
 也可使用 Go 安装 CLI 或在项目中添加库依赖：
 
 ```sh
-GOWORK=off go install github.com/gatework/go-wireless/cmd/wireless@v0.1.0
-go get github.com/gatework/go-wireless@v0.1.0
+GOWORK=off go install github.com/gatework/go-wireless/cmd/wireless@v0.2.0
+go get github.com/gatework/go-wireless@v0.2.0
 ```
 
 ## 构建与安全预览
@@ -80,14 +82,14 @@ GOWORK=off go run ./examples/library
 ```
 
 ```go
-parser, err := wireless.NewConfig("h3c", "")
+profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
 if err != nil { return err }
-observation, err := parser.Parse(text, true)
+observation, err := profile.Parse(wireless.Configuration, text, true)
 if err != nil { return err }
 body, err := wireless.MarshalJSONIndent(observation, "", "  ")
 ```
 
-导入路径 `github.com/gatework/go-wireless`，包名 `wireless`。核心包不导入 native connector，适合离线解析；`adapter` 和完整 CLI 使用正式 native 模块。`scripts/check-delivery.py` 用临时文件模块代理验证当前源码的独立 consumer，完整依赖通过正常版本解析，无 workspace 或本地 replace；正式版本另按 [发布流程](docs/releasing.md) 验证 tag、同提交 CI、下载资产及公开模块消费。借用会话、时钟、库存来源和报告写入均可注入，见 [核心 API](docs/core-api.md)、[采集/传输 API](docs/transport-api.md)。
+导入路径 `github.com/gatework/go-wireless`，包名 `wireless`。根包只拥有证据值；`parser` 与 `vendors` 负责离线解析，`collect`、`review`、`change`、`report` 各自拥有业务能力，`adapter/netconnector` 接入 native connector。CLI/bootstrap/workflow 均为内部应用代码。包路径迁移见 [模块职责](docs/module-deepening.md)。`scripts/check-delivery.py` 用临时文件模块代理验证当前源码的独立 consumer，完整依赖通过正常版本解析，无 workspace 或本地 replace；正式版本另按 [发布流程](docs/releasing.md) 验证 tag、同提交 CI、下载资产及公开模块消费。借用会话、时钟、库存来源和报告写入均可注入，见 [核心 API](docs/core-api.md)、[采集/传输 API](docs/transport-api.md)。
 
 ## 验证与边界
 

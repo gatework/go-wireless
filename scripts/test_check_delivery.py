@@ -37,11 +37,11 @@ class DeliveryTests(unittest.TestCase):
             with self.subTest(symlink=symlink), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory) / "source"
                 exported = Path(directory) / "export"
-                (root / "cli").mkdir(parents=True)
+                (root / "internal/cli").mkdir(parents=True)
                 if symlink:
-                    (root / "cli/escape.go").symlink_to("/dev/null")
+                    (root / "internal/cli/escape.go").symlink_to("/dev/null")
                 else:
-                    (root / "cli/.env").write_text("secret")
+                    (root / "internal/cli/.env").write_text("secret")
                 with self.assertRaises(ValueError):
                     delivery.export_source(root, exported)
 

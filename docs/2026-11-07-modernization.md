@@ -1,5 +1,6 @@
 # 2026-11-07 正式依赖与 Go 结构改进
 
+本文保存模块重组之前的基线验证；后续工作树的包职责、API 迁移和正式依赖门槛见 [模块重组](module-deepening.md)，本次验证见 [组织迁移验证](2026-11-07-organization.md)。
 本次从未提交的无线源码保存独立基线，在隔离 worktree 实施。原有冻结依赖、Ruby oracle 和历史验证记录保留；默认构建改为 `GOWORK=off`，不使用本地 `replace` 或重建 workspace。Wireless 自身未发布。
 
 ## 实现与迁移
@@ -7,7 +8,7 @@
 - go-net-connector v0.3.0 / go-expect v0.4.0：显式借用操作、首次 cleanup error、失败 Attempt 与 accepted Steps 分离。Device.Close 是终止操作，可在观察回调中取消活动工作。
 - `ReceiptOptions.Output` / `Receipt.Output()` 改为 `Raw` / `Raw()`；注入的实际发送结果必须设置 `Attempted: true`。正文使用已验证文本，原始证据对所有 Attempt 字节按接收顺序计算摘要，未尝试不生成证据。
 - `NewChangePlan` 取代可变 map 的“先验证再使用”。输入、动作及访问器深拷贝，零值不可执行；schema 采用精确十进制比较，保留 Ruby wire JSON 和完整配置指纹。
-- `internal/apply.Run` 持有已确认变更的状态与 journal；CLI 保留真实 TTY、原文件 SHA 确认、确认后凭据加载和输出。ApplyFactory 回调增加 context，工作使用借入 context。所有操作、取消、清理和报告诊断独立保留。
+- `internal/workflow/apply.Run` 持有已确认变更的状态与 journal；CLI 保留真实 TTY、原文件 SHA 确认、确认后凭据加载和输出。ApplyFactory 回调增加 context，工作使用借入 context。所有操作、取消、清理和报告诊断独立保留。
 - `Dependencies.Registry` 统一厂商查找与 fleet 匹配。文件描述符预算属于 CLI 私有实现，按实际并发目标计算。
 - `net-connector.yml` 使用平铺共享 schema；`wireless.yml` 持有无线目标、目录、并行及 SSH 端口/超时。旧 common/wireless 容器明确拒绝。共享 SSH 只投影 trust 设置，不借用协议或日志策略；默认严格主机校验。
 - HTTP 缓存按非秘密账号/namespace 和查询隔离。启用缓存的 API-key 认证必须给出 ND_USERNAME 或 cache_namespace；旧 key-hash 缓存需要首次刷新，后续同账号密钥轮换可复用缓存。

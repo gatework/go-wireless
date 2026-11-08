@@ -7,11 +7,13 @@ or Go's ordinary JSON float formatting. Source hashes and fixture provenance are
 in `docs/change-oracle.json`. The Boost Software License is retained in
 `fpconv.go`, a pure-Go translation of that generator's Grisu2 implementation.
 
-## Core package
+## Evidence, review and change packages
 
 ```go
+// package wireless
 func CanonicalJSON(any) ([]byte, error)
 func Fingerprint(any) (string, error)
+// package change
 func RenderChange(Record) (commands, rollback []string, err error)
 func ChangeEligible(config, change Record) bool
 func ChangeSatisfied(config, change Record) bool
@@ -24,8 +26,10 @@ func (ChangePlan) ToMap() Record
 func (ChangePlan) CheckBefore(Record) error
 func (ChangePlan) CheckAfter(Record) (string, error)
 
+// package wireless
 type ObjectOrder map[uintptr][]string
 func DecodeJSONDocument([]byte) (Record, ObjectOrder, error)
+// package review
 func DecodeReviewJSON([]byte) (Record, ObjectOrder, error)
 func ValidateReviewDocument(Record) error
 func Recommendations(Record, ...ObjectOrder) Record
@@ -119,7 +123,7 @@ replays commands to repair logs.
 
 ## CLI and native transport
 
-`cli.Run(ctx,args,Dependencies{})` and the executable install actual review/apply
+The executable and its `internal/cli` command tree install actual review/apply
 behavior and default advice. Explicit `Commands` and `RecommendationHook` (or a
 ReportOptions hook) remain injectable. Review accepts `--batch`, `--output`,
 `--scripts`/`--no-scripts`, and help. It reads and validates all sorted source
@@ -129,25 +133,28 @@ reports. There is no review JSON-output flag. Apply accepts `--plan`, `--env-fil
 `--directory`, `--port`, and help; no unattended confirmation flag exists.
 
 ```go
-// package wireless
+// package change
 type ApplySession interface {
     ReadConfiguration(context.Context) (Record, error)
     Write(context.Context, string) error
 }
-// package cli
+// package internal/bootstrap (application composition, not an embedding API)
 type ApplyFactory func(context.Context, wireless.Record,
     connector.ConnectionConfig,
-    func(context.Context, wireless.ApplySession) error) (operationErr, cleanupErr error)
+    func(context.Context, change.ApplySession) error) (operationErr, cleanupErr error)
 // Dependencies.ApplyFactory optionally supplies this boundary.
-// package adapter
+// package netconnector
 func Apply(context.Context, *connector.Device,
-    func(context.Context, wireless.ApplySession) error) (operationErr, cleanupErr error)
+    func(context.Context, change.ApplySession) error) (operationErr, cleanupErr error)
 ```
 
-`internal/apply.Run` owns the confirmed/precheck/intent/send/acknowledgement/readback/
+`internal/workflow/apply.Run` owns the confirmed/precheck/intent/send/acknowledgement/readback/
 cleanup/finalization sequence behind consumer-owned Opener and Journal interfaces.
-CLI owns TTY checks, exact-file confirmation, credential loading and presentation.
-Callback work uses the context supplied by the opener.
+CLI owns TTY checks, exact-file confirmation and presentation. Bootstrap resolves
+credentials and binds transport factories only after confirmation.
+Callback work retains the context supplied by the opener; new work requires both
+the caller context and operation context to remain active. A completed write still
+gets its durable acknowledgement before cancellation stops the next command.
 
 ApplyFactory owns a synchronous borrowed-session callback and independent
 operation/cleanup results. The runner guards the callback against replay and
@@ -155,7 +162,7 @@ post-return entry, joins admitted work, and retains callback errors even if a
 factory drops them. A factory must not open more than once, retry, reconnect,
 automatically roll back or save configuration. ReadConfiguration must return
 exactly one complete parsed configuration, never partial facts. Native
-`adapter.Apply` connects once and owns one `WithBorrowedOperation` lease through
+`netconnector.Apply` connects once and owns one `WithBorrowedOperation` lease through
 preparation, precheck, all writes, postread and retirement. It uses
 `Operation.ExecuteCommand` with SkipPrivilege true, protected output and no
 rejection preservation; failed Attempts remain separate from accepted Steps. It never nests adapter
@@ -209,7 +216,7 @@ Optional live bidirectional oracle (reference checkout remains read-only):
 ```sh
 WIRELESS_RUBY_SOURCE=/path/to/ruby/wireless \
 WIRELESS_RUBY=/path/to/ruby \
-  go test ./cli -run TestRubyChangeInterop -v
+  go test ./internal/cli -run TestRubyChangeInterop -v
 ```
 
 This uses the reference bundle and JSON 3.1.0, reviews a full Go collect report

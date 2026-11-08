@@ -1,4 +1,3 @@
-// Package nativeerr translates connector failures into wireless safe diagnostics.
 package nativeerr
 
 import (

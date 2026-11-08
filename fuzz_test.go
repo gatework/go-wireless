@@ -1,9 +1,15 @@
-package wireless
+package wireless_test
 
 import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	"github.com/gatework/go-wireless/vendors"
+
+	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/parser"
+	h3c "github.com/gatework/go-wireless/vendors/h3c"
 )
 
 // A successful generic decoder must remain stable through the exact Ruby
@@ -16,19 +22,19 @@ func FuzzJSONCanonicalRoundtrip(f *testing.F) {
 		if len(input) > 1<<20 {
 			t.Skip()
 		}
-		doc, _, err := DecodeJSONDocument([]byte(input))
+		doc, _, err := wireless.DecodeJSONDocument([]byte(input))
 		if err != nil {
 			return
 		}
-		canonical, err := CanonicalJSON(doc)
+		canonical, err := wireless.CanonicalJSON(doc)
 		if err != nil {
 			return
 		} // decoder accepts historical values outside canonical domain
-		again, _, err := DecodeJSONDocument(canonical)
+		again, _, err := wireless.DecodeJSONDocument(canonical)
 		if err != nil {
 			t.Fatal("canonical output rejected", err)
 		}
-		encoded, err := CanonicalJSON(again)
+		encoded, err := wireless.CanonicalJSON(again)
 		if err != nil || !bytes.Equal(canonical, encoded) {
 			t.Fatal("canonical bytes changed", err)
 		}
@@ -43,8 +49,8 @@ func FuzzRuntimeParserEvidence(f *testing.F) {
 		if len(content) > 1<<20 {
 			t.Skip()
 		}
-		p, _ := NewRuntimeParser("")
-		observations, err := p.ParseMany([]Dimension{AccessPoints, Radios}, content, ParseOptions{Complete: true})
+		p, _ := parser.NewRuntimeParser(vendors.NewBuiltinRegistry(), "")
+		observations, err := p.ParseMany([]wireless.Dimension{wireless.AccessPoints, wireless.Radios}, content, parser.ParseOptions{Complete: true})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -52,10 +58,10 @@ func FuzzRuntimeParserEvidence(f *testing.F) {
 			if _, err := json.Marshal(o); err != nil {
 				t.Fatal("invalid serializable evidence")
 			}
-			if o.Complete() && TerminalInvalid(content) {
+			if o.Complete() && parser.TerminalInvalid(content) {
 				t.Fatal("terminal damage certified complete")
 			}
-			if (o.Status() == Failed || o.Status() == Unsupported) && len(o.Records()) != 0 {
+			if (o.Status() == wireless.Failed || o.Status() == wireless.Unsupported) && len(o.Records()) != 0 {
 				t.Fatal("unavailable evidence has records")
 			}
 		}
@@ -69,7 +75,7 @@ func FuzzConfigurationSource(f *testing.F) {
 		if len(content) > 1<<20 {
 			t.Skip()
 		}
-		source, err := ParseConfigurationSource(content, true)
+		source, err := h3c.ParseConfigurationSource(content, true)
 		if err != nil {
 			t.Fatal(err)
 		}

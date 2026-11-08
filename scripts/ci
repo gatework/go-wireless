@@ -14,6 +14,7 @@ if [[ -n "$format_files" ]]; then
   printf 'Go files require formatting:\n%s\n' "$format_files"
   exit 1
 fi
+python3 scripts/check-architecture.py
 python3 scripts/check-delivery.py --modules-only
 go version
 go mod verify

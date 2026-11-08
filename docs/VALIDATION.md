@@ -59,7 +59,7 @@ Bootstrap 15 测试含损坏 manifest/archive/member、路径穿越、链接、�
 ```sh
 WIRELESS_RUBY_SOURCE=/Users/wenwu.yan/Works/ruby/wireless \
 WIRELESS_RUBY=/opt/homebrew/opt/ruby/bin/ruby \
-  go test ./cli -run '^TestRubyChangeInterop$' -v -count=1
+  go test ./internal/cli -run '^TestRubyChangeInterop$' -v -count=1
 ```
 
 该命令退出 0（task-5-interop.log）：Ruby 4.0.7 / JSON 3.1.0 复核 Go collect 报告，验证完整配置指纹和命令，真实本地 PTY 确认后由注入 session 应用 Go 计划，篡改拒绝。反向由普通 Go 测试读取原 Ruby 报告与计划，在 injected/PTY apply 中执行，另有 collect→review→apply 完整指纹 roundtrip。完整配置指纹为 `294aea47c2657702a541a4d791b3376d5a96c3a9bcadbda1a606d64545d5d573`。
@@ -73,7 +73,7 @@ WIRELESS_RUBY=/opt/homebrew/opt/ruby/bin/ruby \
 | help/version、直接 collect 参数、stdin parse、plan | cli/TestSubprocessCLI；编译并运行真实可执行文件 |
 | init/show-config/分层配置/无覆盖 | cli/TestInitializePrivateNoOverwriteAndInheritance、TestInitializationPreservesPublicSchemaDefaults、TestInformationalAndMissingConfigurationDoNotConsumeInput、TestLayeredConfigurationPathsAndSecrets |
 | collect共享查询、partial、取消/调度/资源失败 | core/TestCollectorSharedQueriesFirstFactsAndNoSession、TestCollectorIndependentFailurePreparationAndClose；cli/TestCollectBothPlatformsPrivateReportsAndReuse、TestStoreFailureCancelsSiblingAndRetainsStartedEvidence、TestUserCancellationJoinsAndKeeps130OnSummaryFailure |
-| parse stdin/file、取消输入/用户文件所有权 | cli/TestParseOfflineAndNumericIntent、TestParseEvidenceFileIsNotSubjectToConfigFileBudget，cli/cancellation_review_test.go 的六项 TestReview*（包括真实 SIGINT/open stdin） |
+| parse stdin/file、取消输入/用户文件所有权 | cli/TestParseOfflineAndNumericIntent、TestParseEvidenceFileIsNotSubjectToConfigFileBudget，internal/cli/cancellation_review_test.go 的六项 TestReview*（包括真实 SIGINT/open stdin） |
 | Netdisco清单/分页/规则/cache | cli/TestHTTPInventoryThroughNativePaginationAndControllerRules、TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache；HTTP 为本地 httptest，PostgreSQL 只测配置与凭据边界 |
 | H3C AP LLDP / native 执行 | adapter/TestNativeAPDialoguePaginationAndExactReturn、TestNativeAPCancellationRetiresInsideLease 等；真实 native parser/lease + net.Pipe 注入字节流，非真实 SSH/telnet 服务 |
 | review Ruby/Go批次、变更完整指纹 | report/TestReviewRubyFullConfiguration、cli/TestDefaultOfflineReviewAndNoOutputOnInvalidInput、TestCollectReviewApplyFullFingerprintRoundtrip |

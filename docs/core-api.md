@@ -1,7 +1,9 @@
 # Core API contract
 
 Module `github.com/gatework/go-wireless`, package `wireless`; Go 1.26 minimum.
-This document freezes the Task 1 interface for collector, CLI, and review/apply.
+The root package owns evidence values, exact JSON, fingerprints and document order.
+Parsing lives in `parser`, built-in syntax in `vendors/h3c` and `vendors/huawei`,
+and catalog composition in `vendors`. See [package migration](module-deepening.md).
 The package has no network operations, file operations, or Ruby runtime dependency.
 
 ## Names and evidence types
@@ -89,27 +91,53 @@ To attach collector metadata, reconstruct an observation using the original
 ## Registry and query declarations
 
 ```go
-func SupportedPlatforms() []string
-func SupportedDimensions() []Dimension
-func NewProfile(platform, model string) (*Profile, error)
+// package parser
+func NewRegistry(...ProfileSpec) (*Registry, error)
+func (*Registry) Platforms() []string
+func (*Registry) Dimensions() []wireless.Dimension
+func (*Registry) Fetch(platform, model string) (*Profile, error)
+func (*Profile) Valid() bool
+// package vendors
+func NewBuiltinRegistry() *parser.Registry
 func (*Profile) Platform() string
 func (*Profile) Model() string
+func (*Profile) ConnectorPlatform() string
 func (*Profile) PreparationCommand() string
 func (*Profile) Dimensions() []Dimension
 func (*Profile) Commands() map[Dimension]string
 func (*Profile) Command(Dimension) (string, error)
 type Query struct { Command string; Dimensions []Dimension }
 func (*Profile) Queries([]Dimension) ([]Query, error)
+func (*Profile) CollectionScope([]Dimension) (CollectionScope, error)
+func (CollectionScope) Dimensions() []Dimension
+func (CollectionScope) Unsupported() []Dimension
+func (CollectionScope) Queries() []Query
+func (CollectionScope) APNeighbors() bool
 func (*Profile) Parse(Dimension, string, bool) (Observation, error)
 func (*Profile) ParseMany([]Dimension, string, bool) (map[Dimension]Observation, error)
 ```
+
+`ProfileSpec` owns platform/connector pairing, preparation, aliases, query specs
+and AP-neighbor capability. `QuerySpec` binds one `Query` to a `ParseFunc` and
+newline policy. `NewRegistry` rejects ambiguous commands, dimensions and aliases,
+and clones all declaration slices. Parser callbacks must own their captured state
+and support concurrent calls; built-in callbacks retain private immutable declarations.
+`Result` carries status, records and issues; profile admission validates and copies
+those values into observations. A nil/zero profile cannot parse or collect.
 
 Platforms normalize case/outer whitespace; `h3c_wireless` aliases `h3c`.
 Unsupported platforms return an error without including caller data. Models
 normalize case/outer whitespace; the frozen Ruby profiles have no model-specific
 overrides. Query order follows selected dimension order and groups shared commands
 once. `Dimensions` returns an owned slice in profile declaration order, including
-LLDP; collectors must exclude LLDP from defaults unless explicitly requested.
+LLDP. `CollectionScope(nil)` selects defaults excluding LLDP. An explicit empty
+scope is invalid; LLDP adds access-point evidence, and APGroups/ServiceTemplates
+add configuration evidence. Scope queries preserve order and run each shared
+command once. Unsupported dimensions remain explicit observations, while
+`APNeighbors` enables only supported, explicit AP LLDP work. Scope accessors return
+independent slices, including nested query dimensions. The collector and CLI use
+this same decision instead of interpreting platform aliases or defaults again.
+`ConnectorPlatform` returns h3c_wireless for the h3c profile and huawei for Huawei.
 `Queries` accepts an empty scope, rejects duplicate/unsupported dimensions,
 and returns owned slices. `ParseMany` requires a nonempty unique scope covered by
 one command; unrelated command bodies must remain separate.
@@ -137,18 +165,17 @@ and `screen-length 0 temporary` (Huawei).
 
 ```go
 type ParseOptions struct { Platform string; Complete bool }
-func NewRuntimeParser(model string) (*RuntimeParser, error)
+func NewRuntimeParser(registry *Registry, model string) (*RuntimeParser, error)
 func (*RuntimeParser) Parse(Dimension, string, ParseOptions) (Observation, error)
 func (*RuntimeParser) ParseMany([]Dimension, string, ParseOptions) (map[Dimension]Observation, error)
-func NewConfig(platform, model string) (*Config, error)
-func (*Config) Parse(content string, complete bool) (Observation, error)
-func NewNeighborParser(platform, model string) (*NeighborParser, error)
+func NewNeighborParser(profile *Profile, model string) (*NeighborParser, error)
 func (*NeighborParser) Parse(content, apName string, complete bool) (Observation, error)
 ```
 
-An empty runtime/config/neighbor platform selects H3C. Runtime parsing returns
-`unsupported` for dimensions outside the platform. Config's configuration view
-must be supported by its profile. Neighbor parsing validates AP identity then
+Runtime parsing defaults an empty platform to H3C and returns `unsupported` for
+dimensions outside the selected platform. Configuration uses
+`profile.Parse(wireless.Configuration, content, complete)` directly. Neighbor
+parsing receives the selected profile, validates the AP model and identity, then
 returns `unsupported` if LLDP is unsupported. Invalid UTF-8/NUL is failed evidence;
 terminal damage is partial evidence with no runtime records. Complete capture
 never masks missing syntax, invalid totals, conflicts, or radio/port coverage.
@@ -156,6 +183,8 @@ Configuration keeps unrelated usable facts and marks damaged source lines invali
 All parsers can be reused concurrently; each call owns its parsing state.
 
 ## Configuration source evidence
+
+These source-tracking declarations belong to `vendors/h3c`.
 
 ```go
 func ParseConfigurationSource(content string, complete bool) (*ConfigurationSource, error)

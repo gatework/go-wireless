@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/change"
+	review "github.com/gatework/go-wireless/review"
 )
 
 func TestReviewRubyFullConfiguration(t *testing.T) {
@@ -17,7 +19,7 @@ func TestReviewRubyFullConfiguration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	doc, order, e := wireless.DecodeReviewJSON(body)
+	doc, order, e := review.DecodeReviewJSON(body)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -25,7 +27,7 @@ func TestReviewRubyFullConfiguration(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	advice := wireless.Recommendations(doc, order)
+	advice := review.Recommendations(doc, order)
 	_, e = r.WriteReview(context.Background(), doc, "ruby", "source.json", fmt.Sprintf("%x", sha256.Sum256(body)), advice, true)
 	if e != nil {
 		t.Fatal(e)
@@ -53,16 +55,16 @@ func TestReviewRubyFullConfiguration(t *testing.T) {
 }
 
 func TestHistoricalExponentNameRemainsAdvisoryOnly(t *testing.T) {
-	doc, order, e := wireless.DecodeReviewJSON([]byte(`{"device":{"name":"wlc","host":"192.0.2.1","platform":"h3c_wireless"},"snapshot":{"dimensions":{"configuration":{"status":"complete","records":[{"service_templates":[{"name":1e+3,"enabled":true,"configuration":{"cipher_suites":["ccmp","tkip"],"security_ies":["rsn","wpa"]}}]}]}}}}`))
+	doc, order, e := review.DecodeReviewJSON([]byte(`{"device":{"name":"wlc","host":"192.0.2.1","platform":"h3c_wireless"},"snapshot":{"dimensions":{"configuration":{"status":"complete","records":[{"service_templates":[{"name":1e+3,"enabled":true,"configuration":{"cipher_suites":["ccmp","tkip"],"security_ies":["rsn","wpa"]}}]}]}}}}`))
 	if e != nil {
 		t.Fatal(e)
 	}
-	advice := wireless.Recommendations(doc, order)
+	advice := review.Recommendations(doc, order)
 	items := adviceItems(advice)
 	if len(items) != 1 || items[0]["status"] != "candidate" || items[0]["scope"] != "service-template 1000.0" {
 		t.Fatal(advice)
 	}
-	if _, _, e = wireless.RenderChange(mapping(items[0]["change"])); e == nil {
+	if _, _, e = change.RenderChange(mapping(items[0]["change"])); e == nil {
 		t.Fatal("numeric name widened typed action")
 	}
 	r, e := New(filepath.Join(t.TempDir(), "private"), Options{})

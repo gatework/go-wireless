@@ -1,4 +1,4 @@
-package wireless
+package wireless_test
 
 import (
 	"bytes"
@@ -9,34 +9,40 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/gatework/go-wireless/internal/record"
+	"github.com/gatework/go-wireless/vendors"
+
+	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/change"
 )
 
-func changePlanDocument(t *testing.T) Record {
+func changePlanDocument(t *testing.T) wireless.Record {
 	t.Helper()
 	body, err := os.ReadFile("testdata/ruby-interop/security.plan.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, _, err := DecodeJSONDocument(body)
+	document, _, err := wireless.DecodeJSONDocument(body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return document
 }
 
-func changePlanConfigurations(t *testing.T) (Record, Record) {
+func changePlanConfigurations(t *testing.T) (wireless.Record, wireless.Record) {
 	t.Helper()
 	body, err := os.ReadFile("testdata/ruby-interop/source.cfg")
 	if err != nil {
 		t.Fatal(err)
 	}
-	parser, err := NewConfig("h3c_wireless", "")
+	parser, err := vendors.NewBuiltinRegistry().Fetch("h3c_wireless", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	parse := func(body string) Record {
-		observation, err := parser.Parse(body, true)
-		if err != nil || observation.Status() != Complete {
+	parse := func(body string) wireless.Record {
+		observation, err := parser.Parse(wireless.Configuration, body, true)
+		if err != nil || observation.Status() != wireless.Complete {
 			t.Fatalf("configuration fixture: %v, %v", observation, err)
 		}
 		return observation.Records()[0]
@@ -46,25 +52,25 @@ func changePlanConfigurations(t *testing.T) (Record, Record) {
 
 func TestChangePlanOwnsDocumentActionAndRenderedCommands(t *testing.T) {
 	document := changePlanDocument(t)
-	document["metadata"] = Record{"values": []any{Record{"counter": json.Number("9007199254740993")}}}
-	wantJSON, err := MarshalJSON(document)
+	document["metadata"] = wireless.Record{"values": []any{wireless.Record{"counter": json.Number("9007199254740993")}}}
+	wantJSON, err := wireless.MarshalJSON(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantCommands, _ := planStrings(document["commands"])
-	wantRollback, _ := planStrings(document["rollback"])
-	plan, err := NewChangePlan(document)
+	wantCommands, _ := record.Strings(document["commands"])
+	wantRollback, _ := record.Strings(document["rollback"])
+	plan, err := change.NewChangePlan(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mutate := func(value Record) {
-		value["device"].(Record)["host"] = "192.0.2.99"
+	mutate := func(value wireless.Record) {
+		value["device"].(wireless.Record)["host"] = "192.0.2.99"
 		value["expected_config_sha256"] = strings.Repeat("0", 64)
-		value["change"].(Record)["enabled"] = false
-		value["change"].(Record)["cipher_suites"].([]any)[0] = "other"
+		value["change"].(wireless.Record)["enabled"] = false
+		value["change"].(wireless.Record)["cipher_suites"].([]any)[0] = "other"
 		value["commands"].([]any)[0] = "save force"
 		value["rollback"].([]any)[0] = "save force"
-		value["metadata"].(Record)["values"].([]any)[0].(Record)["counter"] = 0
+		value["metadata"].(wireless.Record)["values"].([]any)[0].(wireless.Record)["counter"] = 0
 	}
 	mutate(document)
 	mutate(plan.ToMap())
@@ -72,7 +78,7 @@ func TestChangePlanOwnsDocumentActionAndRenderedCommands(t *testing.T) {
 	plan.Commands()[0] = "save force"
 	plan.Rollback()[0] = "save force"
 	copy := plan
-	gotJSON, err := MarshalJSON(copy)
+	gotJSON, err := wireless.MarshalJSON(copy)
 	if err != nil || !bytes.Equal(gotJSON, wantJSON) {
 		t.Fatalf("plan changed through an alias: %s, %v", gotJSON, err)
 	}
@@ -84,7 +90,7 @@ func TestChangePlanOwnsDocumentActionAndRenderedCommands(t *testing.T) {
 		t.Fatal("original action or fingerprint changed", err)
 	}
 	fingerprint, err := copy.CheckAfter(after)
-	wantFingerprint, _ := Fingerprint(after)
+	wantFingerprint, _ := wireless.Fingerprint(after)
 	if err != nil || fingerprint != wantFingerprint {
 		t.Fatal("readback verification changed", fingerprint, err)
 	}
@@ -101,11 +107,11 @@ func TestChangePlanSchemaIsExactlyOneAndPreservesJSONNumber(t *testing.T) {
 		t.Run(number, func(t *testing.T) {
 			document := changePlanDocument(t)
 			document["schema_version"] = json.Number(number)
-			plan, err := NewChangePlan(document)
+			plan, err := change.NewChangePlan(document)
 			if err != nil {
 				t.Fatal("rejected exact one", err)
 			}
-			body, err := MarshalJSON(plan)
+			body, err := wireless.MarshalJSON(plan)
 			if err != nil || !bytes.Contains(body, []byte(`"schema_version":`+number+`,`)) {
 				t.Fatal("JSON numeric representation changed", string(body), err)
 			}
@@ -123,36 +129,36 @@ func TestChangePlanSchemaIsExactlyOneAndPreservesJSONNumber(t *testing.T) {
 	} {
 		document := changePlanDocument(t)
 		document["schema_version"] = value
-		if _, err := NewChangePlan(document); !errors.Is(err, ErrChangePlan) {
+		if _, err := change.NewChangePlan(document); !errors.Is(err, change.ErrChangePlan) {
 			t.Fatalf("accepted invalid schema %v (%T)", value, value)
 		}
 	}
 }
 
 func TestChangePlanRejectsZeroAndUncopyableDocuments(t *testing.T) {
-	var zero ChangePlan
-	if err := zero.CheckBefore(Record{}); !errors.Is(err, ErrChangePlan) {
+	var zero change.ChangePlan
+	if err := zero.CheckBefore(wireless.Record{}); !errors.Is(err, change.ErrChangePlan) {
 		t.Fatal("zero plan passed precheck", err)
 	}
-	if _, err := zero.CheckAfter(Record{}); !errors.Is(err, ErrChangePlan) {
+	if _, err := zero.CheckAfter(wireless.Record{}); !errors.Is(err, change.ErrChangePlan) {
 		t.Fatal("zero plan passed readback", err)
 	}
-	if _, err := json.Marshal(zero); !errors.Is(err, ErrChangePlan) {
+	if _, err := json.Marshal(zero); !errors.Is(err, change.ErrChangePlan) {
 		t.Fatal("zero plan serialized", err)
 	}
-	if _, err := NewChangePlan(nil); !errors.Is(err, ErrChangePlan) {
+	if _, err := change.NewChangePlan(nil); !errors.Is(err, change.ErrChangePlan) {
 		t.Fatal("nil plan accepted", err)
 	}
 	for _, uncopyable := range []any{func() {}, make(chan string)} {
 		document := changePlanDocument(t)
 		document["metadata"] = uncopyable
-		if _, err := NewChangePlan(document); !errors.Is(err, ErrChangePlan) {
+		if _, err := change.NewChangePlan(document); !errors.Is(err, change.ErrChangePlan) {
 			t.Fatal("accepted unowned value", err)
 		}
 	}
 	document := changePlanDocument(t)
 	document["metadata"] = document
-	if _, err := NewChangePlan(document); !errors.Is(err, ErrChangePlan) {
+	if _, err := change.NewChangePlan(document); !errors.Is(err, change.ErrChangePlan) {
 		t.Fatal("accepted cycle", err)
 	}
 }

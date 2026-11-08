@@ -3,8 +3,8 @@
     "source": "lib/wireless.rb",
     "implementation": [
       "observation.go",
-      "parser_registry.go",
-      "collector.go"
+      "parser/registry.go",
+      "collect/collect.go"
     ],
     "tests": [
       "core_test.go:TestObservationOwnershipAndSafeFormatting"
@@ -13,18 +13,20 @@
   {
     "source": "lib/wireless/ap_session.rb",
     "implementation": [
-      "adapter/ap.go"
+      "adapter/netconnector/ap.go"
     ],
     "tests": [
-      "adapter/native_test.go:TestNativeAPDialoguePaginationAndExactReturn"
+      "adapter/netconnector/native_test.go:TestNativeAPDialoguePaginationAndExactReturn"
     ]
   },
   {
     "source": "lib/wireless/change_plan.rb",
     "implementation": [
-      "change_plan.go",
+      "fingerprint.go",
+      "document.go",
+      "change/h3c.go",
       "fpconv.go",
-      "apply.go"
+      "change/apply.go"
     ],
     "tests": [
       "change_plan_test.go:TestTypedSecurityChange",
@@ -34,65 +36,65 @@
   {
     "source": "lib/wireless/cli.rb",
     "implementation": [
-      "cli/runner.go",
+      "internal/cli/runner.go",
       "cmd/wireless/main.go"
     ],
     "tests": [
-      "cli/subprocess_test.go:TestSubprocessCLI"
+      "internal/cli/subprocess_test.go:TestSubprocessCLI"
     ]
   },
   {
     "source": "lib/wireless/cli/apply.rb",
     "implementation": [
-      "cli/apply.go",
-      "internal/apply/diagnostics.go"
+      "internal/cli/apply.go",
+      "internal/workflow/apply/diagnostics.go"
     ],
     "tests": [
-      "cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay",
-      "cli/apply_diagnostics_test.go:TestApplyRetainsIndependentSafeDiagnostics"
+      "internal/cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay",
+      "internal/cli/apply_diagnostics_test.go:TestApplyRetainsIndependentSafeDiagnostics"
     ]
   },
   {
     "source": "lib/wireless/cli/collect.rb",
     "implementation": [
-      "cli/runner.go"
+      "internal/cli/runner.go"
     ],
     "tests": [
-      "cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse"
+      "internal/cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse"
     ]
   },
   {
     "source": "lib/wireless/cli/connector.rb",
     "implementation": [
-      "adapter/session.go",
-      "adapter/ap.go",
-      "cli/runner.go"
+      "adapter/netconnector/session.go",
+      "adapter/netconnector/ap.go",
+      "internal/cli/runner.go"
     ],
     "tests": [
-      "adapter/native_test.go:TestNativeBorrowDoesNotConnectOrRunArbitraryCommands"
+      "adapter/netconnector/native_test.go:TestNativeBorrowDoesNotConnectOrRunArbitraryCommands"
     ]
   },
   {
     "source": "lib/wireless/cli/options.rb",
     "implementation": [
-      "cli/options.go",
-      "cli/inventory.go",
-      "cli/inventory_schema.go"
+      "internal/bootstrap/options.go",
+      "internal/bootstrap/inventory.go",
+      "internal/bootstrap/inventory.go"
     ],
     "tests": [
-      "cli/options_test.go:TestLayeredConfigurationPathsAndSecrets",
-      "cli/inventory_test.go:TestHTTPInventoryThroughNativePaginationAndControllerRules"
+      "internal/cli/options_test.go:TestLayeredConfigurationPathsAndSecrets",
+      "internal/cli/inventory_test.go:TestHTTPInventoryThroughNativePaginationAndControllerRules"
     ]
   },
   {
     "source": "lib/wireless/cli/parse.rb",
     "implementation": [
-      "cli/parse.go",
-      "cli/input.go"
+      "internal/cli/parse.go",
+      "internal/cli/input.go"
     ],
     "tests": [
-      "cli/runner_test.go:TestParseOfflineAndNumericIntent",
-      "cli/cancellation_review_test.go:TestReviewParseCancellationDuringBorrowedReadDiscardsFacts"
+      "internal/cli/runner_test.go:TestParseOfflineAndNumericIntent",
+      "internal/cli/cancellation_review_test.go:TestReviewParseCancellationDuringBorrowedReadDiscardsFacts"
     ]
   },
   {
@@ -107,10 +109,10 @@
   {
     "source": "lib/wireless/cli/review.rb",
     "implementation": [
-      "cli/review.go"
+      "internal/cli/review.go"
     ],
     "tests": [
-      "cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput"
+      "internal/cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput"
     ]
   },
   {
@@ -125,8 +127,8 @@
   {
     "source": "lib/wireless/collector.rb",
     "implementation": [
-      "collector.go",
-      "collector_ap.go",
+      "collect/collect.go",
+      "collect/neighbors.go",
       "capture.go"
     ],
     "tests": [
@@ -136,8 +138,8 @@
   {
     "source": "lib/wireless/config.rb",
     "implementation": [
-      "config.go",
-      "h3c_configuration.go"
+      "parser/registry.go",
+      "vendors/h3c/configuration.go"
     ],
     "tests": [
       "parser_api_test.go:TestConfigViewsAndNeighborAPI"
@@ -155,8 +157,8 @@
   {
     "source": "lib/wireless/fields.rb",
     "implementation": [
-      "fields.go",
-      "fields_integer.go"
+      "parser/fields.go",
+      "parser/fields_integer.go"
     ],
     "tests": [
       "fields_test.go:TestRubyFieldCorpus",
@@ -166,7 +168,7 @@
   {
     "source": "lib/wireless/h3c/authentication_fields.rb",
     "implementation": [
-      "h3c_configuration_settings.go"
+      "vendors/h3c/configuration_settings.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -175,7 +177,8 @@
   {
     "source": "lib/wireless/h3c/command_output.rb",
     "implementation": [
-      "terminal.go"
+      "parser/terminal.go",
+      "internal/parsetext/values.go"
     ],
     "tests": [
       "fields_test.go:TestAllTextNewlinePolicies"
@@ -184,8 +187,8 @@
   {
     "source": "lib/wireless/h3c/configuration_builder.rb",
     "implementation": [
-      "h3c_configuration.go",
-      "h3c_configuration_settings.go"
+      "vendors/h3c/configuration.go",
+      "vendors/h3c/configuration_settings.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -194,7 +197,7 @@
   {
     "source": "lib/wireless/h3c/document.rb",
     "implementation": [
-      "configuration_source.go"
+      "vendors/h3c/configuration_source.go"
     ],
     "tests": [
       "domain_boundaries_test.go:TestConfigurationSourceCapturesAreOwnedAndRedacted"
@@ -203,8 +206,8 @@
   {
     "source": "lib/wireless/h3c/parser.rb",
     "implementation": [
-      "h3c_record.go",
-      "h3c_configuration.go"
+      "vendors/h3c/record.go",
+      "vendors/h3c/configuration.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -213,7 +216,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_current_configuration.rb",
     "implementation": [
-      "h3c_configuration.go"
+      "vendors/h3c/configuration.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -222,7 +225,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_dot1x_connection.rb",
     "implementation": [
-      "h3c_fields.go"
+      "vendors/h3c/fields.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -231,7 +234,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_lldp_neighbor_information_verbose.rb",
     "implementation": [
-      "h3c_neighbors.go"
+      "vendors/h3c/neighbors.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -240,7 +243,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_mac_authentication_connection.rb",
     "implementation": [
-      "h3c_fields.go"
+      "vendors/h3c/fields.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -249,7 +252,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_wlan_ap_all_verbose.rb",
     "implementation": [
-      "h3c_access_points.go"
+      "vendors/h3c/access_points.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -258,7 +261,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_wlan_ap_model_all.rb",
     "implementation": [
-      "h3c_models.go"
+      "vendors/h3c/models.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -267,7 +270,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_wlan_bss_all_verbose.rb",
     "implementation": [
-      "h3c_fields.go"
+      "vendors/h3c/fields.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -276,7 +279,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_wlan_client_security_block_mac.rb",
     "implementation": [
-      "h3c_blocked_clients.go"
+      "vendors/h3c/blocked_clients.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -285,7 +288,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_wlan_client_verbose.rb",
     "implementation": [
-      "h3c_fields.go"
+      "vendors/h3c/fields.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -294,7 +297,7 @@
   {
     "source": "lib/wireless/h3c/parsers/display_wlan_statistics_client_ip_conflict.rb",
     "implementation": [
-      "h3c_client_ip_conflicts.go"
+      "vendors/h3c/client_ip_conflicts.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -303,7 +306,7 @@
   {
     "source": "lib/wireless/h3c/profile.rb",
     "implementation": [
-      "parser_registry.go"
+      "parser/registry.go"
     ],
     "tests": [
       "parser_api_test.go:TestProfileQueriesAliasesAndCopies"
@@ -312,7 +315,7 @@
   {
     "source": "lib/wireless/h3c/record_parser.rb",
     "implementation": [
-      "h3c_record.go"
+      "vendors/h3c/record.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -321,8 +324,8 @@
   {
     "source": "lib/wireless/huawei/parser.rb",
     "implementation": [
-      "huawei_access_points.go",
-      "huawei_clients.go"
+      "vendors/huawei/access_points.go",
+      "vendors/huawei/clients.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -331,7 +334,7 @@
   {
     "source": "lib/wireless/huawei/parsers/display_ap_all.rb",
     "implementation": [
-      "huawei_access_points.go"
+      "vendors/huawei/access_points.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -340,7 +343,7 @@
   {
     "source": "lib/wireless/huawei/parsers/display_station_all.rb",
     "implementation": [
-      "huawei_clients.go"
+      "vendors/huawei/clients.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -349,7 +352,7 @@
   {
     "source": "lib/wireless/huawei/profile.rb",
     "implementation": [
-      "parser_registry.go"
+      "parser/registry.go"
     ],
     "tests": [
       "parser_api_test.go:TestProfileQueriesAliasesAndCopies"
@@ -358,7 +361,7 @@
   {
     "source": "lib/wireless/neighbor_parser.rb",
     "implementation": [
-      "neighbor_parser.go"
+      "parser/neighbors.go"
     ],
     "tests": [
       "parser_api_test.go:TestConfigViewsAndNeighborAPI"
@@ -376,7 +379,7 @@
   {
     "source": "lib/wireless/parser_registry.rb",
     "implementation": [
-      "parser_registry.go"
+      "parser/registry.go"
     ],
     "tests": [
       "parser_api_test.go:TestProfileQueriesAliasesAndCopies"
@@ -394,7 +397,7 @@
   {
     "source": "lib/wireless/recommendations.rb",
     "implementation": [
-      "recommendations.go"
+      "review/recommendations.go"
     ],
     "tests": [
       "recommendations_test.go:TestRubyRecommendations"
@@ -403,7 +406,7 @@
   {
     "source": "lib/wireless/runtime_parser.rb",
     "implementation": [
-      "runtime_parser.go"
+      "parser/runtime.go"
     ],
     "tests": [
       "core_test.go:TestRuntimeInvalidRequestsAndIndependentViews"
@@ -421,7 +424,8 @@
   {
     "source": "lib/wireless/terminal.rb",
     "implementation": [
-      "terminal.go"
+      "parser/terminal.go",
+      "internal/parsetext/values.go"
     ],
     "tests": [
       "fields_test.go:TestAllTextNewlinePolicies"
@@ -430,10 +434,10 @@
   {
     "source": "lib/wireless/version.rb",
     "implementation": [
-      "cli/runner.go"
+      "internal/cli/runner.go"
     ],
     "tests": [
-      "cli/subprocess_test.go:TestSubprocessCLI"
+      "internal/cli/subprocess_test.go:TestSubprocessCLI"
     ]
   }
 ]

@@ -1,108 +1,59 @@
-# CLI and private report API (Task 3)
+# CLI, configuration and report contracts
 
-All implementations are Go. No Ruby runtime is used. Module:
-`github.com/gatework/go-wireless`. Run Go commands with `GOWORK=off` and the
-published versions in go.mod; historical bootstrap scripts are not build inputs.
+`cmd/wireless` owns process signals and exit status. `internal/cli` uses one Cobra
+command tree with explicit collect, parse, review and apply commands. Root flags
+still select collect; root help/version and command help perform no configuration,
+input, inventory or report I/O. pflag owns value parsing and aliases; compatibility
+validation rejects boolean `=value`, positional arguments and combined short flags.
+Repeated selectors union, dimensions replace, scripts/no-scripts use occurrence
+order, and conflicting cache modes fail before configuration loads.
 
-## Entry point and extension registration
+The CLI is an application implementation, not a public embedding package. SDK
+callers use `parser`, `collect`, `review`, `change`, `report` and
+`adapter/netconnector`; see [migration](module-deepening.md).
 
-```go
-func cli.Run(context.Context, []string, cli.Dependencies) int
-func cli.New(cli.Dependencies) *cli.Runner
-func (*cli.Runner) Run(context.Context, []string) int
-func (*cli.Runner) Help(command string) int
-func (*cli.Runner) ReadInput(context.Context, []byte) (int,error)
-func (*cli.Runner) ReadLine(context.Context) (string,error)
+`internal/bootstrap` owns configuration discovery, the `Request` produced by flags,
+immutable validated runtime settings, credential resolution and explicit lazy
+session/report assembly. Diagnostic `Values`, `Environment` and `Sources` views
+are detached from execution settings. Mutating views cannot change workers,
+dimensions, selected devices, source/cache settings, credentials or connections.
+Construct a new settings snapshot to change execution. Zero options cannot execute.
+`LoadConfiguration` loads no inventory, session or report. Missing configuration is
+reported explicitly so the CLI can prompt; initialization loads only required
+environment inputs and publishes missing templates without overwriting files.
 
-type cli.Command func(context.Context, []string, *cli.Runner) int
-```
+Connector `config.InventoryEnvironment(values, higher)` and `ValidateInventory`
+own the shared inventory schema. Presence in a higher layer masks lower fields
+before decoding, including false, null and empty-list values. Wireless retains
+its own target policy and validation. `InventorySettings` exposes detached source
+and cache settings only; formatting omits credentials. Its accessors still contain
+inventory credentials and are not diagnostic output. `FetchInventory` returns
+selected Devices, Total before selectors, and the complete `netdisco.CacheResult`,
+including refresh/write diagnostics. Native fetches use Connector's shared cache
+and source lifecycle. Injected sources own their client and fetch policy.
 
-`cmd/wireless` owns SIGINT/SIGTERM and the process exit. Library entry points only
-return a code. No command means `collect`; leading collection flags also select
-collect. Explicit commands `collect` and `parse` work. Global help/version and
-all four command helps read no configuration/input/inventory and create no files.
-The default runner implements `review` and `apply`; `Dependencies.Commands` can
-override commands explicitly. Global usage advertises all four commands.
-See `docs/change-api.md` for the final recommendation/review/apply contracts. `--help-all` aliases
-command help; collect adds discovery/environment details. Collect/parse examples
-are also informational.
+`internal/workflow/collect` owns admitted task results, joined workers,
+cancellation, durable report finalization and output-failure downgrades. CLI
+callbacks render progress/JSON. `internal/workflow/review` validates all source
+reports before publication and invokes domain recommendations; `report` owns
+artifact text and durable publication. `internal/workflow/apply` owns the confirmed
+plan state machine behind consumer-owned Opener and Journal contracts. Bootstrap
+binds transport/session factories; help never constructs these dependencies.
 
-```go
-type cli.Discovery struct {
-    CWD, Home, Program string
-    Directories []string // nil = real discovery; nonnil empty = none
-}
-type cli.Connection struct {
-    Open wireless.OpenSession
-    Platform string // actual connector platform, separately checked by core
-}
-type cli.SessionFactory func(context.Context, wireless.Record,
-    connector.ConnectionConfig) (cli.Connection, error)
-type cli.SourceFactory func(*cli.Options) (netdisco.Source, string, error)
-type cli.Executor func(context.Context, int, []wireless.Record,
-    func(context.Context, wireless.Record) error) error
-```
+Report failure never repeats collection or device writes. Started evidence survives
+cancellation. The most recent confirmed summary is returned; a failed publication
+never returns an earlier complete summary. Failure history survives recovery.
 
-`Dependencies` has `Environment map[string]string`, `Input io.Reader`,
-`Output, Error io.Writer`, `Discovery`, `SessionFactory`, `SourceFactory`,
-`Registry dialect.Registry`, `APFactory wireless.APFactory`, `PrepareResources func(context.Context,int)error`,
-`Execute cli.Executor`, `ReportOptions report.Options`,
-`RecommendationHook func(scripts bool) report.DeviceHook`,
-`NewReport func(string,report.Options)(*report.Report,error)`,
-`ApplyFactory cli.ApplyFactory`,
-`Commands map[string]cli.Command`, and `Terminal func(any)bool`.
-Defaults use real streams/environment, native sources/connector/adapter,
-a private process-wide file-limit check, `parallel.Map`, `report.New`, and descriptor terminal tests.
-Environment is copied when creating a Runner; nil reads `os.Environ`, empty
-nonnil means explicitly empty. Run state resets on each invocation. An injected
-Executor must join all admitted callbacks before returning. Session factories
-are invoked only inside device workers; the CLI prevalidates every selected
-credential and native ConnectionConfig before resources/report construction.
-All tasks are joined before one finalizer publishes batch status.
-
-Input is borrowed, exclusively read by one command, and never closed by the CLI.
-`ReadInput` synchronously supports `*os.File` (including executable stdin) through
-bounded descriptor polling, without modifying descriptor flags or starting a
-reader goroutine. Cancellation wakes held-open pipe/terminal input. Other injected
-blocking inputs must implement both io.Reader and `cli.ContextReader`:
-`ReadContext(context.Context, []byte) (int,error)`, returning promptly when its
-context is canceled. Ordinary injected io.Reader values must return promptly;
-the CLI checks context before and after each call but cannot interrupt a reader
-that violates this contract. `ReadLine` uses that same boundary, reads through one
-newline without prefetching later input, and returns the line plus any EOF/error.
-Apply confirmation uses `Runner.ReadLine(ctx)` and observe cancellation
-before accepting a token or creating execution state. Optional initialization
-uses it too. Parse checks after reading and parsing, then again before JSON bytes
-are written; canceled input does not become a successful fact export.
-
-`SourceFactory` replaces only source construction. Rules, selectors, verified
-cache and cache mode remain real. Return a stable nonempty identity containing
-no password; the native cache hashes it. Source may be nil only for cache-only.
-The native default supports paginated HTTP and read-only PostgreSQL with bounded
-responses, whole inventory and timeout, then authenticated private native cache.
-No real external inventory or device service was used in Task 3 tests.
+`internal/input` owns bounded descriptor polling and regular-file admission.
+Borrowed stdin is never closed or reconfigured. Other blocking injected readers
+must implement `ReadContext(context.Context, []byte) (int, error)` and stop when
+canceled; ordinary readers must return promptly. Prompt reading consumes one line
+without prefetch. Parse checks cancellation after reading and parsing and before
+output. Directories/FIFOs are rejected before confirmation/publication; symlinks to
+regular files are supported. Exact evidence/plan bytes have no configuration-size
+budget. Only descriptors opened by this package are closed.
 
 ## Configuration
-
-```go
-func cli.LoadOptions(argv []string, env map[string]string,
-    discovery cli.Discovery) (*cli.Options, error)
-func cli.LoadEnvironment(env map[string]string, envFile string,
-    discovery cli.Discovery) (map[string]string, wireless.Record, error)
-func cli.NormalizeDevices([]any, defaultPlatform string) ([]wireless.Record,error)
-```
-
-LoadOptions reads/validates one configuration/environment snapshot without
-inventory, sessions, reports or prompts. Missing configuration is an error.
-Options exposes owned `Values wireless.Record`, `Environment map[string]string`,
-`Sources wireless.Record`, `Config, EnvFile string`, `Flags cli.Flags`,
-`Dynamic() bool`, and `Initialize(io.Writer) error`. Public values are separate
-from credentials. Do not log Options.Environment. LoadEnvironment performs the
-same `.env` discovery/explicit-last merge and source-relative environment paths,
-without YAML. Apply calls it only after confirmation with the desired
-Discovery and explicit env-file; `Directories: []string{}` disables automatic
-`.env` discovery when an explicit-only policy is needed. Both APIs return owned
-maps for their caller, which must not mutate a snapshot shared with workers.
 
 Precedence is CLI > process environment > YAML > .env > built-in defaults.
 Discovery, deduplicated in order: `/etc/net-connector`,
@@ -144,7 +95,7 @@ Paths are resolved relative to their YAML/.env file; CLI/process paths use CWD.
 `db_sslrootcert: system` remains a literal libpq trust marker.
 
 Netdisco/inventory schema is the actual net-connector 0.14.2 schema recorded in
-cli/inventory_schema.go, not the broader native schema. Device-rule keys are only
+internal/bootstrap/inventory.go, not the broader native schema. Device-rule keys are only
 vendor, connector, os, model_prefix. External files validate known section names
 but consume only netdisco/inventory, ignoring unrelated sections' contents;
 source-relative paths are retained in `inventory_configuration`. This effective
@@ -297,13 +248,18 @@ publication recovery use these same CLI/report/configuration boundaries. See
 
 The default vendor catalog is one injected `dialect.Registry`, used consistently
 for validation, fleet inventory matching and connection construction. The default
-is `vendors.NewBuiltinRegistry()`. No global registration or capability map is used.
+is `vendors.NewBuiltinRegistry()`. No global registry mutation is used; parser
+capabilities remain the private Profile table.
 
 HTTP cache identity uses URL, authentication mode, nonsecret username/namespace and
 query shape. API keys never enter the identity, even hashed. API-key mode with caching enabled requires
 a username or explicit cache namespace; rotating a key within the same account
-keeps the identity. Old key-hash caches must be refreshed once; cache-only reports
-a miss until the new identity has a verified cache.
+keeps the identity. The new connector identity never reads legacy Wireless cache
+entries. Prefer and refresh collect a new entry; cache-only returns the existing `cache_unavailable`
+code plus `netdisco.ErrCacheRefreshRequired` until the new identity has a verified
+cache. The CLI asks for `--refresh-inventory` without changing the exit code.
+Unsafe cache permissions or symlinks remain ordinary cache-unavailable failures.
+Legacy cache files are left untouched.
 
 The private file-descriptor precheck budgets `128 + 16*min(workers, targets)` and
 serializes process-wide limit updates. Zero targets need no descriptors. It raises

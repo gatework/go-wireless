@@ -3,7 +3,7 @@
     "source": "spec/ap_radio_scopes_spec.rb",
     "declared_blocks": 6,
     "implementation": [
-      "h3c_access_points.go"
+      "vendors/h3c/access_points.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -14,12 +14,12 @@
     "source": "spec/ap_session_spec.rb",
     "declared_blocks": 20,
     "implementation": [
-      "adapter/ap.go"
+      "adapter/netconnector/ap.go"
     ],
     "tests": [
-      "adapter/native_test.go:TestNativeAPDialoguePaginationAndExactReturn",
-      "adapter/native_test.go:TestNativeAPCancellationRetiresInsideLease",
-      "adapter/native_test.go:TestNativeAPCapturedFactsSurviveWrongExitAndCloseFailure"
+      "adapter/netconnector/native_test.go:TestNativeAPDialoguePaginationAndExactReturn",
+      "adapter/netconnector/native_test.go:TestNativeAPCancellationRetiresInsideLease",
+      "adapter/netconnector/native_test.go:TestNativeAPCapturedFactsSurviveWrongExitAndCloseFailure"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -28,11 +28,11 @@
     "declared_blocks": 3,
     "implementation": [
       "cmd/wireless/main.go",
-      "cli/options.go"
+      "internal/bootstrap/options.go"
     ],
     "tests": [
-      "cli/subprocess_test.go:TestSubprocessCLI",
-      "cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance"
+      "internal/cli/subprocess_test.go:TestSubprocessCLI",
+      "internal/cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -40,14 +40,14 @@
     "source": "spec/cli/apply_spec.rb",
     "declared_blocks": 10,
     "implementation": [
-      "cli/apply.go",
-      "adapter/apply.go"
+      "internal/cli/apply.go",
+      "adapter/netconnector/apply.go"
     ],
     "tests": [
-      "cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay",
-      "cli/apply_test.go:TestApplyFailureBoundaries",
-      "cli/apply_pty_test.go:TestApplyRealTTYConfirmationAndCancellation",
-      "cli/apply_diagnostics_test.go:TestApplyRetainsIndependentSafeDiagnostics"
+      "internal/cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay",
+      "internal/cli/apply_test.go:TestApplyFailureBoundaries",
+      "internal/cli/apply_pty_test.go:TestApplyRealTTYConfirmationAndCancellation",
+      "internal/cli/apply_diagnostics_test.go:TestApplyRetainsIndependentSafeDiagnostics"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -55,13 +55,13 @@
     "source": "spec/cli/collect_spec.rb",
     "declared_blocks": 24,
     "implementation": [
-      "cli/runner.go"
+      "internal/cli/runner.go"
     ],
     "tests": [
-      "cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse",
-      "cli/runner_test.go:TestStoreFailureCancelsSiblingAndRetainsStartedEvidence",
-      "cli/runner_test.go:TestCredentialAndResourcePreflightBeforeReports",
-      "cli/runner_test.go:TestUserCancellationJoinsAndKeeps130OnSummaryFailure"
+      "internal/cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse",
+      "internal/cli/runner_test.go:TestStoreFailureCancelsSiblingAndRetainsStartedEvidence",
+      "internal/cli/runner_test.go:TestCredentialAndResourcePreflightBeforeReports",
+      "internal/cli/runner_test.go:TestUserCancellationJoinsAndKeeps130OnSummaryFailure"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -69,13 +69,13 @@
     "source": "spec/cli/connector_spec.rb",
     "declared_blocks": 2,
     "implementation": [
-      "cli/runner.go",
-      "adapter/session.go"
+      "internal/cli/runner.go",
+      "adapter/netconnector/session.go"
     ],
     "tests": [
-      "cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse",
-      "cli/runner_test.go:TestExplicitLLDPUsesIndependentLazyAPCredentials",
-      "adapter/native_test.go:TestNativeOpenCloseErrorKeepsControllerFacts"
+      "internal/cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse",
+      "internal/cli/runner_test.go:TestExplicitLLDPUsesIndependentLazyAPCredentials",
+      "adapter/netconnector/native_test.go:TestNativeOpenCloseErrorKeepsControllerFacts"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -83,13 +83,13 @@
     "source": "spec/cli/inventory_spec.rb",
     "declared_blocks": 6,
     "implementation": [
-      "cli/inventory.go",
-      "cli/inventory_schema.go"
+      "internal/bootstrap/inventory.go",
+      "internal/bootstrap/inventory.go"
     ],
     "tests": [
-      "cli/inventory_test.go:TestHTTPInventoryThroughNativePaginationAndControllerRules",
-      "cli/runner_test.go:TestNativeInventoryRulesFilteringAndExternalSourceInjection",
-      "cli/options_test.go:TestInvalidPublicConfiguration"
+      "internal/cli/inventory_test.go:TestHTTPInventoryThroughNativePaginationAndControllerRules",
+      "internal/cli/runner_test.go:TestNativeInventoryRulesFilteringAndExternalSourceInjection",
+      "internal/cli/options_test.go:TestInvalidPublicConfiguration"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -97,13 +97,13 @@
     "source": "spec/cli/options_spec.rb",
     "declared_blocks": 21,
     "implementation": [
-      "cli/options.go"
+      "internal/bootstrap/options.go"
     ],
     "tests": [
-      "cli/options_test.go:TestLayeredConfigurationPathsAndSecrets",
-      "cli/options_test.go:TestSourceFieldsMatchRubyDotPathsAndEmptyOverlayKeepsOrigin",
-      "cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance",
-      "cli/options_test.go:TestInventoryEnvironmentMasking"
+      "internal/cli/options_test.go:TestLayeredConfigurationPathsAndSecrets",
+      "internal/cli/options_test.go:TestSourceFieldsMatchRubyDotPathsAndEmptyOverlayKeepsOrigin",
+      "internal/cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance",
+      "internal/cli/options_test.go:TestInventoryEnvironmentMasking"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -111,11 +111,11 @@
     "source": "spec/cli/parse_spec.rb",
     "declared_blocks": 4,
     "implementation": [
-      "cli/parse.go"
+      "internal/cli/parse.go"
     ],
     "tests": [
-      "cli/runner_test.go:TestParseOfflineAndNumericIntent",
-      "cli/cancellation_review_test.go:TestReviewParseCancellationDuringBorrowedReadDiscardsFacts"
+      "internal/cli/runner_test.go:TestParseOfflineAndNumericIntent",
+      "internal/cli/cancellation_review_test.go:TestReviewParseCancellationDuringBorrowedReadDiscardsFacts"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -136,11 +136,11 @@
     "source": "spec/cli/review_spec.rb",
     "declared_blocks": 8,
     "implementation": [
-      "cli/review.go",
+      "internal/cli/review.go",
       "report/recommendations.go"
     ],
     "tests": [
-      "cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput",
+      "internal/cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput",
       "report/recommendations_test.go:TestReviewRubyFullConfiguration",
       "report/report_test.go:TestFinalizeReviewUsesSameRecoveryAndConfinesPath"
     ],
@@ -150,13 +150,13 @@
     "source": "spec/cli_spec.rb",
     "declared_blocks": 9,
     "implementation": [
-      "cli/runner.go",
+      "internal/cli/runner.go",
       "cmd/wireless/main.go"
     ],
     "tests": [
-      "cli/subprocess_test.go:TestSubprocessCLI",
-      "cli/options_test.go:TestInformationalAndMissingConfigurationDoNotConsumeInput",
-      "cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance"
+      "internal/cli/subprocess_test.go:TestSubprocessCLI",
+      "internal/cli/options_test.go:TestInformationalAndMissingConfigurationDoNotConsumeInput",
+      "internal/cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance"
     ],
     "status": "verified; corpus and focused tests"
   },
@@ -164,8 +164,8 @@
     "source": "spec/collector_spec.rb",
     "declared_blocks": 28,
     "implementation": [
-      "collector.go",
-      "collector_ap.go",
+      "collect/collect.go",
+      "collect/neighbors.go",
       "capture.go"
     ],
     "tests": [
@@ -181,7 +181,7 @@
     "source": "spec/compound_settings_spec.rb",
     "declared_blocks": 3,
     "implementation": [
-      "h3c_configuration_settings.go"
+      "vendors/h3c/configuration_settings.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -192,8 +192,8 @@
     "source": "spec/config_spec.rb",
     "declared_blocks": 4,
     "implementation": [
-      "config.go",
-      "h3c_configuration.go"
+      "parser/registry.go",
+      "vendors/h3c/configuration.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -205,8 +205,8 @@
     "source": "spec/configuration_integrity_spec.rb",
     "declared_blocks": 12,
     "implementation": [
-      "h3c_configuration.go",
-      "h3c_configuration_settings.go"
+      "vendors/h3c/configuration.go",
+      "vendors/h3c/configuration_settings.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -232,9 +232,9 @@
     "source": "spec/evidence_contract_spec.rb",
     "declared_blocks": 5,
     "implementation": [
-      "runtime_parser.go",
-      "huawei_access_points.go",
-      "h3c_neighbors.go"
+      "parser/runtime.go",
+      "vendors/huawei/access_points.go",
+      "vendors/h3c/neighbors.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -246,8 +246,8 @@
     "source": "spec/fields_spec.rb",
     "declared_blocks": 4,
     "implementation": [
-      "fields.go",
-      "fields_integer.go"
+      "parser/fields.go",
+      "parser/fields_integer.go"
     ],
     "tests": [
       "fields_test.go:TestRubyFieldCorpus",
@@ -260,8 +260,8 @@
     "source": "spec/h3c/configuration_and_lldp_spec.rb",
     "declared_blocks": 7,
     "implementation": [
-      "h3c_configuration.go",
-      "h3c_neighbors.go"
+      "vendors/h3c/configuration.go",
+      "vendors/h3c/neighbors.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -273,8 +273,8 @@
     "source": "spec/h3c/configuration_source_spec.rb",
     "declared_blocks": 18,
     "implementation": [
-      "configuration_source.go",
-      "h3c_configuration.go"
+      "vendors/h3c/configuration_source.go",
+      "vendors/h3c/configuration.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -287,8 +287,8 @@
     "source": "spec/h3c/conflicts_and_models_spec.rb",
     "declared_blocks": 8,
     "implementation": [
-      "h3c_client_ip_conflicts.go",
-      "h3c_models.go"
+      "vendors/h3c/client_ip_conflicts.go",
+      "vendors/h3c/models.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -299,8 +299,8 @@
     "source": "spec/h3c/live_evidence_consistency_spec.rb",
     "declared_blocks": 2,
     "implementation": [
-      "h3c_client_ip_conflicts.go",
-      "h3c_fields.go"
+      "vendors/h3c/client_ip_conflicts.go",
+      "vendors/h3c/fields.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -327,9 +327,9 @@
     "source": "spec/live_formats_spec.rb",
     "declared_blocks": 6,
     "implementation": [
-      "h3c_access_points.go",
-      "h3c_fields.go",
-      "h3c_configuration.go"
+      "vendors/h3c/access_points.go",
+      "vendors/h3c/fields.go",
+      "vendors/h3c/configuration.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -341,8 +341,8 @@
     "declared_blocks": 2,
     "implementation": [
       "go.mod",
-      "runtime_parser.go",
-      "config.go"
+      "parser/runtime.go",
+      "parser/registry.go"
     ],
     "tests": [
       "parser_api_test.go:TestConfigViewsAndNeighborAPI",
@@ -354,8 +354,8 @@
     "source": "spec/neighbor_parser_spec.rb",
     "declared_blocks": 7,
     "implementation": [
-      "neighbor_parser.go",
-      "h3c_neighbors.go"
+      "parser/neighbors.go",
+      "vendors/h3c/neighbors.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -367,10 +367,10 @@
     "source": "spec/parser_integrity_spec.rb",
     "declared_blocks": 17,
     "implementation": [
-      "h3c_record.go",
-      "h3c_configuration.go",
-      "h3c_neighbors.go",
-      "huawei_clients.go"
+      "vendors/h3c/record.go",
+      "vendors/h3c/configuration.go",
+      "vendors/h3c/neighbors.go",
+      "vendors/huawei/clients.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -383,9 +383,9 @@
     "source": "spec/platform_contract_spec.rb",
     "declared_blocks": 5,
     "implementation": [
-      "parser_registry.go",
-      "runtime_parser.go",
-      "collector.go"
+      "parser/registry.go",
+      "parser/runtime.go",
+      "collect/collect.go"
     ],
     "tests": [
       "parser_api_test.go:TestProfileQueriesAliasesAndCopies",
@@ -398,8 +398,10 @@
     "source": "spec/recommendations_spec.rb",
     "declared_blocks": 7,
     "implementation": [
-      "recommendations.go",
-      "change_plan.go"
+      "review/recommendations.go",
+      "fingerprint.go",
+      "document.go",
+      "change/h3c.go"
     ],
     "tests": [
       "recommendations_test.go:TestRubyRecommendations",
@@ -412,8 +414,9 @@
     "source": "spec/record_separator_spec.rb",
     "declared_blocks": 2,
     "implementation": [
-      "terminal.go",
-      "configuration_source.go"
+      "parser/terminal.go",
+      "internal/parsetext/values.go",
+      "vendors/h3c/configuration_source.go"
     ],
     "tests": [
       "fields_test.go:TestAllTextNewlinePolicies",
@@ -425,8 +428,9 @@
     "source": "spec/replay_evidence_spec.rb",
     "declared_blocks": 1,
     "implementation": [
-      "terminal.go",
-      "runtime_parser.go"
+      "parser/terminal.go",
+      "internal/parsetext/values.go",
+      "parser/runtime.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus"
@@ -437,10 +441,10 @@
     "source": "spec/runtime_parser_spec.rb",
     "declared_blocks": 14,
     "implementation": [
-      "runtime_parser.go",
-      "h3c_access_points.go",
-      "h3c_fields.go",
-      "huawei_access_points.go"
+      "parser/runtime.go",
+      "vendors/h3c/access_points.go",
+      "vendors/h3c/fields.go",
+      "vendors/huawei/access_points.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",
@@ -452,7 +456,8 @@
     "source": "spec/terminal_spec.rb",
     "declared_blocks": 2,
     "implementation": [
-      "terminal.go"
+      "parser/terminal.go",
+      "internal/parsetext/values.go"
     ],
     "tests": [
       "core_test.go:TestRubyParserCorpus",

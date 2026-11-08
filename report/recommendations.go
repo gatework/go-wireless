@@ -7,16 +7,18 @@ import (
 	"strings"
 
 	wireless "github.com/gatework/go-wireless"
+	changes "github.com/gatework/go-wireless/change"
+	review "github.com/gatework/go-wireless/review"
 )
 
 // RecommendationHook enriches collect's exact published document. No source
 // hash is computed until that document (including advice) has been published.
 func RecommendationHook(scripts bool) DeviceHook {
 	return func(ctx context.Context, doc wireless.Record) (Enrichment, error) {
-		if e := wireless.ValidateReviewDocument(doc); e != nil {
+		if e := review.ValidateReviewDocument(doc); e != nil {
 			return Enrichment{}, e
 		}
-		advice := reportAdvice(wireless.Recommendations(doc), scripts)
+		advice := reportAdvice(review.Recommendations(doc), scripts)
 		return Enrichment{Recommendations: advice, Artifacts: func(ctx context.Context, r *Report, p PublishedDevice) error {
 			_, e := r.WriteReview(ctx, doc, p.Basename, p.Path, p.SHA256, advice, scripts)
 			return e
@@ -83,7 +85,7 @@ var reviewBasename = regexp.MustCompile(`\A[A-Za-z0-9_.-]+\z`)
 
 func (r *Report) WriteReview(ctx context.Context, doc wireless.Record, basename, source, sourceSHA string, advice wireless.Record, scripts bool) (wireless.Record, error) {
 	if !reviewBasename.MatchString(basename) {
-		return nil, wireless.ErrChangePlan
+		return nil, changes.ErrChangePlan
 	}
 	advice = reportAdvice(advice, scripts)
 	advice["source"] = source
@@ -137,10 +139,10 @@ func (r *Report) WriteReview(ctx context.Context, doc wireless.Record, basename,
 		config := firstConfiguration(doc)
 		for i, item := range adviceItems(advice) {
 			change := mapping(item["change"])
-			if config == nil || item["status"] != "candidate" || !wireless.ChangeEligible(config, change) {
+			if config == nil || item["status"] != "candidate" || !changes.ChangeEligible(config, change) {
 				continue
 			}
-			commands, rollback, e := wireless.RenderChange(change)
+			commands, rollback, e := changes.RenderChange(change)
 			if e != nil {
 				return nil, e
 			}
