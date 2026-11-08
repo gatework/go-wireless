@@ -31,7 +31,7 @@ bin/wireless review --help
 bin/wireless apply --help
 ```
 
-构建与验证统一设置 `GOWORK=off`，使用 `go.mod/go.sum`，不含 `replace`。历史 `dependencies/` 和重建脚本仅保留为审计材料，不再参与默认构建。已有本地 `go.work` 不会被删除，请沿用上面的环境设置。
+构建与验证统一设置 `GOWORK=off`，依赖由 `go.mod/go.sum` 固定并校验。无需本地依赖副本或 workspace 重建步骤。
 
 `--show-config`、`--plan` 和各级帮助不会连接设备。示例使用文档地址和虚构凭据名称；`examples/controller.cfg` 是合成的离线语法样本。不要把它下发到控制器。
 
@@ -89,7 +89,7 @@ if err != nil { return err }
 body, err := wireless.MarshalJSONIndent(observation, "", "  ")
 ```
 
-导入路径 `github.com/gatework/go-wireless`，包名 `wireless`。根包只拥有证据值；`parser` 与 `vendors` 负责离线解析，`collect`、`review`、`change`、`report` 各自拥有业务能力，`adapter/netconnector` 接入 native connector。CLI/bootstrap/workflow 均为内部应用代码。包路径迁移见 [模块职责](docs/module-deepening.md)。`scripts/check-delivery.py` 用临时文件模块代理验证当前源码的独立 consumer，完整依赖通过正常版本解析，无 workspace 或本地 replace；正式版本另按 [发布流程](docs/releasing.md) 验证 tag、同提交 CI、下载资产及公开模块消费。借用会话、时钟、库存来源和报告写入均可注入，见 [核心 API](docs/core-api.md)、[采集/传输 API](docs/transport-api.md)。
+导入路径 `github.com/gatework/go-wireless`，包名 `wireless`。根包只拥有证据值；`parser` 与 `vendors` 负责离线解析，`collect`、`review`、`change`、`report` 各自拥有业务能力，`adapter/netconnector` 接入 native connector。CLI/bootstrap/workflow 均为内部应用代码。包路径迁移见 [架构与模块职责](docs/architecture.md)。`scripts/check-delivery.py` 用临时文件模块代理验证当前源码的独立 consumer，完整依赖通过正常版本解析，无 workspace 或本地 replace；正式版本另按 [发布流程](docs/releasing.md) 验证 tag、同提交 CI、下载资产及公开模块消费。借用会话、时钟、库存来源和报告写入均可注入，见 [核心 API](docs/core-api.md)、[采集/传输 API](docs/transport-api.md)。
 
 ## 验证与边界
 
@@ -103,6 +103,6 @@ python3 scripts/check-delivery.py
 bash scripts/ci
 ```
 
-[兼容矩阵](docs/COMPATIBILITY.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[本次验证记录](docs/2026-11-07-modernization.md) 与 [历史验证记录](docs/VALIDATION.md) 分别列出本次迁移和冻结基线的证据。测试只使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY；未验证真实设备、外部 Netdisco/PostgreSQL、生产部署。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。
+[兼容矩阵](docs/compatibility.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[验证说明](docs/verification.md) 列出当前检查入口、已发布版本证据与实测边界。测试使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。
 
-许可沿用参考项目 [MIT](LICENSE)，原署名完整保留；冻结依赖各自的 LICENSE 随归档保留，fpconv 的 Boost Software License 在源码中保留。
+许可沿用参考项目 [MIT](LICENSE)，原署名完整保留。fpconv 的 Boost Software License 在源码中保留；发行包的 THIRD_PARTY_NOTICES.txt 汇集实际模块依赖及 fpconv 的许可。

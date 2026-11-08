@@ -104,16 +104,6 @@ func bindCollect(fs *pflag.FlagSet) *commandOptions {
 	switchFlag(fs, "refresh-inventory", "", func() error { return cacheOverride(request.InventoryOverrides, "refresh") })
 	return o
 }
-func parseOptions(argv []string, d bootstrap.Discovery) (*commandOptions, error) {
-	fs := pflag.NewFlagSet("collect", pflag.ContinueOnError)
-	o := bindCollect(fs)
-	if err := parseFlags(fs, argv); err != nil {
-		return nil, err
-	}
-	o.Request.Initialize = o.Flags.Init
-	o.Options = bootstrap.NewOptions(o.Request, d, nil)
-	return o, nil
-}
 func splitList(v string) ([]any, error) {
 	list := []any{}
 	for v := range strings.SplitSeq(v, ",") {
@@ -161,18 +151,6 @@ func validateFlagSyntax(fs *pflag.FlagSet, args []string) error {
 				return fmt.Errorf("missing value: %s", key)
 			}
 		}
-	}
-	return nil
-}
-func parseFlags(fs *pflag.FlagSet, args []string) error {
-	if err := validateFlagSyntax(fs, args); err != nil {
-		return err
-	}
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() != 0 {
-		return bootstrap.ErrOptions
 	}
 	return nil
 }

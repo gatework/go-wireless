@@ -82,13 +82,13 @@ Rollback remains plan data; no retry, reconnect, rollback or save is automatic.
 
 ## Delivery boundary
 
-The authorized local four-module workspace includes new Connector inventory APIs.
-The manifest still pins published Connector v0.3.0 and Expect v0.4.0, without local
-replace directives. Connector must publish these APIs before the formal independent
-consumer and `scripts/ci` can pass against versioned dependencies. Local workspace
-checks do not substitute for that release gate. The external consumer exercises
-supported public packages and runs the built CLI from outside the checkout; it
-cannot import internal application code. Corpus hashes and oracle fixtures remain
-unchanged, with implementation/test paths migrated to their new owners.
+`go.mod` pins published Connector v0.4.0 and Expect v0.4.1, including the shared
+inventory APIs. Build and delivery checks use `GOWORK=off` and no replacements.
+The external consumer exercises supported public packages and runs the built CLI
+from outside the checkout; it cannot import internal application code. Ruby corpus
+hashes, oracle fixtures and source-to-test mappings remain active regression inputs.
 
-No live device, live inventory service, commit, push or release is part of this work.
+The repository carries no dependency source snapshots or workspace restoration
+tooling. Module versions and checksums belong to `go.mod` and `go.sum`; old source
+and implementation records remain available in Git history. Current checks and
+release evidence are described in [verification](verification.md).

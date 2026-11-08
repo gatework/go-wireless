@@ -10,7 +10,7 @@ order, and conflicting cache modes fail before configuration loads.
 
 The CLI is an application implementation, not a public embedding package. SDK
 callers use `parser`, `collect`, `review`, `change`, `report` and
-`adapter/netconnector`; see [migration](module-deepening.md).
+`adapter/netconnector`; see [migration](architecture.md).
 
 `internal/bootstrap` owns configuration discovery, the `Request` produced by flags,
 immutable validated runtime settings, credential resolution and explicit lazy

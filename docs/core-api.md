@@ -3,7 +3,7 @@
 Module `github.com/gatework/go-wireless`, package `wireless`; Go 1.26 minimum.
 The root package owns evidence values, exact JSON, fingerprints and document order.
 Parsing lives in `parser`, built-in syntax in `vendors/h3c` and `vendors/huawei`,
-and catalog composition in `vendors`. See [package migration](module-deepening.md).
+and catalog composition in `vendors`. See [package migration](architecture.md).
 The package has no network operations, file operations, or Ruby runtime dependency.
 
 ## Names and evidence types
