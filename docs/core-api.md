@@ -3,7 +3,7 @@
 Module `github.com/gatework/go-wireless`, package `wireless`; Go 1.26 minimum.
 The root package owns evidence values, exact JSON, fingerprints and document order.
 Parsing lives in `parser`, built-in syntax in `vendors/h3c` and `vendors/huawei`,
-and catalog composition in `vendors`. See [package migration](module-deepening.md).
+and catalog composition in `vendors`. See [package migration](architecture.md).
 The package has no network operations, file operations, or Ruby runtime dependency.
 
 ## Names and evidence types
@@ -113,6 +113,12 @@ func (CollectionScope) Dimensions() []Dimension
 func (CollectionScope) Unsupported() []Dimension
 func (CollectionScope) Queries() []Query
 func (CollectionScope) APNeighbors() bool
+func (CollectionScope) APQuery() APQuery
+func (*Profile) APQuery() APQuery
+func (*Profile) MatchesAPQuery(APQuery) bool
+func (APQuery) Valid() bool
+func (APQuery) Command() string
+func (APQuery) PreparationCommand() string
 func (*Profile) Parse(Dimension, string, bool) (Observation, error)
 func (*Profile) ParseMany([]Dimension, string, bool) (map[Dimension]Observation, error)
 ```
@@ -137,6 +143,12 @@ command once. Unsupported dimensions remain explicit observations, while
 `APNeighbors` enables only supported, explicit AP LLDP work. Scope accessors return
 independent slices, including nested query dimensions. The collector and CLI use
 this same decision instead of interpreting platform aliases or defaults again.
+`APQuery` is an immutable value created only by a validated profile. Its zero
+value cannot authorize AP I/O. Queries from a separately registered profile are
+rejected by the native adapter, even when their command strings match. Profiles
+with APNeighbors enabled declare both APPreparation and an LLDP query; unsupported
+profiles leave APPreparation empty. An LLDP query cannot group controller
+dimensions because those commands execute on different devices.
 `ConnectorPlatform` returns h3c_wireless for the h3c profile and huawei for Huawei.
 `Queries` accepts an empty scope, rejects duplicate/unsupported dimensions,
 and returns owned slices. `ParseMany` requires a nonempty unique scope covered by

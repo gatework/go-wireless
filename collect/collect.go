@@ -32,8 +32,14 @@ type APOutcome struct {
 func (APOutcome) String() string     { return "wireless.APOutcome" }
 func (o APOutcome) GoString() string { return o.String() }
 
+// APRequest associates the selected profile's query with one detached AP identity.
+type APRequest struct {
+	AccessPoint wireless.Record
+	Query       parser.APQuery
+}
+
 type APReader interface {
-	Read(context.Context, wireless.Record) (APOutcome, error)
+	Read(context.Context, APRequest) (APOutcome, error)
 }
 type APFactory func(context.Context, Session, APCredentials) (APReader, error)
 type CollectorOptions struct {
@@ -166,7 +172,7 @@ func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Sna
 			if failure != nil {
 				observations[wireless.LLDP] = c.unavailable(wireless.LLDP, wireless.Failed, failure.Code(), wireless.Record{"skipped": true, "stage": stage})
 			} else {
-				observations[wireless.LLDP] = c.collectNeighbors(ctx, profile, session, observations[wireless.AccessPoints], names, o.APCredentials)
+				observations[wireless.LLDP] = c.collectNeighbors(ctx, profile, scope.APQuery(), session, observations[wireless.AccessPoints], names, o.APCredentials)
 			}
 		}
 		stage = "close"

@@ -30,11 +30,17 @@ func (r *Runner) collect(ctx context.Context, o *commandOptions) int {
 	if o.Flags.Interactive != nil && *o.Flags.Interactive && !terminal {
 		return r.failure("--interactive 需要交互终端；自动化请使用 --init --non-interactive")
 	}
-	if o.Options, e = bootstrap.LoadConfiguration(o.Request, r.Environment, r.Discovery, r.Registry); e != nil {
+	if o.Options, e = bootstrap.LoadConfiguration(ctx, o.Request, r.Environment, r.Discovery, r.Registry); e != nil {
+		if ctx.Err() != nil {
+			return 130
+		}
 		return r.failure("WIRELESS 环境文件错误")
 	}
 	if o.Flags.Init {
-		if e = o.Initialize(r.Output); e != nil {
+		if e = o.Initialize(ctx, r.Output); e != nil {
+			if ctx.Err() != nil {
+				return 130
+			}
 			if errors.Is(e, bootstrap.ErrLegacyConfiguration) {
 				return r.failure("初始化请指定 wireless.yml；net-connector.yml 仅保存公共配置")
 			}
@@ -62,7 +68,10 @@ func (r *Runner) collect(ctx context.Context, o *commandOptions) int {
 				return r.failure("WIRELESS 初始化输入错误")
 			}
 			if in(strings.ToLower(strings.TrimSpace(line)), "y", "yes") {
-				if e = o.Initialize(r.Output); e != nil {
+				if e = o.Initialize(ctx, r.Output); e != nil {
+					if ctx.Err() != nil {
+						return 130
+					}
 					return r.failure("WIRELESS 初始化错误")
 				}
 				return 0

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"maps"
 	"slices"
 
@@ -28,22 +29,25 @@ func NewOptions(request Request, discovery Discovery, registry dialect.Registry)
 
 // LoadConfiguration resolves configuration once, without inventory or device I/O.
 // Initialization requests load only the environment snapshot required by templates.
-func LoadConfiguration(request Request, environment map[string]string, discovery Discovery, registry dialect.Registry) (*Options, error) {
+func LoadConfiguration(ctx context.Context, request Request, environment map[string]string, discovery Discovery, registry dialect.Registry) (*Options, error) {
 	o := NewOptions(request, discovery, registry)
-	if err := o.loadEnvironment(environment); err != nil {
+	if err := o.loadEnvironment(ctx, environment); err != nil {
 		return nil, err
 	}
 	if request.Initialize {
 		return o, nil
 	}
-	data, specific, err := o.loadFiles()
+	data, specific, err := o.loadFiles(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if o.applicable {
-		if err = o.load(data, specific); err != nil {
+		if err = o.load(ctx, data, specific); err != nil {
 			return nil, err
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	return o, nil
 }

@@ -513,9 +513,9 @@ func TestExecutorFailureKeepsPendingAndRunnerReuseIsIndependent(t *testing.T) {
 	}
 }
 
-type apReadFunc func(context.Context, wireless.Record) (collect.APOutcome, error)
+type apReadFunc func(context.Context, collect.APRequest) (collect.APOutcome, error)
 
-func (f apReadFunc) Read(ctx context.Context, ap wireless.Record) (collect.APOutcome, error) {
+func (f apReadFunc) Read(ctx context.Context, ap collect.APRequest) (collect.APOutcome, error) {
 	return f(ctx, ap)
 }
 func TestExplicitLLDPUsesIndependentLazyAPCredentials(t *testing.T) {
@@ -541,13 +541,13 @@ func TestExplicitLLDPUsesIndependentLazyAPCredentials(t *testing.T) {
 					if session != controller || credentials.Username != "ap-user" || credentials.Password != "ap-private" {
 						t.Error("wrong AP/controller credentials")
 					}
-					return apReadFunc(func(_ context.Context, ap wireless.Record) (collect.APOutcome, error) {
-						if ap["name"] != "AP-LAB" {
+					return apReadFunc(func(_ context.Context, ap collect.APRequest) (collect.APOutcome, error) {
+						if ap.AccessPoint["name"] != "AP-LAB" {
 							t.Error("wrong AP")
 						}
 						body := "No LLDP neighbors\n"
 						now := time.Now()
-						capture, e := wireless.NewCapture(wireless.CaptureOptions{Command: collect.LLDPCommand, Body: &body, StartedAt: now, CompletedAt: now})
+						capture, e := wireless.NewCapture(wireless.CaptureOptions{Command: ap.Query.Command(), Body: &body, StartedAt: now, CompletedAt: now})
 						return collect.APOutcome{Result: &capture}, e
 					}), nil
 				}

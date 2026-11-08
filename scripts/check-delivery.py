@@ -41,12 +41,6 @@ def verify_hashes(root, hashes):
 
 
 def verify_evidence(root):
-    # The old archives remain historical evidence, never build inputs.
-    hashes = {}
-    for line in (root / "dependencies/SHA256SUMS").read_text().splitlines():
-        expected, path = line.split(None, 1)
-        hashes["dependencies/" + path.strip()] = expected
-    verify_hashes(root, hashes)
     baseline = json.loads((root / "docs/ruby-baseline.json").read_text())
     specs = json.loads((root / "docs/ruby-spec-matrix.json").read_text())
     libs = json.loads((root / "docs/ruby-lib-matrix.json").read_text())
@@ -64,7 +58,7 @@ def verify_evidence(root):
     verify_hashes(root, baseline["corpus"])
     oracle = json.loads((root / "docs/change-oracle.json").read_text())
     verify_hashes(root, oracle["fixture_sha256"])
-    print("verified historical checksums, Ruby mappings and unchanged oracle fixtures")
+    print("verified Ruby mappings and unchanged oracle fixtures")
 
 
 def verify_module_graph(go_mod, stream):
@@ -85,7 +79,7 @@ def check_modules(root, env):
 
 
 def export_source(root, exported):
-    allowed_dirs = {"adapter", "parser", "vendors", "collect", "review", "change", "cmd", "internal", "dependencies", "docs", "examples",
+    allowed_dirs = {"adapter", "parser", "vendors", "collect", "review", "change", "cmd", "internal", "docs", "examples",
                     "report", "scripts", "testdata", ".github"}
     allowed_root = {"go.mod", "go.sum", "LICENSE", "README.md", "GLOSSARY.md", "VERSION", ".gitignore", ".golangci.yml"}
     forbidden = {".env", ".git", ".work", ".superpowers", "wireless-reports", "wireless-executions"}

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"net/netip"
 	"net/url"
 	"path/filepath"
@@ -19,10 +20,10 @@ import (
 	"github.com/gatework/go-wireless/parser"
 )
 
-func (o *Options) loadInventoryPolicy() error {
+func (o *Options) loadInventoryPolicy(ctx context.Context) error {
 	data := wireless.Record{}
 	if path, ok := o.Values["netdisco_config"].(string); ok {
-		b, _, e := readFile(path, true, false)
+		b, _, e := readConfigurationFile(ctx, path, false)
 		if e != nil {
 			return e
 		}
@@ -31,7 +32,7 @@ func (o *Options) loadInventoryPolicy() error {
 			return ErrOptions
 		}
 		if filepath.Base(path) == "net-connector.yml" {
-			all, e = o.sharedConfiguration(all, filepath.Dir(path))
+			all, e = o.sharedConfiguration(ctx, all, filepath.Dir(path))
 			if e != nil {
 				return e
 			}

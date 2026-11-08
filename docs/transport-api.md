@@ -99,15 +99,20 @@ type APOutcome struct {
     Error, CleanupError, CloseError *Failure
     Skipped bool
 }
-type APReader interface { Read(context.Context, Record) (APOutcome, error) }
+type APRequest struct {
+    AccessPoint wireless.Record
+    Query parser.APQuery
+}
+type APReader interface { Read(context.Context, APRequest) (APOutcome, error) }
 type APFactory func(context.Context, Session, APCredentials) (APReader, error)
-const LLDPCommand = "display lldp neighbor-information verbose"
 ```
 
 AP credentials are resolved lazily only when selected inventory is nonempty and
 an AP factory exists. The factory gets the actual borrowed controller as a
 separate argument, which credentials cannot override. Each result must be one
-valid capture for LLDP; skipped success is rejected. AP parsing uses the same selected profile as the controller, including custom
+valid capture for the request query; skipped success is rejected. The request owns
+a detached AP identity and carries the immutable query selected by CollectionScope.
+AP parsing uses the same selected profile as the controller, including custom
 LLDP callbacks, while AP model validation remains explicit. AP identity/command/status/
 attempted/count are bound by collection, overriding adapter evidence claims.
 Read, cleanup and close errors are independent, deduplicated by stable code while
@@ -115,25 +120,31 @@ successful captured neighbor facts survive cleanup errors.
 
 ```go
 // package netconnector
-func Borrow(*connector.Device) (*Session, error)
+func Borrow(*connector.Device, *parser.Profile) (*Session, error)
 func (*Session) CloseFailure() *wireless.Failure
-func Open(*connector.Device) collect.OpenSession
+func Open(*connector.Device, *parser.Profile) collect.OpenSession
 func APFactory(collect.Clock) collect.APFactory
-func NewAPSession(*connector.Device, collect.APCredentials, collect.Clock) (*APSession, error)
-func (*APSession) Read(context.Context, wireless.Record) (collect.APOutcome, error)
+func NewAPSession(*connector.Device, *parser.Profile, collect.APCredentials, collect.Clock) (*APSession, error)
+func (*APSession) Read(context.Context, collect.APRequest) (collect.APOutcome, error)
 ```
 
 Construct the native device through `vendors.NewBuiltinRegistry().Lookup`,
 `Platform.Profile()` and `connector.New` (inject
 `connector.WithTransportFactory` for tests). `Borrow` itself never connects or
-closes. Its Execute permits only the fixed profile preparation/query declarations,
+closes. Both Borrow and Open validate the selected profile/connector pairing before
+connection; they own a copy of the profile and its controller command set.
+Its Execute permits only that profile's controller preparation/query declarations,
 binds the exact current prompt, skips privilege escalation, protects output,
 retains rejected/partial evidence and requests rejection preservation. It owns
 failure retirement within that query lease and retains the first close failure for
 Open (or a custom host via CloseFailure), preserving it even if a later close succeeds. AP login
-uses nested telnet through the controller, bounded sensitive credentials and one
+uses H3C nested telnet through the controller, bounded sensitive credentials and one
 `Device.WithBorrowedOperation` around login/preparation/query/exit/retirement. AP session
-must be online with a nonzero IPv4 management address and valid name. A busy lease
+must be online with a nonzero IPv4 management address and valid name. AP preparation
+and query commands come from the selected profile. Zero or foreign-profile APQuery
+values fail with invalid_ap_query before a lease or write; unsupported/mismatched
+AP profiles fail construction with invalid_ap_profile. Huawei has no AP dialogue.
+A busy lease
 is untouched. Unknown prompt/cancellation retires without quit; only confirmed AP
 state may send quit, and return must match the original controller prompt exactly.
 
@@ -142,7 +153,12 @@ The connector owns the borrowed lease, command retirement and first cleanup resu
 already connected device and returns operation/cleanup errors separately. Execute
 uses ordinary `Operation.ExecuteCommand`; no borrowed-command alias or partial
 capture option is needed. `Result.Attempts` retains every attempted raw response
-in wire order; `Result.Steps` contains accepted main commands only.
+in wire order; `Result.Steps` contains accepted main commands only. The adapter uses
+`Result.SingleAccepted(expectedCommand)` for command identity and `StepResult.Body()`
+for prompt/first-echo removal. A small Wireless framing adapter retains exactly
+one leading newline from a matched prompt, as before; Connector Body preserves
+all such newlines. Raw byte evidence is unchanged. Execution errors remain independent: a late error
+cannot produce a successful Wireless Capture or expose a Body through it.
 `PreserveSessionOnRejection` is valid only for one borrowed command and only keeps
 a synchronized, verified pure device rejection after all observers/logging succeed.
 Retire works after cancellation, rejects stale/reentrant/repeated calls, and the

@@ -255,7 +255,7 @@ func bindingTasks(config wireless.Record, order wireless.ObjectOrder) []wireless
 	}
 	refs := []wireless.Record{}
 	for _, key := range []string{"access_points", "ap_groups"} {
-		refs = append(refs, templateReferences(config[key], key, order)...)
+		refs = appendTemplateReferences(refs, config[key], key, order)
 	}
 	names := []string{}
 	groups := map[string][]wireless.Record{}
@@ -285,8 +285,10 @@ func bindingTasks(config wireless.Record, order wireless.ObjectOrder) []wireless
 	}
 	return items
 }
-func templateReferences(value any, path string, order wireless.ObjectOrder) []wireless.Record {
-	result := []wireless.Record{}
+
+// appendTemplateReferences keeps one ordered destination across AP/radio/group
+// traversal, avoiding a temporary slice and copy at every nested scope.
+func appendTemplateReferences(result []wireless.Record, value any, path string, order wireless.ObjectOrder) []wireless.Record {
 	if m, ok := value.(wireless.Record); ok {
 		for _, key := range order.Keys(m) {
 			child := m[key]
@@ -298,7 +300,7 @@ func templateReferences(value any, path string, order wireless.ObjectOrder) []wi
 					}
 				}
 			} else {
-				result = append(result, templateReferences(child, path+"/"+key, order)...)
+				result = appendTemplateReferences(result, child, path+"/"+key, order)
 			}
 		}
 		return result
@@ -316,7 +318,7 @@ func templateReferences(value any, path string, order wireless.ObjectOrder) []wi
 					}
 				}
 			}
-			result = append(result, templateReferences(child, path+"/"+label, order)...)
+			result = appendTemplateReferences(result, child, path+"/"+label, order)
 		}
 	}
 	return result

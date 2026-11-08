@@ -12,11 +12,11 @@
 
 `collection` 为采集生命周期诊断，不是用户可请求的设备命令。模型按原 profile 规范化，冻结基线无模型专属覆盖。h3c 是解析/采集别名；建议和可应用计划只接受原 Ruby 的精确 h3c_wireless 身份。Go 使用强类型接口取代 Ruby 动态错误形状；未提供 Rails/ActiveSupport 接口。核心包和报告结构保持 source order、未知值、精度、事实/来源边界；Go 对外显式构造错误与所有权约束见 core-api.md。
 
-版本号属于各实现自身的包元数据：Ruby `Wireless::VERSION` 为 `0.3.1`，当前独立 Go CLI 的 `cli.Version` / `--version` 为 `0.1.0`；核心 `wireless` 包没有 Ruby 常量式版本入口。这里不宣称二者版本值或命名空间完全相同。
+版本号属于各实现自身的包元数据：Ruby `Wireless::VERSION` 为 `0.3.1`，当前 Go 版本由根目录 `VERSION` 与 `internal/cli.Version` 定义（v0.2.0）。核心 `wireless` 包不导入 CLI，导入库不会运行 CLI。
 
 配置指纹完全遵循 Ruby JSON 3.1.0 fpconv，不是 RFC 8785。普通 wire JSON 和 canonical fingerprint 编码是两条边界。唯一受控写动作是原 Ruby 已有的 wireless_security；其他诊断保持复核建议，不能生成自动写动作。
 
-冻结 native 依赖以工作源文件哈希为准，当前占位模块没有公开版本。go-expect 采用 connector 已使用的可工作候选源及补丁，不是另一个兄弟仓库当前 HEAD。两个归档的文件白名单、源/补丁/结果 SHA256 与 upstream_inputs 在 dependencies/manifest.json；MIT/Apache-2.0 许可证随归档保留。第三方模块需要缓存或外部下载。未测试真实设备、SSH/telnet 服务、外部库存数据库、部署和公开分发。
+运行依赖使用正式 `go-net-connector v0.4.0` / `go-expect v0.4.1`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
 
 ## 全部 Ruby lib 文件
 

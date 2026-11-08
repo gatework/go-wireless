@@ -10,7 +10,7 @@ order, and conflicting cache modes fail before configuration loads.
 
 The CLI is an application implementation, not a public embedding package. SDK
 callers use `parser`, `collect`, `review`, `change`, `report` and
-`adapter/netconnector`; see [migration](module-deepening.md).
+`adapter/netconnector`; see [migration](architecture.md).
 
 `internal/bootstrap` owns configuration discovery, the `Request` produced by flags,
 immutable validated runtime settings, credential resolution and explicit lazy
@@ -18,6 +18,12 @@ session/report assembly. Diagnostic `Values`, `Environment` and `Sources` views
 are detached from execution settings. Mutating views cannot change workers,
 dimensions, selected devices, source/cache settings, credentials or connections.
 Construct a new settings snapshot to change execution. Zero options cannot execute.
+`LoadConfiguration(ctx, ...)`, `LoadEnvironment(ctx, ...)`, initialization and
+apply preparation propagate the command context through every configuration read.
+They reuse Connector `config.ReadFile` / `LoadContext`: readable symlinks are
+followed, regular files are bounded at 16 MiB, and cancellation remains detectable
+with errors.Is. Application discovery, merges and frozen settings remain local.
+Evidence documents read through `input.Document` do not inherit that budget.
 `LoadConfiguration` loads no inventory, session or report. Missing configuration is
 reported explicitly so the CLI can prompt; initialization loads only required
 environment inputs and publishes missing templates without overwriting files.

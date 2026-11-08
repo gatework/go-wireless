@@ -41,7 +41,7 @@ func TestCollectorUsesSelectedProfileForAPNeighbors(t *testing.T) {
 	spec := h3c.Profile()
 	calls := 0
 	for i := range spec.Queries {
-		if spec.Queries[i].Command == collect.LLDPCommand {
+		if spec.Queries[i].Command == selectedProfile("h3c").APQuery().Command() {
 			spec.Queries[i].Parse = func(string, bool) map[wireless.Dimension]parser.Result {
 				calls++
 				return map[wireless.Dimension]parser.Result{wireless.LLDP: {Status: wireless.Complete, Records: []wireless.Record{{"selected_profile": true}}}}
@@ -62,7 +62,7 @@ func TestCollectorUsesSelectedProfileForAPNeighbors(t *testing.T) {
 	opts.Profile = profile
 	capture := goodAPCapture(t, "custom neighbor format")
 	collector := collect.NewCollector(collect.CollectorOptions{APFactory: func(context.Context, collect.Session, collect.APCredentials) (collect.APReader, error) {
-		return apReaderFunc(func(context.Context, wireless.Record) (collect.APOutcome, error) {
+		return apReaderFunc(func(context.Context, collect.APRequest) (collect.APOutcome, error) {
 			return collect.APOutcome{Result: &capture}, nil
 		}), nil
 	}})

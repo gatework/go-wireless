@@ -49,3 +49,17 @@ func Classify(err error, fallback, stage string) *wireless.Failure {
 	}
 	return Failure(err, fallback, stage)
 }
+
+// ClassifyNative recognizes one direct connector error and exposes only its
+// safe failure plus the next cause. Traversal remains with the application so
+// joined diagnostics retain their original order and independent cancellation.
+func ClassifyNative(err error, fallback, stage string) (*wireless.Failure, error) {
+	native, ok := err.(*connector.Error)
+	if !ok {
+		return nil, nil
+	}
+	if native == nil {
+		return wireless.NewFailure(fallback, stage), nil
+	}
+	return Classify(native, fallback, stage), native.Unwrap()
+}

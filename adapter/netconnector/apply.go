@@ -42,27 +42,27 @@ func Apply(ctx context.Context, device *connector.Device, run func(context.Conte
 
 type applySession struct{ op *connector.Operation }
 
-func (s *applySession) execute(ctx context.Context, command string, query bool) (connector.Result, error) {
+func (s *applySession) execute(ctx context.Context, command string, query bool) (connector.StepResult, error) {
 	if !s.op.Connected() {
-		return connector.Result{}, wireless.NewFailure("session_closed", "execute")
+		return connector.StepResult{}, wireless.NewFailure("session_closed", "execute")
 	}
 	cmd := connector.Command{Text: strings.TrimSpace(command), OutputSensitive: true}
 	if query {
 		prompt := strings.TrimSpace(s.op.RawPrompt())
 		if prompt == "" {
-			return connector.Result{}, change.ErrChangePlan
+			return connector.StepResult{}, change.ErrChangePlan
 		}
 		cmd.Prompt = exactPrompt(prompt)
 	}
 	result, e := s.op.ExecuteCommand(ctx, cmd, connector.ExecuteOptions{SkipPrivilege: true})
 	if e != nil {
-		return result, e
+		return connector.StepResult{}, e
 	}
-	steps := result.Steps()
-	if len(steps) != 1 || steps[0].Command().Text != cmd.Text || steps[0].Response().RawPrompt() == "" {
-		return result, wireless.NewFailure("invalid_command_result", "response")
+	step, err := result.SingleAccepted(cmd.Text)
+	if err != nil {
+		return connector.StepResult{}, wireless.NewFailure("invalid_command_result", "response")
 	}
-	return result, nil
+	return step, nil
 }
 func (s *applySession) Write(ctx context.Context, command string) error {
 	_, e := s.execute(ctx, command, false)
@@ -72,11 +72,11 @@ func (s *applySession) ReadConfiguration(ctx context.Context) (wireless.Record, 
 	if _, e := s.execute(ctx, "screen-length disable", true); e != nil {
 		return nil, e
 	}
-	result, e := s.execute(ctx, "display current-configuration", true)
+	step, e := s.execute(ctx, "display current-configuration", true)
 	if e != nil {
 		return nil, e
 	}
-	body, e := responseBody(result.Steps()[0])
+	body, e := captureBody(step)
 	if e != nil {
 		return nil, e
 	}

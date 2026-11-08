@@ -121,7 +121,7 @@ func TestNativeControllerNULPaddedLoginPromptDoesNotPoisonCommands(t *testing.T)
 		{"screen-length disable\n", "screen-length disable\r\n<WLC>"},
 		{"display wlan client verbose\n", "Total number of clients : 0\r\n\x00<WLC>"},
 	}, false, nil, "\r\n\x00<WLC>")
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
 	for _, command := range []string{"screen-length disable", "display wlan client verbose"} {
 		receipt, err := r.Read(t.Context(), command)
@@ -145,7 +145,7 @@ func apRecord() wireless.Record {
 }
 func makeAP(t *testing.T, d *connector.Device) *APSession {
 	t.Helper()
-	a, e := NewAPSession(d, collect.APCredentials{Username: "ap-user", Password: "ap-secret"}, nil)
+	a, e := NewAPSession(d, selectedProfile(), collect.APCredentials{Username: "ap-user", Password: "ap-secret"}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -155,9 +155,9 @@ func loginSteps() []exchange {
 	return []exchange{{"telnet 192.0.2.7\n", "Username:"}, {"ap-user\n", "Password:"}, {"ap-secret\n", "\r\n<AP>"}}
 }
 func TestNativeAPDialoguePaginationAndExactReturn(t *testing.T) {
-	steps := append(loginSteps(), exchange{"screen-length disable\n", "screen-length disable\r\n<AP>"}, exchange{collect.LLDPCommand + "\n", collect.LLDPCommand + "\r\nNo LLDP neighbors\r\n---- More ----"}, exchange{" ", "\r\n<AP>"}, exchange{"quit\n", "quit\r\n<WLC>"})
+	steps := append(loginSteps(), exchange{"screen-length disable\n", "screen-length disable\r\n<AP>"}, exchange{selectedProfile().APQuery().Command() + "\n", selectedProfile().APQuery().Command() + "\r\nNo LLDP neighbors\r\n---- More ----"}, exchange{" ", "\r\n<AP>"}, exchange{"quit\n", "quit\r\n<WLC>"})
 	d, _ := fixture(t, steps, false, nil)
-	out, e := makeAP(t, d).Read(t.Context(), apRecord())
+	out, e := readNativeAP(t.Context(), makeAP(t, d), apRecord())
 	if e != nil || out.Error != nil || out.CleanupError != nil || out.CloseError != nil || out.Result == nil || !out.Result.Success() {
 		t.Fatalf("outcome %v %v %+v", out.Error, e, out.Result)
 	}
@@ -172,7 +172,7 @@ func TestNativeRejectedQueryContinuesAndDefaultStillCloses(t *testing.T) {
 	rejection := "% Unrecognized command found at '^' position.\r\n<WLC>"
 	t.Run("borrowed_reader", func(t *testing.T) {
 		d, _ := fixture(t, []exchange{{"display wlan ap all verbose\n", rejection}, {"display wlan client verbose\n", "Total number of clients : 0\r\n<WLC>"}}, false, nil)
-		s, _ := Borrow(d)
+		s, _ := Borrow(d, selectedProfile())
 		r, _ := collect.NewReader(s, nil)
 		bad, e := r.Read(t.Context(), "display wlan ap all verbose")
 		if e != nil || bad.Success() || bad.Failure().Code() != "device_error" || !d.Connected() {
@@ -201,7 +201,7 @@ func TestNativeAPBadCredentialsAndReturnedController(t *testing.T) {
 			steps := loginSteps()
 			steps[2].reply = reply
 			d, _ := fixture(t, steps, false, nil)
-			out, e := makeAP(t, d).Read(t.Context(), apRecord())
+			out, e := readNativeAP(t.Context(), makeAP(t, d), apRecord())
 			if e != nil || out.Error == nil || out.CleanupError != nil || !d.Connected() {
 				t.Fatalf("%v %v %v", e, out.Error, out.CleanupError)
 			}
@@ -209,10 +209,10 @@ func TestNativeAPBadCredentialsAndReturnedController(t *testing.T) {
 	}
 }
 func TestNativeAPUnknownPromptClosesWithoutQuitAndPreservesPartial(t *testing.T) {
-	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{collect.LLDPCommand + "\n", "partial secret raw\r\n[UNKNOWN]"})
+	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{selectedProfile().APQuery().Command() + "\n", "partial secret raw\r\n[UNKNOWN]"})
 	d, tr := fixture(t, steps, true, nil)
 	a := makeAP(t, d)
-	out, e := a.Read(t.Context(), apRecord())
+	out, e := readNativeAP(t.Context(), a, apRecord())
 	if e != nil || out.Error == nil || out.CleanupError == nil || out.CloseError == nil || out.Result == nil || out.Result.Success() || d.Connected() {
 		t.Fatalf("failure diagnostics %v %v %v %v", e, out.Error, out.CleanupError, out.CloseError)
 	}
@@ -222,7 +222,7 @@ func TestNativeAPUnknownPromptClosesWithoutQuitAndPreservesPartial(t *testing.T)
 	if tr.closes.Load() != 2 {
 		t.Fatalf("unexpected native failure-close attempts %d", tr.closes.Load())
 	}
-	again, _ := a.Read(t.Context(), apRecord())
+	again, _ := readNativeAP(t.Context(), a, apRecord())
 	if !again.Skipped || again.Error.Code() != "controller_session_lost" {
 		t.Fatal("reused uncertain controller")
 	}
@@ -232,7 +232,7 @@ func TestNativeAPCancellationRetiresInsideLease(t *testing.T) {
 	a := makeAP(t, d)
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Millisecond)
 	defer cancel()
-	out, e := a.Read(ctx, apRecord())
+	out, e := readNativeAP(ctx, a, apRecord())
 	if !errors.Is(e, context.DeadlineExceeded) || out.CleanupError == nil || d.Connected() || tr.closes.Load() != 1 {
 		t.Fatalf("cancellation %v %v closes=%d", e, out.CleanupError, tr.closes.Load())
 	}
@@ -257,7 +257,7 @@ func TestNativeLeaseBusyReentryStaleAndCancellationRetire(t *testing.T) {
 	e, closeErr := d.WithBorrowedOperation(operationCtx, func(ctx context.Context, o *connector.Operation) error {
 		op = o
 		saved = o
-		out, err := a.Read(ctx, apRecord())
+		out, err := readNativeAP(ctx, a, apRecord())
 		if err != nil || !out.Skipped || out.Error.Code() != "session_busy" || !d.Connected() {
 			t.Fatal("busy operation changed controller")
 		}
@@ -282,7 +282,7 @@ func TestNativeAPValidationNeverWrites(t *testing.T) {
 	d, _ := fixture(t, nil, false, nil)
 	a := makeAP(t, d)
 	for _, ap := range []wireless.Record{nil, {"name": "bad", "operational_status": "offline"}, {"name": "bad", "operational_status": "online", "management_ip": "2001:db8::1"}, {"name": "bad", "operational_status": "online", "management_ip": "0.0.0.0"}} {
-		out, e := a.Read(t.Context(), ap)
+		out, e := readNativeAP(t.Context(), a, ap)
 		if e != nil || !out.Skipped || out.Error == nil {
 			t.Fatal(out, e)
 		}
@@ -290,7 +290,7 @@ func TestNativeAPValidationNeverWrites(t *testing.T) {
 }
 func TestNativeBorrowDoesNotConnectOrRunArbitraryCommands(t *testing.T) {
 	d, _ := fixture(t, nil, false, nil)
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	if _, e := s.Execute(t.Context(), "reboot"); e == nil {
 		t.Fatal("unsafe command accepted")
 	}
@@ -344,45 +344,45 @@ func TestNativePreservationRejectsCallbackCancellationAndMultiCommand(t *testing
 }
 
 func TestNativeAPCapturedFactsSurviveWrongExitAndCloseFailure(t *testing.T) {
-	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{collect.LLDPCommand + "\n", "No LLDP neighbors\r\n<AP>"}, exchange{"quit\n", "[UNKNOWN]"})
+	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{selectedProfile().APQuery().Command() + "\n", "No LLDP neighbors\r\n<AP>"}, exchange{"quit\n", "[UNKNOWN]"})
 	d, _ := fixture(t, steps, true, nil)
-	out, e := makeAP(t, d).Read(t.Context(), apRecord())
+	out, e := readNativeAP(t.Context(), makeAP(t, d), apRecord())
 	if e != nil || out.Result == nil || !out.Result.Success() || out.Error != nil || out.CleanupError == nil || out.CloseError == nil || d.Connected() {
 		t.Fatalf("facts lost: %v %v %v %v", e, out.Error, out.CleanupError, out.CloseError)
 	}
 }
 func TestNativeAPRejectedReadRestoresConfirmedController(t *testing.T) {
-	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{collect.LLDPCommand + "\n", "% Unrecognized command found at '^' position.\r\n<AP>"}, exchange{"quit\n", "<WLC>"})
+	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{selectedProfile().APQuery().Command() + "\n", "% Unrecognized command found at '^' position.\r\n<AP>"}, exchange{"quit\n", "<WLC>"})
 	d, _ := fixture(t, steps, false, nil)
-	out, e := makeAP(t, d).Read(t.Context(), apRecord())
+	out, e := readNativeAP(t.Context(), makeAP(t, d), apRecord())
 	if e != nil || out.Result == nil || out.Result.Success() || out.Error.Code() != "device_error" || out.CleanupError != nil || !d.Connected() {
 		t.Fatal(out.Error, e, out.CleanupError)
 	}
 }
 func TestNativeOpenCloseErrorKeepsControllerFacts(t *testing.T) {
 	d, _ := fixture(t, []exchange{{"screen-length disable\n", "<WLC>"}, {"display wlan client verbose\n", "Total number of clients : 0\r\n<WLC>"}}, true, nil)
-	snapshot, e := collect.NewCollector(collect.CollectorOptions{}).Collect(t.Context(), collect.CollectOptions{Target: wireless.Record{"host": "fixture"}, Profile: selectedProfile(), ConnectorPlatform: "h3c_wireless", Dimensions: []wireless.Dimension{wireless.Clients}, Open: Open(d)})
+	snapshot, e := collect.NewCollector(collect.CollectorOptions{}).Collect(t.Context(), collect.CollectOptions{Target: wireless.Record{"host": "fixture"}, Profile: selectedProfile(), ConnectorPlatform: "h3c_wireless", Dimensions: []wireless.Dimension{wireless.Clients}, Open: Open(d, selectedProfile())})
 	if e != nil || !snapshot.Dimension(wireless.Clients).Complete() || snapshot.Dimension(wireless.Collection).Issues()[0]["code"] != "session_close_failed" {
 		t.Fatal(snapshot, e)
 	}
 }
 func TestNativeAPConstructorAndFactoryValidateCredentialsAndSession(t *testing.T) {
 	for _, creds := range []collect.APCredentials{{}, {Password: "bad\n"}, {Password: "valid", Username: " "}} {
-		if _, e := NewAPSession(nil, creds, nil); e == nil {
+		if _, e := NewAPSession(nil, selectedProfile(), creds, nil); e == nil {
 			t.Fatal("invalid credentials accepted")
 		}
 	}
 	if _, e := APFactory(nil)(t.Context(), nil, collect.APCredentials{}); e == nil {
 		t.Fatal("missing native controller accepted")
 	}
-	if _, e := Borrow(nil); e == nil {
+	if _, e := Borrow(nil, selectedProfile()); e == nil {
 		t.Fatal("nil device accepted")
 	}
 }
 func TestNativeBodyRemovesOnlyFirstEchoAndPreservesIndentation(t *testing.T) {
 	command := "display wlan client verbose"
 	d, _ := fixture(t, []exchange{{command + "\n", command + "\r\n  body\r\n" + command + "\r\n<WLC>"}}, false, nil)
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
 	cap, e := r.Read(t.Context(), command)
 	if e != nil || cap.Body() != "  body\n"+command+"\n" {
@@ -394,7 +394,7 @@ func TestNativeInvalidEncodingRetainsReceipt(t *testing.T) {
 	command := "display wlan client verbose"
 	output := "invalid\xff\r\n<WLC>"
 	d, _ := fixture(t, []exchange{{command + "\n", output}}, false, nil)
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
 	cap, e := r.Read(t.Context(), command)
 	if e != nil || cap.Success() || cap.Failure().Code() != "invalid_output_encoding" || cap.Evidence()[0]["bytes"] != len(output) || d.Connected() {
@@ -406,7 +406,7 @@ func TestNativeDecodedBodyRetainsRawWireEvidence(t *testing.T) {
 	command := "display wlan client verbose"
 	wire := command + "\r\n  \xd6\xd0\xce\xc4\r\n<WLC>"
 	d, _ := fixture(t, []exchange{{command + "\n", wire}}, false, nil)
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
 	capture, err := r.Read(t.Context(), command)
 	evidence := capture.Evidence()
@@ -420,7 +420,7 @@ func TestNativeDecodedBodyRetainsRawWireEvidence(t *testing.T) {
 
 func TestNativeControllerReadFailurePreservesCloseDiagnostic(t *testing.T) {
 	d, _ := fixture(t, []exchange{{"display wlan client verbose\n", "partial"}}, true, nil)
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
 	cap, e := r.Read(t.Context(), "display wlan client verbose")
 	if e != nil || cap.Success() || s.CloseFailure() == nil || s.CloseFailure().Code() != "session_close_failed" || d.Connected() {
@@ -435,7 +435,7 @@ func TestNativeControllerReadFailurePreservesCloseDiagnostic(t *testing.T) {
 
 func TestNativeAdapterFormattersAndFactoryUseBorrowedController(t *testing.T) {
 	d, _ := fixture(t, nil, false, nil)
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	reader, e := APFactory(nil)(t.Context(), s, collect.APCredentials{Password: "private credential"})
 	if e != nil {
 		t.Fatal(e)
@@ -473,10 +473,10 @@ func TestReviewLateCancellationRetainsOwnedCloseFailure(t *testing.T) {
 			cancel()
 		}
 	})
-	s, _ := Borrow(d)
+	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
 	cap, e := r.Read(ctx, "display wlan client verbose")
-	if e != nil || cap.Success() || cap.Failure().Code() != "cancelled" || d.Connected() {
+	if e != nil || cap.Success() || cap.Body() != "" || cap.Failure().Code() != "cancelled" || d.Connected() {
 		t.Fatalf("cancellation result %v %v", cap, e)
 	}
 	if s.CloseFailure() == nil || s.CloseFailure().Code() != "session_close_failed" {
@@ -504,7 +504,7 @@ func TestReviewAPLateCancellationRetainsFallbackCloseResult(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	completions := 0
-	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{collect.LLDPCommand + "\n", "No LLDP neighbors\r\n<AP>"}, exchange{"quit\n", "<WLC>"})
+	steps := append(loginSteps(), exchange{"screen-length disable\n", "<AP>"}, exchange{selectedProfile().APQuery().Command() + "\n", "No LLDP neighbors\r\n<AP>"}, exchange{"quit\n", "<WLC>"})
 	d, _ := fixture(t, steps, true, func(e connector.SessionEvent) {
 		if e.Name == "operation_complete" {
 			completions++
@@ -513,7 +513,7 @@ func TestReviewAPLateCancellationRetainsFallbackCloseResult(t *testing.T) {
 			}
 		}
 	})
-	out, e := makeAP(t, d).Read(ctx, apRecord())
+	out, e := readNativeAP(ctx, makeAP(t, d), apRecord())
 	if !errors.Is(e, context.Canceled) || out.Error == nil || out.CloseError == nil || out.Result == nil || !out.Result.Success() || d.Connected() {
 		t.Fatalf("AP late outcome %v, primary=%v, close=%v", e, out.Error, out.CloseError)
 	}
@@ -523,7 +523,7 @@ func TestReviewNativeOpenPreservesCancellationAndCloseIndependently(t *testing.T
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	d, _ := fixture(t, []exchange{{"screen-length disable\n", "<WLC>"}, {"display wlan client verbose\n", "Total number of clients : 0\r\n<WLC>"}}, true, nil)
-	nativeOpen := Open(d)
+	nativeOpen := Open(d, selectedProfile())
 	open := func(ctx context.Context, run func(collect.Session) error) error {
 		return nativeOpen(ctx, func(s collect.Session) error { err := run(s); cancel(); return err })
 	}
@@ -558,4 +558,30 @@ func TestNativeObserverCloseCancelsOperation(t *testing.T) {
 func selectedProfile() *parser.Profile {
 	profile, _ := vendors.NewBuiltinRegistry().Fetch("h3c", "")
 	return profile
+}
+
+func readNativeAP(ctx context.Context, a *APSession, ap wireless.Record) (collect.APOutcome, error) {
+	return a.Read(ctx, collect.APRequest{AccessPoint: ap, Query: a.profile.APQuery()})
+}
+
+func TestNativeCaptureRetainsOneMatchedPromptSeparator(t *testing.T) {
+	command := "display wlan client verbose"
+	wire := command + "\r\n  body\r\n" + command + "\r\n\r\n\r\n<WLC>"
+	device, _ := fixture(t, []exchange{{command + "\n", wire}}, false, nil)
+	result, err := device.ExecuteCommand(t.Context(), connector.Command{Text: command, Prompt: textPattern(`(?:\r?\n)+<WLC>$`)}, connector.ExecuteOptions{SkipPrivilege: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	step, err := result.SingleAccepted(command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := step.Body()
+	if err != nil || body != "  body\n"+command+"\n\n\n" {
+		t.Fatalf("connector body = %q, err = %v", body, err)
+	}
+	got := receipt(command, result, nil)
+	if got.Body() != "  body\n"+command+"\n" || got.Raw() != wire {
+		t.Fatalf("wireless framing = %q, raw retained = %t", got.Body(), got.Raw() == wire)
+	}
 }

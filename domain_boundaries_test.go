@@ -213,3 +213,28 @@ func TestTypedStatusesAndUnicodeSSIDWhitespace(t *testing.T) {
 		t.Fatal("trimmed meaningful Unicode SSID whitespace")
 	}
 }
+
+func TestEvidenceCopyNativeAndNamedMapsPreserveExactValues(t *testing.T) {
+	type namedRecord map[string]any
+	for _, named := range []bool{false, true} {
+		original := wireless.Record{
+			"integer": json.Number("9007199254740993"), "float": 1.0,
+			"empty": []any{}, "null": []any(nil),
+			"nested": wireless.Record{"value": "original"},
+		}
+		var input any = original
+		if named {
+			input = namedRecord(original)
+		}
+		copied, err := wireless.CopyValue(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		original["nested"].(wireless.Record)["value"] = "changed"
+		body, err := wireless.MarshalJSON(copied)
+		want := `{"empty":[],"float":1.0,"integer":9007199254740993,"nested":{"value":"original"},"null":null}`
+		if err != nil || string(body) != want {
+			t.Fatalf("named=%t copy=%s error=%v", named, body, err)
+		}
+	}
+}

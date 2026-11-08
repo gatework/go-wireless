@@ -94,38 +94,28 @@ func readDescriptor(ctx context.Context, file *os.File, p []byte) (int, error) {
 	}
 }
 
-func ReadFile(ctx context.Context, path string, required, allowMissing bool, limit int64) ([]byte, bool, error) {
+// Document reads a required evidence file. Configuration limits belong to the
+// connector config package; captures and plans retain their own size semantics.
+func Document(ctx context.Context, path string) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
-	if errors.Is(err, os.ErrNotExist) && (!required || allowMissing) {
-		return nil, false, nil
-	}
 	if err != nil {
-		return nil, false, ErrInput
+		return nil, ErrInput
 	}
 	file := os.NewFile(uintptr(fd), path)
 	defer file.Close()
 	info, err := file.Stat()
-	if err != nil || !info.Mode().IsRegular() || limit > 0 && info.Size() > limit {
-		return nil, false, ErrInput
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, ErrInput
 	}
-	var reader io.Reader = Reader{Source: file, Context: ctx}
-	if limit > 0 {
-		reader = io.LimitReader(reader, limit+1)
-	}
-	body, err := io.ReadAll(reader)
+	body, err := io.ReadAll(Reader{Source: file, Context: ctx})
 	if cancelled := ctx.Err(); cancelled != nil {
-		return nil, false, cancelled
+		return nil, cancelled
 	}
-	if err != nil || limit > 0 && int64(len(body)) > limit {
-		return nil, false, ErrInput
+	if err != nil {
+		return nil, ErrInput
 	}
-	return body, true, nil
-}
-
-func Document(ctx context.Context, path string) ([]byte, error) {
-	body, _, err := ReadFile(ctx, path, true, false, 0)
-	return body, err
+	return body, nil
 }

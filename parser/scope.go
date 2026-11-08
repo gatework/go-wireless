@@ -13,12 +13,13 @@ import (
 type CollectionScope struct {
 	dimensions, unsupported []wireless.Dimension
 	queries                 []Query
-	apNeighbors             bool
+	apQuery                 APQuery
 }
 
 func (s CollectionScope) Dimensions() []wireless.Dimension  { return slices.Clone(s.dimensions) }
 func (s CollectionScope) Unsupported() []wireless.Dimension { return slices.Clone(s.unsupported) }
-func (s CollectionScope) APNeighbors() bool                 { return s.apNeighbors }
+func (s CollectionScope) APNeighbors() bool                 { return s.apQuery.Valid() }
+func (s CollectionScope) APQuery() APQuery                  { return s.apQuery }
 func (s CollectionScope) Queries() []Query {
 	queries := slices.Clone(s.queries)
 	for i := range queries {
@@ -57,10 +58,13 @@ func (p *Profile) CollectionScope(requested []wireless.Dimension) (CollectionSco
 	}
 	appendDependency(wireless.AccessPoints, wireless.LLDP)
 	appendDependency(wireless.Configuration, wireless.APGroups, wireless.ServiceTemplates)
-	scope := CollectionScope{dimensions: dimensions, unsupported: []wireless.Dimension{}, apNeighbors: p.capabilities().apNeighbors && slices.Contains(dimensions, wireless.LLDP)}
+	scope := CollectionScope{dimensions: dimensions, unsupported: []wireless.Dimension{}}
+	if slices.Contains(dimensions, wireless.LLDP) {
+		scope.apQuery = p.APQuery()
+	}
 	queryDimensions := []wireless.Dimension{}
 	for _, dimension := range dimensions {
-		if _, err := p.Command(dimension); err != nil {
+		if _, err := p.Command(dimension); err != nil || dimension == wireless.LLDP && !scope.APNeighbors() {
 			scope.unsupported = append(scope.unsupported, dimension)
 		} else if dimension != wireless.LLDP {
 			queryDimensions = append(queryDimensions, dimension)

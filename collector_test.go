@@ -225,15 +225,15 @@ func TestCollectorLateAndConcurrentCallbacksNeverReplay(t *testing.T) {
 	}
 }
 
-type apReaderFunc func(context.Context, wireless.Record) (collect.APOutcome, error)
+type apReaderFunc func(context.Context, collect.APRequest) (collect.APOutcome, error)
 
-func (f apReaderFunc) Read(ctx context.Context, ap wireless.Record) (collect.APOutcome, error) {
+func (f apReaderFunc) Read(ctx context.Context, ap collect.APRequest) (collect.APOutcome, error) {
 	return f(ctx, ap)
 }
 func goodAPCapture(t *testing.T, body string) wireless.Capture {
 	t.Helper()
 	now := time.Now()
-	c, e := wireless.NewCapture(wireless.CaptureOptions{Command: collect.LLDPCommand, Body: &body, StartedAt: now, CompletedAt: now, Evidence: []wireless.Record{{"sha256": "synthetic", "ap_name": "OTHER", "command": "wrong", "status": "failed", "kind": "wrong", "attempted": false, "neighbor_count": 99}}})
+	c, e := wireless.NewCapture(wireless.CaptureOptions{Command: selectedProfile("h3c").APQuery().Command(), Body: &body, StartedAt: now, CompletedAt: now, Evidence: []wireless.Record{{"sha256": "synthetic", "ap_name": "OTHER", "command": "wrong", "status": "failed", "kind": "wrong", "attempted": false, "neighbor_count": 99}}})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -276,9 +276,9 @@ func TestCollectorAPLazyDependenciesSelectionAndBinding(t *testing.T) {
 			t.Fatal("controller replaced")
 		}
 		names[0] = "AP-2"
-		return apReaderFunc(func(_ context.Context, ap wireless.Record) (collect.APOutcome, error) {
+		return apReaderFunc(func(_ context.Context, ap collect.APRequest) (collect.APOutcome, error) {
 			reads++
-			if ap["name"] != "AP-1" {
+			if ap.AccessPoint["name"] != "AP-1" {
 				t.Fatal("selection changed")
 			}
 			return collect.APOutcome{Result: &cap}, nil
@@ -286,7 +286,7 @@ func TestCollectorAPLazyDependenciesSelectionAndBinding(t *testing.T) {
 	}})
 	snap = mustCollect(t, c, o)
 	ev := snap.Dimension(wireless.LLDP).Evidence()[0]
-	if reads != 1 || ev["ap_name"] != "AP-1" || ev["command"] != collect.LLDPCommand || ev["status"] != "complete" || ev["attempted"] != true || ev["neighbor_count"] != 0 || ev["sha256"] != "synthetic" {
+	if reads != 1 || ev["ap_name"] != "AP-1" || ev["command"] != selectedProfile("h3c").APQuery().Command() || ev["status"] != "complete" || ev["attempted"] != true || ev["neighbor_count"] != 0 || ev["sha256"] != "synthetic" {
 		t.Fatal(ev)
 	}
 }
@@ -298,8 +298,8 @@ func TestCollectorAPFailuresDoNotLoseFactsOrOtherAPs(t *testing.T) {
 			s := controllerFixture()
 			apInventory(s)
 			c := collect.NewCollector(collect.CollectorOptions{APFactory: func(context.Context, collect.Session, collect.APCredentials) (collect.APReader, error) {
-				return apReaderFunc(func(_ context.Context, ap wireless.Record) (collect.APOutcome, error) {
-					if ap["name"] == "AP-2" {
+				return apReaderFunc(func(_ context.Context, ap collect.APRequest) (collect.APOutcome, error) {
+					if ap.AccessPoint["name"] == "AP-2" {
 						return collect.APOutcome{Error: wireless.NewFailure("ap_not_online", ""), Skipped: true}, nil
 					}
 					out := collect.APOutcome{Result: &cap}
@@ -337,7 +337,7 @@ func TestCollectorAPInvalidCapturesSetupAndMissingNames(t *testing.T) {
 		s := controllerFixture()
 		apInventory(s)
 		c := collect.NewCollector(collect.CollectorOptions{APFactory: func(context.Context, collect.Session, collect.APCredentials) (collect.APReader, error) {
-			return apReaderFunc(func(context.Context, wireless.Record) (collect.APOutcome, error) { return outcome, nil }), nil
+			return apReaderFunc(func(context.Context, collect.APRequest) (collect.APOutcome, error) { return outcome, nil }), nil
 		}})
 		snap := mustCollect(t, c, options(s, wireless.LLDP, wireless.Clients))
 		if snap.Dimension(wireless.LLDP).Status() != wireless.Failed || !snap.Dimension(wireless.Clients).Complete() {
@@ -371,7 +371,7 @@ func TestCollectorAPInvalidCapturesSetupAndMissingNames(t *testing.T) {
 }
 func TestCollectorAPSkippedFailuresDeduplicateAndRepeat(t *testing.T) {
 	now := time.Now()
-	cap, e := wireless.NewCapture(wireless.CaptureOptions{Command: collect.LLDPCommand, StartedAt: now, CompletedAt: now, Failure: wireless.NewFailure("session_closed", "session"), Skipped: true})
+	cap, e := wireless.NewCapture(wireless.CaptureOptions{Command: selectedProfile("h3c").APQuery().Command(), StartedAt: now, CompletedAt: now, Failure: wireless.NewFailure("session_closed", "session"), Skipped: true})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -381,7 +381,7 @@ func TestCollectorAPSkippedFailuresDeduplicateAndRepeat(t *testing.T) {
 	factoryCalls := 0
 	c := collect.NewCollector(collect.CollectorOptions{APFactory: func(context.Context, collect.Session, collect.APCredentials) (collect.APReader, error) {
 		factoryCalls++
-		return apReaderFunc(func(context.Context, wireless.Record) (collect.APOutcome, error) {
+		return apReaderFunc(func(context.Context, collect.APRequest) (collect.APOutcome, error) {
 			calls++
 			return collect.APOutcome{Result: &cap, Skipped: true, Error: wireless.NewFailure("session_closed", ""), CleanupError: wireless.NewFailure("session_closed", "")}, nil
 		}), nil

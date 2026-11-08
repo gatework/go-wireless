@@ -346,3 +346,114 @@ func TestRunStopsParentCancellationWithDetachedBorrowedContext(t *testing.T) {
 		t.Fatal("captured acknowledgement lost", last)
 	}
 }
+
+// committedFailure is an alternate journal's publication contract, without a
+// dependency on the concrete report implementation.
+type committedFailure struct{ committed bool }
+
+func (committedFailure) Error() string                { return "PRIVATE publication" }
+func (e committedFailure) PublicationCommitted() bool { return e.committed }
+func (e committedFailure) ToMap() wireless.Record {
+	return wireless.Record{"relative": "execution.json", "phase": "directory_sync", "committed": e.committed, "durable": false}
+}
+
+func TestRunRecognizesJournalCommitCapabilityBeforeSend(t *testing.T) {
+	for _, committed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "not committed", true: "committed"}[committed], func(t *testing.T) {
+			plan, s := fixture(t)
+			j := &journal{writeHook: func(_ context.Context, state wireless.Record) error {
+				if state["status"] == "executing" {
+					return errors.Join(errors.New("PRIVATE outer"), committedFailure{committed: committed})
+				}
+				return nil
+			}}
+			open := func(ctx context.Context, run func(context.Context, change.ApplySession) error) (error, error) {
+				return run(ctx, s), nil
+			}
+			result, err := apply.Run(t.Context(), plan, "hash", open, j)
+			want := "failed"
+			if committed {
+				want = "uncertain"
+			}
+			if err == nil || result.Summary["status"] != want || result.Summary["pending_command"] != 0 || s.read != 1 || len(s.commands) != 0 || j.finalized || result.ReportUnconfirmed {
+				t.Fatal("intent publication admitted or replayed a command", result, err, s.commands)
+			}
+			body, _ := wireless.MarshalJSON(result.Summary)
+			if result.Summary["report_error"] == nil || strings.Contains(string(body)+err.Error(), "PRIVATE") {
+				t.Fatal("publication diagnostics lost their safe contract", string(body))
+			}
+		})
+	}
+}
+
+func TestRunProjectsOwnedJournalDocuments(t *testing.T) {
+	plan, s := fixture(t)
+	wantCommands := plan.Commands()
+	wantFingerprint, err := plan.CheckAfter(s.after)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var previous, final wireless.Record
+	j := &journal{writeHook: func(_ context.Context, state wireless.Record) error {
+		if previous != nil {
+			previous["commands"].([]string)[0] = "caller changed command"
+			previous["device"].(wireless.Record)["host"] = "caller changed host"
+			previous["pending_command"] = 999
+			if steps := previous["steps"].([]wireless.Record); len(steps) > 0 {
+				steps[0]["index"] = 999
+			}
+		}
+		if !reflect.DeepEqual(state["commands"], wantCommands) || state["device"].(wireless.Record)["host"] != plan.Host() {
+			t.Fatal("journal projection changed execution inputs", state)
+		}
+		for i, step := range state["steps"].([]wireless.Record) {
+			if step["index"] != i || step["status"] != "acknowledged" {
+				t.Fatal("journal projection changed captured acknowledgements", state)
+			}
+		}
+		if previous == nil {
+			if steps, ok := state["steps"].([]wireless.Record); !ok || steps == nil || len(steps) != 0 {
+				t.Fatal("initial steps must be an explicit empty list", state)
+			}
+			for _, name := range []string{"pending_command", "error", "cleanup_error", "readback_verified", "observed_config_sha256", "report_error"} {
+				if _, exists := state[name]; exists {
+					t.Fatal("initial projection added an optional field", name)
+				}
+			}
+		}
+		previous = state
+		return nil
+	}, finalHook: func(_ context.Context, state wireless.Record) error { final = state; return nil }}
+	open := func(ctx context.Context, run func(context.Context, change.ApplySession) error) (error, error) {
+		return run(ctx, s), nil
+	}
+	if result, err := apply.Run(t.Context(), plan, "exact-hash", open, j); err != nil || result.Summary != nil {
+		t.Fatal("journal changed execution", result, err)
+	}
+	if !reflect.DeepEqual(s.commands, wantCommands) || len(final["steps"].([]wireless.Record)) != len(wantCommands) || final["readback_verified"] != true || final["observed_config_sha256"] != wantFingerprint || final["plan_sha256"] != "exact-hash" {
+		t.Fatal("final projection lost execution facts", final, s.commands)
+	}
+	for _, name := range []string{"pending_command", "error", "cleanup_error", "operation_errors", "report_error"} {
+		if _, exists := final[name]; exists {
+			t.Fatal("successful projection retained an absent field", name)
+		}
+	}
+}
+
+func TestRunTerminalSummaryOwnsDiagnosticProjection(t *testing.T) {
+	plan, s := fixture(t)
+	s.writeHook = func(context.Context, string) error { return wireless.NewFailure("command_timeout", "execute") }
+	j := &journal{writeHook: func(_ context.Context, state wireless.Record) error {
+		if state["status"] == "uncertain" {
+			state["operation_errors"].([]wireless.Record)[0]["code"] = "caller changed diagnostic"
+		}
+		return nil
+	}}
+	open := func(ctx context.Context, run func(context.Context, change.ApplySession) error) (error, error) {
+		return run(ctx, s), nil
+	}
+	result, err := apply.Run(t.Context(), plan, "hash", open, j)
+	if err == nil || result.Summary["operation_errors"].([]wireless.Record)[0]["code"] != "command_timeout" || len(s.commands) != 1 {
+		t.Fatal("terminal projection aliases journal diagnostics", result, err)
+	}
+}

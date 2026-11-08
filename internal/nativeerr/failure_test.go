@@ -56,3 +56,17 @@ func TestClassifyPreservesOnlyAllowedTypedStages(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyNativeLeavesWrapperTraversalToCaller(t *testing.T) {
+	native := &connector.Error{Code: "command_timeout", Phase: "parse", Source: "PRIVATE"}
+	failure, cause := nativeerr.ClassifyNative(native, "command_execution_failed", "execute")
+	if failure.Code() != "command_timeout" || failure.Stage() != "parse" || cause != nil {
+		t.Fatal("native node lost its safe classification", failure, cause)
+	}
+	if failure, cause := nativeerr.ClassifyNative(fmt.Errorf("PRIVATE: %w", native), "command_execution_failed", "execute"); failure != nil || cause != nil {
+		t.Fatal("classification consumed a wrapper", failure, cause)
+	}
+	if failure, cause := nativeerr.ClassifyNative((*connector.Error)(nil), "command_execution_failed", "execute"); failure == nil || failure.Code() != "command_execution_failed" || cause != nil {
+		t.Fatal("typed nil native error lost safe fallback", failure, cause)
+	}
+}

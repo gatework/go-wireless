@@ -39,6 +39,7 @@ type ProfileSpec struct {
 	Aliases                                  []string
 	Queries                                  []QuerySpec
 	APNeighbors                              bool
+	APPreparation                            string
 }
 
 type profileCapability struct {
@@ -47,6 +48,7 @@ type profileCapability struct {
 	queries                          []Query
 	parsers                          map[string]QuerySpec
 	apNeighbors                      bool
+	apPreparation                    string
 }
 
 // Registry is an immutable validated catalog with no implicit vendor discovery.
@@ -70,11 +72,17 @@ func NewRegistry(specs ...ProfileSpec) (*Registry, error) {
 		if key == "" || spec.ConnectorPlatform == "" || !wireless.ValidCommand(spec.Preparation) || len(spec.Queries) == 0 {
 			return nil, errors.New("wireless parser: invalid profile declaration")
 		}
-		cap := &profileCapability{platform: key, connector: spec.ConnectorPlatform, preparation: spec.Preparation, aliases: slices.Clone(spec.Aliases), parsers: map[string]QuerySpec{}, apNeighbors: spec.APNeighbors}
+		if spec.APNeighbors && !wireless.ValidCommand(spec.APPreparation) || !spec.APNeighbors && spec.APPreparation != "" {
+			return nil, errors.New("wireless parser: invalid AP preparation declaration")
+		}
+		cap := &profileCapability{platform: key, connector: spec.ConnectorPlatform, preparation: spec.Preparation, aliases: slices.Clone(spec.Aliases), parsers: map[string]QuerySpec{}, apNeighbors: spec.APNeighbors, apPreparation: spec.APPreparation}
 		dimensions := map[wireless.Dimension]bool{}
 		for _, query := range spec.Queries {
 			if !wireless.ValidCommand(query.Command) || query.Parse == nil || len(query.Dimensions) == 0 {
 				return nil, errors.New("wireless parser: invalid query declaration")
+			}
+			if slices.Contains(query.Dimensions, wireless.LLDP) && len(query.Dimensions) != 1 {
+				return nil, errors.New("wireless parser: AP query cannot share controller dimensions")
 			}
 			if _, exists := cap.parsers[query.Command]; exists {
 				return nil, errors.New("wireless parser: duplicate command declaration")
@@ -88,6 +96,9 @@ func NewRegistry(specs ...ProfileSpec) (*Registry, error) {
 			query.Dimensions = slices.Clone(query.Dimensions)
 			cap.queries = append(cap.queries, Query{Command: query.Command, Dimensions: slices.Clone(query.Dimensions)})
 			cap.parsers[query.Command] = query
+		}
+		if spec.APNeighbors && !dimensions[wireless.LLDP] {
+			return nil, errors.New("wireless parser: AP neighbors require a query declaration")
 		}
 		names := append([]string{key}, cap.aliases...)
 		for _, name := range names {
@@ -155,7 +166,6 @@ func (p *Profile) Model() string {
 	}
 	return p.model
 }
-func (p *Profile) capabilities() *profileCapability { return p.capability }
 func (p *Profile) ConnectorPlatform() string {
 	if !p.Valid() {
 		return ""

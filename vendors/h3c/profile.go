@@ -21,7 +21,7 @@ func Profile() parser.ProfileSpec {
 		{Command: "display wlan client-security block-mac", Dimensions: []wireless.Dimension{wireless.BlockedClients}},
 		{Command: "display lldp neighbor-information verbose", Dimensions: []wireless.Dimension{wireless.LLDP}},
 	}
-	spec := parser.ProfileSpec{Platform: "h3c", ConnectorPlatform: "h3c_wireless", Preparation: "screen-length disable", Aliases: []string{"h3c_wireless"}, APNeighbors: true}
+	spec := parser.ProfileSpec{Platform: "h3c", ConnectorPlatform: "h3c_wireless", Preparation: "screen-length disable", Aliases: []string{"h3c_wireless"}, APNeighbors: true, APPreparation: "screen-length disable"}
 	for _, query := range declarations {
 		owned := parser.Query{Command: query.Command, Dimensions: append([]wireless.Dimension(nil), query.Dimensions...)}
 		spec.Queries = append(spec.Queries, parser.QuerySpec{Query: query, PreserveNewlines: query.Command == "display current-configuration", Parse: func(text string, complete bool) map[wireless.Dimension]parser.Result {

@@ -23,8 +23,16 @@ Go 1.26 remains the minimum.
 The root does not import domain packages or transports. Parser never imports
 vendors. Collect receives a selected profile and never discovers a built-in parser;
 this includes AP LLDP. Huawei does not import H3C. Change does not import review.
-Workflow never imports bootstrap, CLI or Cobra. `scripts/check-architecture.py`
-checks these boundaries from the compiled package graph in the normal CI pipeline.
+Workflow never imports bootstrap, CLI, Cobra, concrete connector, adapter or vendor
+packages. Apply consumes publication state through narrow interfaces and native
+diagnostics through internal/nativeerr; collect/review retain their report value
+contracts. Apply does not import the concrete report implementation. `scripts/check-architecture.py`
+checks these boundaries for entire package subtrees from the compiled package
+graph in the normal CI pipeline. Domain infrastructure and ownership rules inspect
+transitive dependencies too, so an internal helper cannot hide an inverted import.
+Standard-library I/O restrictions and workflow adapter boundaries stay direct; the
+workflow intentionally consumes nativeerr. Its negative and permitted-boundary controls run
+under both ordinary Python and -O; path prefixes cannot bypass or broaden a rule.
 
 ## Library migration
 
@@ -40,6 +48,10 @@ checks these boundaries from the compiled package graph in the normal CI pipelin
 | root review validation/recommendation functions | `review` |
 | root ChangePlan/rendering/checking/session functions | `change` |
 | `adapter` | `adapter/netconnector` |
+| `netconnector.Borrow/Open(device)` | `netconnector.Borrow/Open(device, selectedProfile)` |
+| `APReader.Read(ctx, record)` | `APReader.Read(ctx, collect.APRequest{AccessPoint: record, Query: scope.APQuery()})` |
+| `collect.LLDPCommand` | selected `parser.APQuery.Command()`; preparation comes from APPreparation |
+| `NewAPSession(device, credentials, clock)` | `NewAPSession(device, selectedProfile, credentials, clock)` |
 | public `cli.Run`, `cli.LoadOptions`, `cli.Dependencies` | internal application code; embed public domain capabilities or run the executable |
 
 ```go
@@ -57,7 +69,15 @@ change a registered parser. Nil/zero profiles cannot parse or open sessions.
 `collect.CollectOptions` explicitly pairs the selected profile with the actual
 connector platform and borrowed opener. Grouped queries execute once. All reads,
 including custom AP LLDP parsing, use that profile. Invalid models/names or zero
-profiles fail admission; unsupported dimensions remain explicit evidence.
+profiles fail admission; unsupported dimensions remain explicit evidence. Bootstrap
+selects one profile per controller and passes it through connection settings, scope,
+adapter admission, parsing and evidence binding. Native controller queries are
+restricted to that immutable declaration; AP-only queries are excluded. APQuery
+carries the selected registry capability, so zero/foreign queries are rejected
+before AP lease acquisition or writes. APPreparation is a vendor declaration. H3C
+login, exit and prompt identity remain explicit protocol behavior; Huawei AP work
+remains unsupported. Connector owns accepted-step validation and verified body
+extraction; Wireless still forbids successful Body on a failed Capture.
 
 The removed Config wrapper added no invariant beyond selecting Configuration.
 RuntimeParser retains unknown/unsupported dimension handling. NeighborParser
@@ -67,14 +87,17 @@ expanding the public SDK for mechanical sharing.
 
 ## Operational contracts
 
-Bootstrap copies validated settings away from exported diagnostic views. Connector
+Bootstrap copies validated settings away from exported diagnostic views. Command
+contexts reach configuration/env/discovery reads through Connector config.ReadFile
+and LoadContext; evidence-document reads retain their independent size policy. Connector
 owns shared inventory environment projection/validation; Wireless owns controller
 selection. Inventory fetchers receive source/cache settings and return complete
 cache receipts. Prefer/refresh create versioned identity entries; cache-only
 requires refresh when only legacy identities exist. No legacy entry is rewritten.
 
 Collection waits for admitted callbacks and never replays to repair publication.
-Apply keeps one synchronous borrowed operation, checks caller and operation
+Apply owns typed execution progress and projects detached records only at journal
+and result boundaries. It keeps one synchronous borrowed operation, checks caller and operation
 cancellation before new work, persists intent before send and acknowledgement
 after successful send, and preserves captured acknowledgements on cancellation.
 Only full verified readback plus confirmed publication yields configuration_verified.
@@ -82,13 +105,16 @@ Rollback remains plan data; no retry, reconnect, rollback or save is automatic.
 
 ## Delivery boundary
 
-The authorized local four-module workspace includes new Connector inventory APIs.
-The manifest still pins published Connector v0.3.0 and Expect v0.4.0, without local
-replace directives. Connector must publish these APIs before the formal independent
-consumer and `scripts/ci` can pass against versioned dependencies. Local workspace
-checks do not substitute for that release gate. The external consumer exercises
-supported public packages and runs the built CLI from outside the checkout; it
-cannot import internal application code. Corpus hashes and oracle fixtures remain
-unchanged, with implementation/test paths migrated to their new owners.
+`go.mod` pins published Connector v0.5.0 and Expect v0.4.2, including the shared
+inventory and SingleAccepted/Body/ReadFile/LoadContext APIs. Formal build and
+delivery checks use GOWORK=off and no replacements. Earlier workspace and frozen
+local-proxy results describe the unpublished candidate stage; release verification
+also requires the same-commit CI artifact and independent tagged consumers.
+The external consumer exercises supported public packages and runs the built CLI
+from outside the checkout; it cannot import internal application code. Ruby corpus
+hashes, oracle fixtures and source-to-test mappings remain active regression inputs.
 
-No live device, live inventory service, commit, push or release is part of this work.
+The repository carries no dependency source snapshots or workspace restoration
+tooling. Module versions and checksums belong to `go.mod` and `go.sum`; old source
+and implementation records remain available in Git history. Current checks and
+release evidence are described in [verification](verification.md).

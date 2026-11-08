@@ -1,6 +1,6 @@
 # 发布 Go Wireless
 
-发布版本由根目录 VERSION 指定，并与 cli.Version 保持一致。构建统一使用 GOWORK=off、只读模块解析及正式依赖；不得添加本地 replace。
+发布版本由根目录 VERSION 指定，并与 internal/cli.Version 保持一致。构建统一使用 GOWORK=off、只读模块解析及正式依赖；不得添加本地 replace。
 
 1. 提交并推送 main，等待同一完整 SHA 的 Go workflow 成功。四组 Linux/macOS × Go 1.26/1.27 测试、quality 和 package 必须全部通过。
 2. 记录 run ID、attempt、不可变 artifact ID 与 digest。下载该 run 的 `release-FULL_SHA-ATTEMPT`，不得用本地重建文件替换。

@@ -12,6 +12,7 @@ import (
 	"github.com/gatework/go-net-connector/inventory"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
+	"github.com/gatework/go-wireless/parser"
 )
 
 type sshSettings struct {
@@ -106,6 +107,13 @@ func (o *Options) freeze() error {
 func (r *runtimeOptions) connection(device wireless.Record) (connector.ConnectionConfig, error) {
 	profile, err := vendors.NewBuiltinRegistry().Fetch(StringValue(device["platform"]), StringValue(device["model"]))
 	if err != nil {
+		return connector.ConnectionConfig{}, ErrOptions
+	}
+	return r.connectionForProfile(device, profile)
+}
+
+func (r *runtimeOptions) connectionForProfile(device wireless.Record, profile *parser.Profile) (connector.ConnectionConfig, error) {
+	if r == nil || !profile.Valid() {
 		return connector.ConnectionConfig{}, ErrOptions
 	}
 	prefix := "NC_" + strings.ToUpper(profile.ConnectorPlatform())

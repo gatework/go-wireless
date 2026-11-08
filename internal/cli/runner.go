@@ -19,7 +19,7 @@ import (
 	"golang.org/x/term"
 )
 
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 type Executor func(context.Context, int, []wireless.Record, func(context.Context, wireless.Record) error) error
 type Command func(context.Context, []string, *Runner) int

@@ -91,8 +91,11 @@ func applyCommand(ctx context.Context, o *documentFlags, r *Runner) int {
 		}
 		return 1
 	}
-	open, e := bootstrap.PrepareApply(r.Environment, flags["--env-file"], r.Discovery, r.Registry, r.ApplyFactory, plan, port)
+	open, e := bootstrap.PrepareApply(ctx, r.Environment, flags["--env-file"], r.Discovery, r.Registry, r.ApplyFactory, plan, port)
 	if e != nil {
+		if ctx.Err() != nil {
+			return 130
+		}
 		return r.failure(setupMessage(e))
 	}
 	if ctx.Err() != nil {

@@ -57,6 +57,10 @@ func (e *Error) Error() string {
 }
 func (e *Error) GoString() string { return e.Error() }
 
+// PublicationCommitted reports whether publication crossed the commit boundary,
+// even if a later durability or cancellation check failed.
+func (e *Error) PublicationCommitted() bool { return e != nil && e.Committed }
+
 // Is preserves cancellation identity without retaining arbitrary private causes.
 func (e *Error) Is(target error) bool { return e.cancelErr != nil && errors.Is(e.cancelErr, target) }
 func (e *Error) ToMap() wireless.Record {

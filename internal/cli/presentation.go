@@ -2,9 +2,7 @@ package cli
 
 import (
 	"embed"
-	"encoding/json"
 	"slices"
-	"strconv"
 
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/bootstrap"
@@ -33,16 +31,4 @@ func stringList(v any) ([]string, error) {
 		b[i] = s
 	}
 	return b, nil
-}
-func number(v any) (float64, bool) {
-	switch n := v.(type) {
-	case int:
-		return float64(n), true
-	case float64:
-		return n, true
-	case json.Number:
-		f, e := strconv.ParseFloat(string(n), 64)
-		return f, e == nil
-	}
-	return 0, false
 }

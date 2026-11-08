@@ -21,7 +21,7 @@ backup: {parallel: 12, directory: backups}
 topology: {parallel: 24, directory: topology}
 `)
 	write(t, filepath.Join(d, "wireless.yml"), "ssh: {port: 2222, command_timeout: 30}\n")
-	o, err := LoadOptions(nil, map[string]string{}, bootstrap.Discovery{CWD: d, Home: d, Directories: []string{shared, d}})
+	o, err := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, bootstrap.Discovery{CWD: d, Home: d, Directories: []string{shared, d}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ topology: {parallel: 24, directory: topology}
 func TestFlatSharedConfigurationCanSupplyDynamicInventory(t *testing.T) {
 	d := t.TempDir()
 	write(t, filepath.Join(d, "net-connector.yml"), "netdisco: {source: http}\ninventory: {include_vendors: [h3c_wireless]}\n")
-	o, err := LoadOptions(nil, map[string]string{}, discovery(d))
+	o, err := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, discovery(d), nil)
 	if err != nil || !o.Dynamic() {
 		t.Fatal(o, err)
 	}
@@ -64,7 +64,7 @@ func TestLegacySharedConfigurationRequiresMigration(t *testing.T) {
 			t.Run(name+body, func(t *testing.T) {
 				d := t.TempDir()
 				write(t, filepath.Join(d, name), body)
-				_, err := LoadOptions(nil, map[string]string{}, discovery(d))
+				_, err := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, discovery(d), nil)
 				if !errors.Is(err, bootstrap.ErrLegacyConfiguration) || !errors.Is(err, bootstrap.ErrOptions) {
 					t.Fatal(err)
 				}
@@ -74,7 +74,7 @@ func TestLegacySharedConfigurationRequiresMigration(t *testing.T) {
 	d := t.TempDir()
 	write(t, filepath.Join(d, "wireless.yml"), "netdisco_config: inventory/net-connector.yml\n")
 	write(t, filepath.Join(d, "inventory/net-connector.yml"), "common: {netdisco: {source: http}}\n")
-	if _, err := LoadOptions(nil, map[string]string{}, discovery(d)); !errors.Is(err, bootstrap.ErrLegacyConfiguration) {
+	if _, err := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, discovery(d), nil); !errors.Is(err, bootstrap.ErrLegacyConfiguration) {
 		t.Fatal(err)
 	}
 }
@@ -92,7 +92,7 @@ func TestSharedConfigurationRejectsUnknownOrInvalidFieldsBeforeProjection(t *tes
 			d := t.TempDir()
 			write(t, filepath.Join(d, "net-connector.yml"), body)
 			write(t, filepath.Join(d, "wireless.yml"), "devices: []\n")
-			if _, err := LoadOptions(nil, map[string]string{}, discovery(d)); !errors.Is(err, bootstrap.ErrOptions) {
+			if _, err := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, discovery(d), nil); !errors.Is(err, bootstrap.ErrOptions) {
 				t.Fatal(err)
 			}
 		})
@@ -101,15 +101,13 @@ func TestSharedConfigurationRejectsUnknownOrInvalidFieldsBeforeProjection(t *tes
 
 func TestInitializeCannotPublishWirelessFieldsIntoSharedConfiguration(t *testing.T) {
 	d := t.TempDir()
-	o, err := parseOptions([]string{"--init", "--config", "net-connector.yml", "--env-file", ".env"}, discovery(d))
+	request := bootstrap.Request{Initialize: true, ConfigFile: "net-connector.yml", ExplicitConfig: true, EnvFile: ".env", ExplicitEnv: true}
+	o, err := bootstrap.LoadConfiguration(t.Context(), request, map[string]string{}, discovery(d), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if o.Options, err = bootstrap.LoadConfiguration(o.Request, map[string]string{}, discovery(d), nil); err != nil {
-		t.Fatal(err)
-	}
 	var out bytes.Buffer
-	if err = o.Initialize(&out); !errors.Is(err, bootstrap.ErrLegacyConfiguration) {
+	if err = o.Initialize(t.Context(), &out); !errors.Is(err, bootstrap.ErrLegacyConfiguration) {
 		t.Fatal(err)
 	}
 	entries, err := os.ReadDir(d)

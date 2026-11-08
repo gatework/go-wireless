@@ -84,7 +84,7 @@ func TestNativeOpenersDoNotCloseAnotherOperationsLease(t *testing.T) {
 			operationErr, cleanupErr := device.WithBorrowedOperation(t.Context(), func(ctx context.Context, op *connector.Operation) error {
 				var err, closeErr error
 				if mode == "collect" {
-					err = Open(device)(ctx, func(collect.Session) error {
+					err = Open(device, selectedProfile())(ctx, func(collect.Session) error {
 						t.Error("busy opener invoked callback")
 						return nil
 					})

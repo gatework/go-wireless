@@ -6,42 +6,56 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/gatework/go-wireless/vendors"
-
 	expect "github.com/gatework/go-expect"
 	"github.com/gatework/go-net-connector/connector"
 	"github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/internal/nativeerr"
+	"github.com/gatework/go-wireless/parser"
 )
 
 type Session struct {
 	device       *connector.Device
+	profile      parser.Profile
+	commands     map[string]bool
 	closeFailure atomic.Pointer[wireless.Failure]
 }
 
-func Borrow(device *connector.Device) (*Session, error) {
+// Borrow binds a validated query profile without connecting or owning device close.
+func Borrow(device *connector.Device, profile *parser.Profile) (*Session, error) {
 	if device == nil {
 		return nil, errors.New("wireless: device required")
 	}
-	return &Session{device: device}, nil
+	if !profile.Valid() || !profile.MatchesConnector(device.ProfileName()) {
+		return nil, errors.New("wireless: connector profile mismatch")
+	}
+	scope, err := profile.CollectionScope(profile.Dimensions())
+	if err != nil {
+		return nil, err
+	}
+	commands := map[string]bool{profile.PreparationCommand(): true}
+	for _, query := range scope.Queries() {
+		commands[query.Command] = true
+	}
+	return &Session{device: device, profile: *profile, commands: commands}, nil
 }
 func (*Session) String() string                        { return "wireless.adapter.Session" }
 func (s *Session) GoString() string                    { return s.String() }
 func (s *Session) State(context.Context) (bool, error) { return s.device.Connected(), nil }
 
 // Open owns only the explicitly supplied device's connect/callback/close lifecycle.
-func Open(device *connector.Device) collect.OpenSession {
+func Open(device *connector.Device, profile *parser.Profile) collect.OpenSession {
+	selected, validationErr := Borrow(device, profile)
 	return func(ctx context.Context, run func(collect.Session) error) (err error) {
-		if device == nil || run == nil {
+		if validationErr != nil || run == nil {
 			return wireless.NewFailure("connection_failed", "connect")
 		}
+		session := &Session{device: selected.device, profile: selected.profile, commands: selected.commands}
 		connectErr := device.Connect(ctx)
 		if errors.Is(connectErr, connector.ErrBusy) {
 			// Admission failed: the active lease still belongs to its caller.
 			return nativeerr.Failure(connectErr, "connection_failed", "connect")
 		}
-		session, _ := Borrow(device)
 		defer func() {
 			closeErr := device.Close()
 			if err == nil {
@@ -63,31 +77,17 @@ func exactPrompt(prompt string) expect.Pattern {
 	prompt = strings.Trim(prompt, " \t\r\n\x00")
 	return expect.Line(prompt)
 }
-func queryAllowed(platform, command string) bool {
-	profile, e := vendors.NewBuiltinRegistry().Fetch(platform, "")
-	if e != nil {
-		return false
-	}
-	if command == profile.PreparationCommand() {
-		return true
-	}
-	for _, v := range profile.Commands() {
-		if command == v {
-			return true
-		}
-	}
-	return false
-}
 func receipt(command string, result connector.Result, err error) collect.Receipt {
 	steps := result.Steps()
 	body := ""
 	f := nativeerr.Failure(err, "command_execution_failed", "execute")
 	if err == nil {
-		if len(steps) != 1 || steps[0].Command().Text != command || steps[0].Response().RawPrompt() == "" {
+		step, validationErr := result.SingleAccepted(command)
+		if validationErr != nil {
 			f = wireless.NewFailure("invalid_command_result", "response")
 		} else {
 			var e error
-			body, e = responseBody(steps[0])
+			body, e = captureBody(step)
 			if e != nil {
 				f = wireless.NewFailure("invalid_command_result", "response")
 			}
@@ -104,7 +104,7 @@ func receipt(command string, result connector.Result, err error) collect.Receipt
 	})
 }
 func (s *Session) Execute(ctx context.Context, command string) (collect.Receipt, error) {
-	if !queryAllowed(s.device.ProfileName(), command) {
+	if !s.commands[command] {
 		return collect.Receipt{}, wireless.NewFailure("invalid_command_result", "execute")
 	}
 	var result connector.Result
@@ -149,31 +149,17 @@ func textPattern(expression string) expect.Pattern {
 	return p
 }
 
-// responseBody checks canonical text before removing only the acknowledged
-// prompt and first matching command echo; command-like body lines survive.
-func responseBody(step connector.StepResult) (string, error) {
-	response := step.Response()
-	text, err := response.Rendered()
+// captureBody preserves Wireless's historical framing: one separator from the
+// matched prompt belongs to the body. Connector Body retains all separators.
+func captureBody(step connector.StepResult) (string, error) {
+	body, err := step.Body()
 	if err != nil {
 		return "", err
 	}
-	prompt, err := response.Prompt()
+	prompt, err := step.Response().Prompt()
 	if err != nil {
 		return "", err
 	}
-	// A line-anchored prompt can include its preceding newline. That separator
-	// belongs to the preceding body line and must survive prompt removal.
-	prompt = strings.TrimPrefix(prompt, "\n")
-	if prompt == "" || !strings.HasSuffix(text, prompt) {
-		return "", wireless.NewFailure("invalid_command_result", "response")
-	}
-	text = strings.TrimSuffix(text, prompt)
-	first, rest, newline := strings.Cut(text, "\n")
-	if strings.TrimSpace(first) == strings.TrimSpace(step.Command().Text) {
-		if !newline {
-			return "", nil
-		}
-		return rest, nil
-	}
-	return text, nil
+	separators := len(prompt) - len(strings.TrimLeft(prompt, "\n"))
+	return strings.TrimSuffix(body, strings.Repeat("\n", max(separators-1, 0))), nil
 }

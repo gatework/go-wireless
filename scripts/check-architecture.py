@@ -6,41 +6,76 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
 MODULE = "github.com/gatework/go-wireless"
-stream = subprocess.check_output(["go", "list", "-json", "./..."], cwd=ROOT, text=True)
-decoder = json.JSONDecoder()
-packages = []
-while stream.strip():
-    value, end = decoder.raw_decode(stream.lstrip())
-    packages.append(value)
-    stream = stream.lstrip()[end:]
+NATIVE_MODULES = ("github.com/gatework/go-net-connector", "github.com/gatework/go-expect")
 
-errors = []
-for package in packages:
-    path = package["ImportPath"]
-    local = path.removeprefix(MODULE).lstrip("/")
-    imports = package.get("Imports", [])
-    for dependency in imports:
-        own = dependency.removeprefix(MODULE + "/")
-        domain = local == "" or local.split("/")[0] in {"parser", "collect", "review", "change", "vendors"}
-        if domain and (dependency.startswith(("github.com/gatework/go-net-connector", "github.com/gatework/go-expect", "github.com/spf13/cobra", "golang.org/x/term")) or dependency in {"os", "net", "net/http", "io/fs", "path/filepath"} or own.startswith(("internal/bootstrap", "internal/cli", "internal/workflow", "adapter/", "report"))):
-            errors.append(f"domain {local or 'wireless'} imports infrastructure {dependency}")
-        if local == "" and dependency.startswith(MODULE + "/") and not own.startswith("internal/record"):
-            errors.append(f"root evidence imports {dependency}")
-        if local.startswith("parser") and own.startswith("vendors"):
-            errors.append(f"parser imports vendor {dependency}")
-        if local == "collect" and own.startswith("vendors"):
-            errors.append(f"collection bypasses selected profile through {dependency}")
-        if local == "change" and own.startswith("review"):
-            errors.append("change depends on review")
-        if local.startswith("vendors/huawei") and own.startswith("vendors/h3c"):
-            errors.append("Huawei depends on H3C implementation")
-        if local.startswith("internal/workflow") and (own.startswith(("internal/cli", "internal/bootstrap")) or dependency.startswith("github.com/spf13/")):
-            errors.append(f"workflow imports composition/presentation {dependency}")
-        if local.startswith("internal/bootstrap") and own.startswith("internal/cli"):
-            errors.append("bootstrap imports CLI")
-    if local == "cli":
-        errors.append("public CLI package must not exist")
 
-if errors:
-    raise SystemExit("\n".join(errors))
-print(f"PASS: ownership and import direction for {len(packages)} packages")
+def within(path, parent):
+    return path == parent or path.startswith(parent + "/")
+
+
+def under_any(path, parents):
+    return any(within(path, parent) for parent in parents)
+
+
+def ownership_errors(packages):
+    errors = []
+    for package in packages:
+        path = package["ImportPath"]
+        if not within(path, MODULE):
+            continue
+        local = path.removeprefix(MODULE).lstrip("/")
+        domain = not local or under_any(local, ("parser", "collect", "review", "change", "vendors"))
+        direct = set(package.get("Imports", []))
+        dependencies = sorted(direct | set(package.get("Deps", [])))
+        for dependency in dependencies:
+            own = dependency.removeprefix(MODULE + "/") if dependency.startswith(MODULE + "/") else ""
+            native = under_any(dependency, NATIVE_MODULES)
+            presentation = under_any(dependency, ("github.com/spf13/cobra", "golang.org/x/term"))
+            file_network = dependency in {"net", "io/fs", "path/filepath"} or under_any(dependency, ("os", "net/http"))
+            composition = under_any(own, ("internal/bootstrap", "internal/cli", "internal/workflow", "adapter", "report"))
+            if domain and (native or presentation or composition or dependency in direct and file_network):
+                errors.append(f"domain {local or 'wireless'} imports infrastructure {dependency}")
+            if not local and own and not within(own, "internal/record"):
+                errors.append(f"root evidence imports {dependency}")
+            if within(local, "parser") and within(own, "vendors"):
+                errors.append(f"parser imports vendor {dependency}")
+            if within(local, "collect") and within(own, "vendors"):
+                errors.append(f"collection bypasses selected profile through {dependency}")
+            if within(local, "change") and within(own, "review"):
+                errors.append(f"change depends on review {dependency}")
+            if within(local, "vendors/huawei") and within(own, "vendors/h3c"):
+                errors.append(f"Huawei depends on H3C implementation {dependency}")
+            if within(local, "internal/workflow") and dependency in direct:
+                forbidden = under_any(own, ("internal/cli", "internal/bootstrap", "adapter", "vendors"))
+                if forbidden or native or under_any(dependency, ("github.com/spf13", "golang.org/x/term")):
+                    errors.append(f"workflow imports composition/transport/presentation {dependency}")
+                if within(local, "internal/workflow/apply") and within(own, "report"):
+                    errors.append(f"apply workflow depends on concrete publication {dependency}")
+            if within(local, "internal/bootstrap") and dependency in direct and within(own, "internal/cli"):
+                errors.append(f"bootstrap imports CLI {dependency}")
+        if within(local, "cli"):
+            errors.append("public CLI package must not exist")
+    return errors
+
+
+def package_graph():
+    stream = subprocess.check_output(["go", "list", "-json", "./..."], cwd=ROOT, text=True)
+    decoder = json.JSONDecoder()
+    packages = []
+    while stream.strip():
+        value, end = decoder.raw_decode(stream.lstrip())
+        packages.append(value)
+        stream = stream.lstrip()[end:]
+    return packages
+
+
+def main():
+    packages = package_graph()
+    errors = ownership_errors(packages)
+    if errors:
+        raise SystemExit("\n".join(errors))
+    print(f"PASS: ownership and import direction for {len(packages)} packages")
+
+
+if __name__ == "__main__":
+    main()

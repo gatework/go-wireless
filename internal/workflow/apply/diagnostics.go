@@ -4,22 +4,26 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/nativeerr"
-	"github.com/gatework/go-wireless/report"
 )
+
+// publicationDiagnostic supplies the journal's safe publication metadata.
+type publicationDiagnostic interface {
+	publicationStatus
+	ToMap() wireless.Record
+}
 
 // diagnostics retains independent, ordered safe evidence. The visitor
 // follows joined/wrapped causes; no Error() text enters execution or stderr.
 type diagnostics struct {
-	fields wireless.Record
+	fields map[string][]wireless.Record
 	seen   map[string]map[string]bool
 }
 
 func (d *diagnostics) append(field string, entry wireless.Record) {
 	if d.fields == nil {
-		d.fields = wireless.Record{}
+		d.fields = map[string][]wireless.Record{}
 		d.seen = map[string]map[string]bool{}
 	}
 	encoded, _ := wireless.MarshalJSON(entry)
@@ -31,8 +35,7 @@ func (d *diagnostics) append(field string, entry wireless.Record) {
 		return
 	}
 	d.seen[field][key] = true
-	entries, _ := d.fields[field].([]wireless.Record)
-	d.fields[field] = append(entries, entry)
+	d.fields[field] = append(d.fields[field], wireless.CloneRecord(entry))
 }
 func (d *diagnostics) failure(field string, f *wireless.Failure) {
 	if f == nil {
@@ -50,7 +53,7 @@ func (d *diagnostics) collect(err error, field, fallback, stage string) {
 			return
 		}
 		switch e := err.(type) {
-		case *report.Error:
+		case publicationDiagnostic:
 			d.append("report_errors", e.ToMap())
 			if errors.Is(e, context.Canceled) {
 				d.failure(field, wireless.NewFailure("cancelled", stage))
@@ -61,9 +64,10 @@ func (d *diagnostics) collect(err error, field, fallback, stage string) {
 		case *wireless.Failure:
 			d.failure(field, nativeerr.Classify(e, fallback, stage))
 			return
-		case *connector.Error:
-			d.failure(field, nativeerr.Classify(e, fallback, stage))
-			visit(e.Unwrap(), false)
+		}
+		if failure, cause := nativeerr.ClassifyNative(err, fallback, stage); failure != nil {
+			d.failure(field, failure)
+			visit(cause, false)
 			return
 		}
 		if many, ok := err.(interface{ Unwrap() []error }); ok {
@@ -83,10 +87,14 @@ func (d *diagnostics) collect(err error, field, fallback, stage string) {
 	visit(err, true)
 }
 func (d *diagnostics) attach(state wireless.Record) {
-	for field, value := range d.fields {
-		state[field] = value
+	for field, entries := range d.fields {
+		owned := make([]wireless.Record, len(entries))
+		for i, entry := range entries {
+			owned[i] = wireless.CloneRecord(entry)
+		}
+		state[field] = owned
 	}
-	if entries, ok := d.fields["report_errors"].([]wireless.Record); ok && len(entries) > 0 {
-		state["report_error"] = entries[0]
+	if entries := d.fields["report_errors"]; len(entries) > 0 {
+		state["report_error"] = wireless.CloneRecord(entries[0])
 	}
 }

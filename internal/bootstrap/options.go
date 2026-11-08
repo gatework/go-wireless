@@ -14,8 +14,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/gatework/go-wireless/internal/input"
-
 	"github.com/gatework/go-wireless/vendors"
 
 	ncconfig "github.com/gatework/go-net-connector/config"
@@ -152,14 +150,17 @@ func resolveEnvironment(m map[string]string, base, home string) {
 		}
 	}
 }
-func readFile(path string, required, allowMissing bool) ([]byte, bool, error) {
-	body, found, err := input.ReadFile(context.Background(), path, required, allowMissing, ncconfig.MaxBytes)
+func readConfigurationFile(ctx context.Context, path string, missingOK bool) ([]byte, bool, error) {
+	body, found, err := ncconfig.ReadFile(ctx, path, missingOK)
 	if err != nil {
 		return nil, false, fmt.Errorf("%w: %w", ErrOptions, err)
 	}
 	return body, found, nil
 }
-func (o *Options) loadEnvironment(env map[string]string) error {
+func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if o.explicitConfig && strings.TrimSpace(o.selectedConfig) == "" || o.explicitEnv && strings.TrimSpace(o.selectedEnv) == "" {
 		return ErrOptions
 	}
@@ -211,7 +212,7 @@ func (o *Options) loadEnvironment(env map[string]string) error {
 		candidates = append(candidates, filepath.Join(dir, ".env"))
 	}
 	for _, p := range uniqueLast(candidates, o.selectedEnv) {
-		b, ok, e := readFile(p, p == o.selectedEnv, o.initializing)
+		b, ok, e := readConfigurationFile(ctx, p, p != o.selectedEnv || o.initializing)
 		if e != nil {
 			return e
 		}
@@ -255,7 +256,7 @@ func (o *Options) loadEnvironment(env map[string]string) error {
 		o.EnvFile = filepath.Join(o.userDirectory, ".env")
 	}
 	o.Sources = wireless.Record{"configuration_files": []string{}, "environment_files": envFiles, "fields": map[string]string{}}
-	return nil
+	return ctx.Err()
 }
 func recordFields(fields map[string]string, m, previous wireless.Record, source, prefix string) {
 	for k, v := range m {
@@ -282,7 +283,7 @@ func recordFields(fields map[string]string, m, previous wireless.Record, source,
 	}
 }
 
-func (o *Options) loadFiles() (wireless.Record, wireless.Record, error) {
+func (o *Options) loadFiles(ctx context.Context) (wireless.Record, wireless.Record, error) {
 	data, specific := wireless.Record{}, wireless.Record{}
 	paths := []string{}
 	loaded := []string{}
@@ -291,7 +292,7 @@ func (o *Options) loadFiles() (wireless.Record, wireless.Record, error) {
 		paths = append(paths, filepath.Join(dir, "net-connector.yml"), filepath.Join(dir, "wireless.yml"))
 	}
 	for _, p := range uniqueLast(paths, o.selectedConfig) {
-		b, ok, e := readFile(p, p == o.selectedConfig, o.initializing)
+		b, ok, e := readConfigurationFile(ctx, p, p != o.selectedConfig || o.initializing)
 		if e != nil {
 			return nil, nil, e
 		}
@@ -304,7 +305,7 @@ func (o *Options) loadFiles() (wireless.Record, wireless.Record, error) {
 		}
 		native := m
 		if filepath.Base(p) == "net-connector.yml" {
-			native, e = o.sharedConfiguration(m, filepath.Dir(p))
+			native, e = o.sharedConfiguration(ctx, m, filepath.Dir(p))
 			if e != nil {
 				return nil, nil, e
 			}
@@ -332,17 +333,17 @@ func (o *Options) loadFiles() (wireless.Record, wireless.Record, error) {
 // sharedConfiguration validates the flat connector schema without importing its
 // defaults or environment. Wireless consumes only its own inventory and trust
 // settings; connection timeouts, device targets and report policy stay local.
-func (o *Options) sharedConfiguration(data wireless.Record, directory string) (wireless.Record, error) {
+func (o *Options) sharedConfiguration(ctx context.Context, data wireless.Record, directory string) (wireless.Record, error) {
 	if has(data, "common") || has(data, "wireless") {
 		return nil, ErrLegacyConfiguration
 	}
-	validated, err := ncconfig.Load(ncconfig.Options{
+	validated, err := ncconfig.LoadContext(ctx, ncconfig.Options{
 		Name: "backup", CWD: directory, Home: o.discovery.Home,
 		Directories: []string{}, Environment: map[string]string{},
 		Defaults: wireless.Record{}, Overrides: data,
 	})
 	if err != nil {
-		return nil, ErrOptions
+		return nil, fmt.Errorf("%w: %w", ErrOptions, err)
 	}
 	public := validated.Public()
 	projected := wireless.Record{}
@@ -393,7 +394,7 @@ func stringList(v any) ([]string, error) {
 	}
 	return out, nil
 }
-func (o *Options) load(data, specific wireless.Record) error {
+func (o *Options) load(ctx context.Context, data, specific wireless.Record) error {
 	dynamic := has(data, "netdisco") || has(data, "inventory")
 	if rows, ok := specific["devices"].([]any); ok && len(rows) > 0 && !has(specific, "netdisco") && !has(specific, "inventory") && !has(specific, "netdisco_config") {
 		delete(data, "netdisco")
@@ -420,7 +421,7 @@ func (o *Options) load(data, specific wireless.Record) error {
 		return e
 	}
 	if o.Dynamic() {
-		if err := o.loadInventoryPolicy(); err != nil {
+		if err := o.loadInventoryPolicy(ctx); err != nil {
 			return err
 		}
 	}
@@ -589,7 +590,10 @@ func (o *Options) validate() error {
 }
 
 // Initialize writes only missing templates with exclusive hard-link publication.
-func (o *Options) Initialize(out io.Writer) error {
+func (o *Options) Initialize(ctx context.Context, out io.Writer) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// The initializer writes Wireless-specific fields, which are not valid in
 	// the shared connector schema. Reject before creating either template.
 	if filepath.Base(o.selectedConfig) == "net-connector.yml" {
@@ -614,7 +618,7 @@ func (o *Options) Initialize(out io.Writer) error {
 	if e = o.validate(); e != nil {
 		return e
 	}
-	if e = o.loadInventoryPolicy(); e != nil {
+	if e = o.loadInventoryPolicy(ctx); e != nil {
 		return e
 	}
 	// NC_PARALLEL is inherited, unless this tool explicitly overrides it.
@@ -647,6 +651,9 @@ func (o *Options) Initialize(out io.Writer) error {
 		path string
 		body []byte
 	}{{path, body}, {envPath, envBody}} {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		created, e := initializeFile(item.path, item.body)
 		if e != nil {
 			return e
@@ -705,9 +712,9 @@ func initializeFile(path string, body []byte) (bool, error) {
 	}
 	return true, nil
 }
-func LoadEnvironment(environment map[string]string, envFile string, d Discovery) (map[string]string, wireless.Record, error) {
+func LoadEnvironment(ctx context.Context, environment map[string]string, envFile string, d Discovery) (map[string]string, wireless.Record, error) {
 	o := NewOptions(Request{EnvFile: envFile, ExplicitEnv: envFile != ""}, d, nil)
-	if e := o.loadEnvironment(environment); e != nil {
+	if e := o.loadEnvironment(ctx, environment); e != nil {
 		return nil, nil, e
 	}
 	return o.Environment, o.Sources, nil

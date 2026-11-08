@@ -24,7 +24,7 @@ func TestLayeredConfigurationPathsAndSecrets(t *testing.T) {
 	for k, v := range env {
 		before[k] = v
 	}
-	o, e := LoadOptions([]string{"-p", "3"}, env, bootstrap.Discovery{CWD: d, Home: d, Directories: []string{low, high}})
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{Overrides: map[string]any{"parallel": 3}}, env, bootstrap.Discovery{CWD: d, Home: d, Directories: []string{low, high}}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -59,7 +59,7 @@ func TestConfigSelectionEmptyAndExternalInventory(t *testing.T) {
 	d := t.TempDir()
 	write(t, filepath.Join(d, "wireless.yml"), "parallel: 5\nnetdisco_config: inventory/config.yml\n")
 	write(t, filepath.Join(d, "inventory/config.yml"), "netdisco: {source: postgres, query: 'SELECT ip FROM device', cache_directory: cache, db_sslrootcert: system}\ninventory: {include_names: [controller]}\nbackup: {parallel: 501}\nssh: unused-invalid\n")
-	o, e := LoadOptions(nil, map[string]string{"WIRELESS_CONFIG": "", "ND_CACHE_TTL": "180", "NC_PROTOCOL": "invalid unrelated"}, discovery(d))
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{"WIRELESS_CONFIG": "", "ND_CACHE_TTL": "180", "NC_PROTOCOL": "invalid unrelated"}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -70,7 +70,7 @@ func TestConfigSelectionEmptyAndExternalInventory(t *testing.T) {
 	if effective["cache_directory"] != filepath.Join(d, "inventory/cache") || effective["cache_ttl"] != float64(180) || effective["db_sslrootcert"] != "system" {
 		t.Fatal(effective)
 	}
-	if _, e = LoadOptions([]string{"--config", "missing.yml"}, map[string]string{}, discovery(d)); e == nil {
+	if _, e = bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{ConfigFile: "missing.yml", ExplicitConfig: true}, map[string]string{}, discovery(d), nil); e == nil {
 		t.Fatal("missing explicit accepted")
 	}
 }
@@ -86,12 +86,13 @@ func TestInventoryEnvironmentMasking(t *testing.T) {
 				write(t, filepath.Join(d, ".env"), "ND_CACHE_MODE=invalid\nND_PAGE_SIZE=invalid\n")
 				env["ND_PAGE_SIZE"] = "10"
 			}
-			o, e := LoadOptions([]string{"--cache-only"}, env, discovery(d))
+			request := bootstrap.Request{InventoryOverrides: map[string]any{"cache_mode": "only"}}
+			o, e := bootstrap.LoadConfiguration(t.Context(), request, env, discovery(d), nil)
 			if e == nil {
 				t.Fatal("cache disabled with only accepted", o)
 			}
 			write(t, filepath.Join(d, "wireless.yml"), "netdisco: {cache_mode: prefer}\n")
-			o, e = LoadOptions([]string{"--cache-only"}, env, discovery(d))
+			o, e = bootstrap.LoadConfiguration(t.Context(), request, env, discovery(d), nil)
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -103,14 +104,10 @@ func TestInventoryEnvironmentMasking(t *testing.T) {
 }
 func TestInitializePrivateNoOverwriteAndInheritance(t *testing.T) {
 	d := t.TempDir()
-	o, _ := parseOptions([]string{"--init"}, discovery(d))
-	var e error
-	if o.Options, e = bootstrap.LoadConfiguration(o.Request, map[string]string{"NC_PARALLEL": "8", "NC_HOST_KEY_POLICY": "strict", "ND_CACHE_TTL": "90", "NC_DEVICE_PASSWORD": "private"}, discovery(d), nil); e != nil {
-		t.Fatal(e)
-	}
-	var out bytes.Buffer
-	if e := o.Initialize(&out); e != nil {
-		t.Fatal(e)
+	var out, diagnostic bytes.Buffer
+	dependencies := Dependencies{Environment: map[string]string{"NC_PARALLEL": "8", "NC_HOST_KEY_POLICY": "strict", "ND_CACHE_TTL": "90", "NC_DEVICE_PASSWORD": "private"}, Input: panicReader{}, Output: &out, Error: &diagnostic, Discovery: discovery(d), SessionFactory: panicFactory}
+	if code := Run(t.Context(), []string{"--init", "--non-interactive"}, dependencies); code != 0 {
+		t.Fatal(code, diagnostic.String())
 	}
 	config := filepath.Join(d, ".config/net-connector/wireless.yml")
 	body, e := os.ReadFile(config)
@@ -127,14 +124,14 @@ func TestInitializePrivateNoOverwriteAndInheritance(t *testing.T) {
 		}
 	}
 	write(t, config, "parallel: 12\n")
-	if e = o.Initialize(&out); e != nil {
-		t.Fatal(e)
+	if code := Run(t.Context(), []string{"--init", "--non-interactive"}, dependencies); code != 0 {
+		t.Fatal(code, diagnostic.String())
 	}
 	body, _ = os.ReadFile(config)
 	if string(body) != "parallel: 12\n" {
 		t.Fatal("overwritten")
 	}
-	loaded, e := LoadOptions([]string{"--config", config}, map[string]string{"NC_PARALLEL": "13"}, discovery(d))
+	loaded, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{ConfigFile: config, ExplicitConfig: true}, map[string]string{"NC_PARALLEL": "13"}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -183,7 +180,7 @@ func TestSourceFieldsMatchRubyDotPathsAndEmptyOverlayKeepsOrigin(t *testing.T) {
 	write(t, filepath.Join(low, "net-connector.yml"), "ssh: {known_hosts: keys}\n")
 	write(t, filepath.Join(low, "wireless.yml"), "parallel: 3\n")
 	write(t, filepath.Join(high, "wireless.yml"), "ssh: {}\n")
-	o, e := LoadOptions(nil, map[string]string{}, bootstrap.Discovery{CWD: d, Home: d, Directories: []string{low, high}})
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, bootstrap.Discovery{CWD: d, Home: d, Directories: []string{low, high}}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -204,7 +201,10 @@ func TestEmptyInventoryEnvironmentListIsExplicitEmptyButCLIListIsInvalid(t *test
 	if len(list) != 0 {
 		t.Fatal(list)
 	}
-	if _, e = options(t, "devices: []", map[string]string{}, "--name", ""); e == nil {
+	d := t.TempDir()
+	write(t, filepath.Join(d, "wireless.yml"), "devices: []")
+	var out, diagnostic bytes.Buffer
+	if code := Run(t.Context(), []string{"collect", "--show-config", "--name", ""}, Dependencies{Environment: map[string]string{}, Input: panicReader{}, Output: &out, Error: &diagnostic, Discovery: discovery(d), SessionFactory: panicFactory}); code != 2 {
 		t.Fatal("empty CLI list accepted")
 	}
 }

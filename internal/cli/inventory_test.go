@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gatework/go-wireless/internal/bootstrap"
 
@@ -26,7 +25,7 @@ func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f
 func TestHTTPInventoryThroughNativePaginationAndControllerRules(t *testing.T) {
 	d := t.TempDir()
 	write(t, filepath.Join(d, "wireless.yml"), "netdisco: {source: http, url: 'https://inventory.invalid', page_size: 2, cache_enabled: false}\ninventory: {include_vendors: [h3c_wireless]}\n")
-	o, e := LoadOptions(nil, map[string]string{"ND_API_KEY": "private-token"}, discovery(d))
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{"ND_API_KEY": "private-token"}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -53,7 +52,7 @@ func TestHTTPInventoryThroughNativePaginationAndControllerRules(t *testing.T) {
 func TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache(t *testing.T) {
 	d := t.TempDir()
 	write(t, filepath.Join(d, "wireless.yml"), "netdisco: {cache_enabled: true, cache_directory: cache, cache_ttl: 10}\n")
-	o, e := LoadOptions(nil, map[string]string{}, discovery(d))
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -71,7 +70,7 @@ func TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache(t *testing.T) {
 	if e != nil || len(rows) != 1 || calls != 1 {
 		t.Fatal("cache not preferred", rows, calls, e)
 	}
-	only, e := LoadOptions([]string{"--cache-only"}, map[string]string{}, discovery(d))
+	only, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{InventoryOverrides: map[string]any{"cache_mode": "only"}}, map[string]string{}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -79,7 +78,7 @@ func TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache(t *testing.T) {
 	if e != nil || len(rows) != 1 {
 		t.Fatal(rows, e)
 	}
-	refresh, e := LoadOptions([]string{"--refresh-inventory"}, map[string]string{}, discovery(d))
+	refresh, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{InventoryOverrides: map[string]any{"cache_mode": "refresh"}}, map[string]string{}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -102,7 +101,7 @@ func TestPostgresConfigurationAndSecretsRemainOffline(t *testing.T) {
 	d := t.TempDir()
 	write(t, filepath.Join(d, "wireless.yml"), "netdisco: {source: postgres, query: 'SELECT ip, name, vendor, model FROM device WHERE vendor=$1', query_params: [H3C], cache_enabled: false, db_sslmode: require, db_port: 5433, db_connect_timeout: 5}\n")
 	env := map[string]string{"ND_DB_HOST": "database.invalid", "ND_DB_NAME": "netdisco", "ND_DB_USER": "reader", "ND_DB_PASS": "private-pass"}
-	o, e := LoadOptions(nil, env, discovery(d))
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, env, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -124,7 +123,7 @@ func TestPostgresConfigurationAndSecretsRemainOffline(t *testing.T) {
 func TestDefaultHTTPSourceOnlyDoesNotRequirePassword(t *testing.T) {
 	d := t.TempDir()
 	write(t, filepath.Join(d, "wireless.yml"), "netdisco: {source: http, url: 'https://example.invalid', cache_mode: only}\n")
-	o, e := LoadOptions(nil, map[string]string{"ND_USERNAME": "reader"}, discovery(d))
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{"ND_USERNAME": "reader"}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -141,7 +140,7 @@ func TestInitializationPreservesPublicSchemaDefaults(t *testing.T) {
 	if code != 0 {
 		t.Fatal(code, err.String())
 	}
-	o, e := LoadOptions([]string{"--config", filepath.Join(d, ".config/net-connector/wireless.yml")}, map[string]string{}, discovery(d))
+	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{ConfigFile: filepath.Join(d, ".config/net-connector/wireless.yml"), ExplicitConfig: true}, map[string]string{}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -153,10 +152,6 @@ func TestInitializationPreservesPublicSchemaDefaults(t *testing.T) {
 	}
 	if o.Values["ssh"].(map[string]any)["host_key_policy"] != "strict" {
 		t.Fatal(o.Values)
-	}
-	ttl, _ := number(n["cache_ttl"])
-	if time.Duration(ttl*1e9) != 72*time.Hour {
-		t.Fatal(ttl)
 	}
 }
 

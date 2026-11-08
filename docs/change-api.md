@@ -228,3 +228,13 @@ live-device, SSH-server, external-service or production acceptance claim.
 `export-ruby-fpconv.rb` and `export-ruby-recommendations.rb` are explicit development
 oracles that emit corpus JSON to stdout; they are never called by Go production
 code or the ordinary test suite.
+
+The apply workflow keeps progress in a private typed execution state. Journal and
+terminal records are detached projections, including commands, device identity,
+acknowledged steps and diagnostics. An initial steps list remains `[]`; pending
+command, readback and error fields appear only when previously present in the wire
+contract. Journal changes to a projected map cannot affect later device commands
+or acknowledgements. `report.Error.PublicationCommitted()` exposes the commit
+boundary through a consumer-owned interface; a committed intent failure remains
+uncertain even when no device command was sent. Workflow error traversal uses
+`internal/nativeerr` without importing the concrete connector or report packages.

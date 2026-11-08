@@ -239,3 +239,48 @@ func TestProfileDimensionsPreserveDeclarationOrderAndOwnership(t *testing.T) {
 		t.Fatal("Huawei declaration order")
 	}
 }
+
+func TestAPQueryOwnsDeclarationAndRequiresSelectedCapability(t *testing.T) {
+	spec := h3c.Profile()
+	spec.APPreparation = "prepare selected ap"
+	registry, err := parser.NewRegistry(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, _ := registry.Fetch("h3c", "")
+	alias, _ := registry.Fetch("h3c_wireless", "another-model")
+	query := profile.APQuery()
+	spec.APPreparation = "changed preparation"
+	for i := range spec.Queries {
+		spec.Queries[i].Command = "changed query"
+	}
+	if !query.Valid() || query.Command() != "display lldp neighbor-information verbose" || query.PreparationCommand() != "prepare selected ap" || !alias.MatchesAPQuery(query) {
+		t.Fatal("query lost its registered declaration", query)
+	}
+	if profile.MatchesAPQuery(parser.APQuery{}) || selectedProfile("h3c").MatchesAPQuery(query) || selectedProfile("huawei").APQuery().Valid() {
+		t.Fatal("query authorized an unrelated capability")
+	}
+	for _, profile := range []*parser.Profile{nil, {}} {
+		if profile.APQuery().Valid() || profile.MatchesAPQuery(query) {
+			t.Fatal("invalid profile authorized AP work")
+		}
+	}
+}
+
+func TestAPProfileRequiresPreparationAndNeighborDeclaration(t *testing.T) {
+	for _, mutate := range []func(*parser.ProfileSpec){
+		func(s *parser.ProfileSpec) { s.APPreparation = "" },
+		func(s *parser.ProfileSpec) { s.APPreparation = "prepare\ninvalid" },
+		func(s *parser.ProfileSpec) { s.APNeighbors = false },
+		func(s *parser.ProfileSpec) { s.Queries = s.Queries[:len(s.Queries)-1] },
+		func(s *parser.ProfileSpec) {
+			s.Queries[len(s.Queries)-1].Dimensions = append(s.Queries[len(s.Queries)-1].Dimensions, wireless.Collection)
+		},
+	} {
+		spec := h3c.Profile()
+		mutate(&spec)
+		if _, err := parser.NewRegistry(spec); err == nil {
+			t.Fatal("invalid AP declaration registered")
+		}
+	}
+}

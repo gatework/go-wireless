@@ -7,9 +7,7 @@ import (
 	"github.com/gatework/go-wireless/parser"
 )
 
-const LLDPCommand = "display lldp neighbor-information verbose"
-
-func (c *Collector) collectNeighbors(ctx context.Context, profile *parser.Profile, session Session, aps wireless.Observation, names []string, credentials APCredentialsSource) wireless.Observation {
+func (c *Collector) collectNeighbors(ctx context.Context, profile *parser.Profile, query parser.APQuery, session Session, aps wireless.Observation, names []string, credentials APCredentialsSource) wireless.Observation {
 	if !aps.Available() {
 		return c.unavailable(wireless.LLDP, wireless.Failed, "access_points_unavailable", nil)
 	}
@@ -63,7 +61,7 @@ func (c *Collector) collectNeighbors(ctx context.Context, profile *parser.Profil
 			return c.unavailable(wireless.LLDP, wireless.Failed, "invalid_ap_session", nil)
 		}
 		for _, ap := range selected {
-			r, i, e := c.readAP(ctx, profile, reader, ap)
+			r, i, e := c.readAP(ctx, profile, query, reader, ap)
 			records = append(records, r...)
 			issues = append(issues, i...)
 			evidence = append(evidence, e)
@@ -85,17 +83,17 @@ func (c *Collector) collectNeighbors(ctx context.Context, profile *parser.Profil
 	obs, _ := wireless.NewObservation(wireless.ObservationOptions{Name: wireless.LLDP, Status: status, Records: records, Issues: issues, Evidence: evidence, StartedAt: &start, CompletedAt: &end})
 	return obs
 }
-func (c *Collector) readAP(ctx context.Context, profile *parser.Profile, reader APReader, ap wireless.Record) (records, issues []wireless.Record, source wireless.Record) {
+func (c *Collector) readAP(ctx context.Context, profile *parser.Profile, query parser.APQuery, reader APReader, ap wireless.Record) (records, issues []wireless.Record, source wireless.Record) {
 	name, _ := ap["name"].(string)
-	source = wireless.Record{"kind": "ap_lldp_result", "ap_name": name, "command": LLDPCommand, "attempted": true, "status": string(wireless.Failed), "neighbor_count": 0}
+	source = wireless.Record{"kind": "ap_lldp_result", "ap_name": name, "command": query.Command(), "attempted": true, "status": string(wireless.Failed), "neighbor_count": 0}
 	records, issues = []wireless.Record{}, []wireless.Record{}
-	outcome, err := reader.Read(ctx, wireless.CloneRecord(ap))
+	outcome, err := reader.Read(ctx, APRequest{AccessPoint: wireless.CloneRecord(ap), Query: query})
 	if err != nil {
 		issues = append(issues, wireless.FailureFrom(err, "command_execution_failed", "execute").ToMap())
 	}
 	source["attempted"] = !outcome.Skipped
 	cap := outcome.Result
-	if cap != nil && (!cap.Valid() || cap.Command() != LLDPCommand || outcome.Skipped && cap.Success()) {
+	if cap != nil && (!cap.Valid() || cap.Command() != query.Command() || outcome.Skipped && cap.Success()) {
 		issues = append(issues, wireless.Record{"code": "invalid_command_result", "stage": "response"})
 		cap = nil
 	}

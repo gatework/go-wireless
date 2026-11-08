@@ -73,16 +73,17 @@ func CollectionDefaults(d CollectionDependencies) CollectionDependencies {
 // session remains lazy and is performed only by the workflow's task callback.
 func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Record, d CollectionDependencies) (collectrun.Options, error) {
 	callbacks := make(map[string]func(context.Context) (wireless.Snapshot, error), len(devices))
+	registry := vendors.NewBuiltinRegistry()
 	for _, device := range devices {
-		cfg, err := o.Connection(device)
+		profile, err := registry.Fetch(StringValue(device["platform"]), StringValue(device["model"]))
+		if err != nil {
+			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrPlatform, err)
+		}
+		cfg, err := o.runtime.connectionForProfile(device, profile)
 		if err != nil {
 			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrCredentials, err)
 		}
 		cfg.OnSessionEvent = d.SessionEvent
-		profile, err := vendors.NewBuiltinRegistry().Fetch(StringValue(device["platform"]), StringValue(device["model"]))
-		if err != nil {
-			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrPlatform, err)
-		}
 		driver, err := d.Registry.Lookup(profile.ConnectorPlatform())
 		if err != nil {
 			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrPlatform, err)
@@ -100,7 +101,7 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 			apFactory = netconnector.APFactory(nil)
 		}
 		callbacks[StringValue(device["host"])] = func(taskCtx context.Context) (wireless.Snapshot, error) {
-			connection := Connection{Open: netconnector.Open(native), Platform: native.ProfileName()}
+			connection := Connection{Open: netconnector.Open(native, profile), Platform: native.ProfileName()}
 			if d.SessionFactory != nil {
 				var err error
 				connection, err = d.SessionFactory(taskCtx, copyMap(device), cfg)
@@ -133,8 +134,8 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 		return run(ctx)
 	}}, nil
 }
-func PrepareApply(environment map[string]string, envFile string, discovery Discovery, registry dialect.Registry, factory ApplyFactory, plan change.ChangePlan, port int) (apply.Opener, error) {
-	env, _, err := LoadEnvironment(environment, envFile, discovery)
+func PrepareApply(ctx context.Context, environment map[string]string, envFile string, discovery Discovery, registry dialect.Registry, factory ApplyFactory, plan change.ChangePlan, port int) (apply.Opener, error) {
+	env, _, err := LoadEnvironment(ctx, environment, envFile, discovery)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrEnvironment, err)
 	}

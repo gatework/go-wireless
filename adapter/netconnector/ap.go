@@ -24,22 +24,26 @@ var connectionFailure = regexp.MustCompile(`(?i)Connection\s+(?:refused|timed\s+
 
 type APSession struct {
 	device      *connector.Device
+	profile     parser.Profile
 	credentials collect.APCredentials
 	clock       collect.Clock
 	usable      atomic.Bool
 }
 
-func NewAPSession(controller *connector.Device, credentials collect.APCredentials, clock collect.Clock) (*APSession, error) {
+func NewAPSession(controller *connector.Device, profile *parser.Profile, credentials collect.APCredentials, clock collect.Clock) (*APSession, error) {
 	valid := func(s string) bool {
 		return strings.TrimSpace(s) != "" && utf8.ValidString(s) && !strings.ContainsFunc(s, unicode.IsControl)
 	}
 	if controller == nil || !valid(credentials.Password) || credentials.Username != "" && !valid(credentials.Username) {
 		return nil, wireless.NewFailure("invalid_ap_credentials", "ap_setup")
 	}
+	if !profile.Valid() || !profile.MatchesConnector(controller.ProfileName()) || !profile.APQuery().Valid() || controller.ProfileName() != "h3c_wireless" {
+		return nil, wireless.NewFailure("invalid_ap_profile", "ap_setup")
+	}
 	if clock == nil {
 		clock = time.Now
 	}
-	a := &APSession{device: controller, credentials: credentials, clock: clock}
+	a := &APSession{device: controller, profile: *profile, credentials: credentials, clock: clock}
 	a.usable.Store(true)
 	return a, nil
 }
@@ -50,22 +54,23 @@ func (a *APSession) GoString() string { return a.String() }
 func APFactory(clock collect.Clock) collect.APFactory {
 	return func(_ context.Context, s collect.Session, c collect.APCredentials) (collect.APReader, error) {
 		native, ok := s.(*Session)
-		if !ok {
+		if !ok || native == nil {
 			return nil, wireless.NewFailure("invalid_ap_session", "ap_setup")
 		}
-		return NewAPSession(native.device, c, clock)
+		return NewAPSession(native.device, &native.profile, c, clock)
 	}
 }
 
 type operationSession struct {
 	op           *connector.Operation
 	prompt       string
+	query        parser.APQuery
 	synchronized *bool
 }
 
 func (s operationSession) State(context.Context) (bool, error) { return s.op.Connected(), nil }
 func (s operationSession) Execute(ctx context.Context, command string) (collect.Receipt, error) {
-	if command != "screen-length disable" && command != collect.LLDPCommand {
+	if command != s.query.PreparationCommand() && command != s.query.Command() {
 		return collect.Receipt{}, wireless.NewFailure("invalid_command_result", "execute")
 	}
 	result, e := s.op.ExecuteCommand(ctx, connector.Command{Text: command, Prompt: exactPrompt(s.prompt), OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true, PreserveSessionOnRejection: true})
@@ -74,10 +79,14 @@ func (s operationSession) Execute(ctx context.Context, command string) (collect.
 	*s.synchronized = ctx.Err() == nil && s.op.Connected() && strings.TrimSpace(s.op.RawPrompt()) == s.prompt
 	return receipt(command, result, e), nil
 }
-func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out collect.APOutcome, err error) {
+func (a *APSession) Read(ctx context.Context, request collect.APRequest) (out collect.APOutcome, err error) {
 	fail := func(code string) (collect.APOutcome, error) {
 		return collect.APOutcome{Error: wireless.NewFailure(code, "execute"), Skipped: true}, nil
 	}
+	if !a.profile.MatchesAPQuery(request.Query) {
+		return fail("invalid_ap_query")
+	}
+	ap := wireless.CloneRecord(request.AccessPoint)
 	if !a.usable.Load() {
 		return fail("controller_session_lost")
 	}
@@ -121,7 +130,8 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out collect.A
 					returned = true
 				} else if apPrompt != "" && current == apPrompt {
 					result, exitErr := op.ExecuteCommand(ctx, connector.Command{Text: "quit", Prompt: exactPrompt(original), Sensitive: true, OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true})
-					returned = exitErr == nil && len(result.Steps()) == 1 && strings.TrimSpace(op.RawPrompt()) == original
+					_, validationErr := result.SingleAccepted("quit")
+					returned = exitErr == nil && validationErr == nil && strings.TrimSpace(op.RawPrompt()) == original
 				}
 				a.usable.Store(returned && op.Connected() && strings.TrimSpace(op.RawPrompt()) == original)
 			}
@@ -137,12 +147,13 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out collect.A
 			interactions = append([]connector.Interaction{{Pattern: textPattern(`(?i)(?:login|username):\s*\z`), Reply: a.credentials.Username + "\n", Sensitive: true, Limit: 1}}, interactions...)
 		}
 		timeout := 10 * time.Second
-		login, loginErr := op.ExecuteCommand(ctx, connector.Command{Text: "telnet " + address.String(), Prompt: textPattern(`(?:\A|[\r\n])[ \t\x00]*<[^<>\r\n]+>[ \t\x00]*[\r\n]*\z`), Timeout: &timeout, Interactions: interactions, Sensitive: true, OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true})
+		loginCommand := "telnet " + address.String()
+		login, loginErr := op.ExecuteCommand(ctx, connector.Command{Text: loginCommand, Prompt: textPattern(`(?:\A|[\r\n])[ \t\x00]*<[^<>\r\n]+>[ \t\x00]*[\r\n]*\z`), Timeout: &timeout, Interactions: interactions, Sensitive: true, OutputSensitive: true}, connector.ExecuteOptions{SkipPrivilege: true})
 		if loginErr != nil {
 			out.Error = nativeerr.Failure(loginErr, "ap_connection_failed", "login")
 			return nil
 		}
-		if len(login.Steps()) != 1 {
+		if _, validationErr := login.SingleAccepted(loginCommand); validationErr != nil {
 			out.Error = wireless.NewFailure("ap_response_missing", "login")
 			return nil
 		}
@@ -169,8 +180,8 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out collect.A
 			out.Error = wireless.NewFailure("ap_login_not_confirmed", "login")
 			return nil
 		}
-		reader, _ := collect.NewReader(operationSession{op, apPrompt, &synchronized}, a.clock)
-		prep, prepErr := reader.Read(ctx, "screen-length disable")
+		reader, _ := collect.NewReader(operationSession{op: op, prompt: apPrompt, query: request.Query, synchronized: &synchronized}, a.clock)
+		prep, prepErr := reader.Read(ctx, request.Query.PreparationCommand())
 		if prepErr != nil {
 			out.Error = nativeerr.Failure(prepErr, "command_execution_failed", "prepare")
 			return nil
@@ -183,7 +194,7 @@ func (a *APSession) Read(ctx context.Context, ap wireless.Record) (out collect.A
 			out.Error = wireless.NewFailure("ap_session_lost", "execute")
 			return nil
 		}
-		cap, capErr := reader.Read(ctx, collect.LLDPCommand)
+		cap, capErr := reader.Read(ctx, request.Query.Command())
 		if capErr != nil {
 			out.Error = nativeerr.Failure(capErr, "command_execution_failed", "execute")
 			return nil

@@ -220,7 +220,20 @@ func copyJSON(v any, seen map[visit]bool) (any, error) {
 			if r.Type().Key().Kind() != reflect.String {
 				return nil, errors.New("wireless object keys must be text")
 			}
-			out := Record{}
+			out := make(Record, r.Len())
+			// Evidence already uses Record. Native iteration avoids allocating
+			// reflected keys and values for every field; named maps retain the
+			// general path below, under the same cycle and value validation.
+			if record, ok := v.(Record); ok {
+				for key, child := range record {
+					value, err := copyJSON(child, seen)
+					if err != nil {
+						return nil, err
+					}
+					out[key] = value
+				}
+				return out, nil
+			}
 			it := r.MapRange()
 			for it.Next() {
 				value, err := copyJSON(it.Value().Interface(), seen)
