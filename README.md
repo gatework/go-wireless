@@ -2,19 +2,19 @@
 
 独立的 Go 无线控制器证据采集、离线解析、报告复核与受控变更库/CLI。移植基线为 Wireless Ruby `b328e1f`（2026-10-26）；运行和普通测试不需要 Ruby、Rails 或数据库。证据完整不代表网络健康。
 
-需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.5.0**、go-expect **v0.4.2**。当前版本 **v0.3.0**；Python 3 仅用于源码交付与发布验证。
+需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.6.0**、go-expect **v0.5.0**。当前版本 **v0.4.0**；Python 3 仅用于源码交付与发布验证。
 
-本版本调整 Profile/AP 查询接口，统一配置与执行状态边界。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.3.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
+本版本升级正式依赖并适配类型化清单缓存模式；共享 TFTP 配置需要迁移旧字段。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.4.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.3.0) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
+从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.4.0) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
 
 也可使用 Go 安装 CLI 或在项目中添加库依赖：
 
 ```sh
-GOWORK=off go install github.com/gatework/go-wireless/cmd/wireless@v0.3.0
-go get github.com/gatework/go-wireless@v0.3.0
+GOWORK=off go install github.com/gatework/go-wireless/cmd/wireless@v0.4.0
+go get github.com/gatework/go-wireless@v0.4.0
 ```
 
 ## 构建与安全预览

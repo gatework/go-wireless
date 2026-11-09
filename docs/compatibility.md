@@ -16,7 +16,7 @@
 
 配置指纹完全遵循 Ruby JSON 3.1.0 fpconv，不是 RFC 8785。普通 wire JSON 和 canonical fingerprint 编码是两条边界。唯一受控写动作是原 Ruby 已有的 wireless_security；其他诊断保持复核建议，不能生成自动写动作。
 
-运行依赖使用正式 `go-net-connector v0.4.0` / `go-expect v0.4.1`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
+运行依赖使用正式 `go-net-connector v0.6.0` / `go-expect v0.5.0`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
 
 ## 全部 Ruby lib 文件
 
@@ -113,3 +113,7 @@
 | `spec/terminal_spec.rb` | 2 | parser/terminal.go; internal/parsetext/values.go | core_test.go:TestRubyParserCorpus; fields_test.go:TestAllTextNewlinePolicies |
 
 以上迁移范围未发现被隐藏为“限制”的缺失公共功能。验证范围仍有限：HTTP 是本地 fixture，PostgreSQL 只验证配置/凭据边界；native 是 net.Pipe 字节流，apply 的终端是真实本地 PTY、设备执行为注入实现。它们不能证明特定固件或生产链路行为。
+
+## v0.4.0 依赖升级
+
+共享 `net-connector.yml` 中的 `tftp.h3c_source_file`、`tftp.h3c_wireless_source_file`、`tftp.huawei_source_file` 分别改为 `tftp.source_files.h3c`、`tftp.source_files.h3c_wireless`、`tftp.source_files.huawei`。旧键在设备连接前报错。清单缓存仍使用 `prefer` / `refresh` / `only`。

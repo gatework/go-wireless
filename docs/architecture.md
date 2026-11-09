@@ -105,7 +105,7 @@ Rollback remains plan data; no retry, reconnect, rollback or save is automatic.
 
 ## Delivery boundary
 
-`go.mod` pins published Connector v0.5.0 and Expect v0.4.2, including the shared
+`go.mod` pins published Connector v0.6.0 and Expect v0.5.0, including the shared
 inventory and SingleAccepted/Body/ReadFile/LoadContext APIs. Formal build and
 delivery checks use GOWORK=off and no replacements. Earlier workspace and frozen
 local-proxy results describe the unpublished candidate stage; release verification

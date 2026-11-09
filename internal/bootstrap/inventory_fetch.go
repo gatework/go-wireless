@@ -64,12 +64,12 @@ func compileInventory(data wireless.Record, environment map[string]string, cwd s
 	if err != nil {
 		return InventorySettings{}, err
 	}
-	s := InventorySettings{source: StringValue(n["source"]), fetch: netdisco.FetchOptions{Mode: StringValue(n["cache_mode"])}}
+	s := InventorySettings{source: StringValue(n["source"]), fetch: netdisco.FetchOptions{Mode: netdisco.CacheMode(StringValue(n["cache_mode"]))}}
 	if s.source == "" {
 		s.source = "http"
 	}
 	if s.fetch.Mode == "" {
-		s.fetch.Mode = "prefer"
+		s.fetch.Mode = netdisco.CachePrefer
 	}
 	if !has(n, "cache_enabled") || boolValue(n["cache_enabled"]) {
 		directory := StringValue(n["cache_directory"])
@@ -122,7 +122,7 @@ func fetchInventory(ctx context.Context, s InventorySettings) (netdisco.CacheRes
 		}
 		return netdisco.FetchHTTP(ctx, s.HTTP(), s.FetchOptions())
 	}
-	if s.source != "postgres" || !s.postgresIdentity || s.fetch.Mode != "only" && !s.postgresPassword {
+	if s.source != "postgres" || !s.postgresIdentity || s.fetch.Mode != netdisco.CacheOnly && !s.postgresPassword {
 		return netdisco.CacheResult{}, ErrOptions
 	}
 	return netdisco.FetchPostgres(ctx, s.Postgres(), s.FetchOptions())
