@@ -24,7 +24,7 @@ def ownership_errors(packages):
         if not within(path, MODULE):
             continue
         local = path.removeprefix(MODULE).lstrip("/")
-        domain = not local or under_any(local, ("parser", "collect", "review", "change", "vendors"))
+        domain = not local or under_any(local, ("parser", "collect", "review", "change", "vendors", "wlan", "rules"))
         direct = set(package.get("Imports", []))
         dependencies = sorted(direct | set(package.get("Deps", [])))
         for dependency in dependencies:
@@ -43,6 +43,12 @@ def ownership_errors(packages):
                 errors.append(f"collection bypasses selected profile through {dependency}")
             if within(local, "change") and within(own, "review"):
                 errors.append(f"change depends on review {dependency}")
+            # The typed model depends only on go-netops; the rule catalog only
+            # on the model and the typed change it proposes.
+            if within(local, "wlan") and own:
+                errors.append(f"typed model wlan imports {dependency}")
+            if within(local, "rules") and dependency in direct and own and not under_any(own, ("wlan", "change")):
+                errors.append(f"rule catalog imports {dependency}")
             if within(local, "vendors/huawei") and within(own, "vendors/h3c"):
                 errors.append(f"Huawei depends on H3C implementation {dependency}")
             if within(local, "internal/workflow") and dependency in direct:

@@ -16,6 +16,8 @@ Go 1.26 remains the minimum.
 | `change` | validated immutable plans, concrete H3C command rendering, eligibility and before/after verification |
 | `report` | private durable artifacts, checkpoints, recovery and report text |
 | `adapter/netconnector` | Connector session/receipt/cleanup adaptation |
+| `wlan` | typed controller model: configuration (service templates, AP groups, AP/radio `Settings`) and runtime tables, strictly decoded from parser output; unknown fields downgrade a dimension to partial (`unmodeled_fact`) |
+| `rules` | schema 3 risk catalog over `wlan.Controller` on the go-netops `assess` engine; `assessment.json` with severity, category, subject path and remediation |
 | `internal/bootstrap` | configuration, immutable settings and lazy concrete dependency assembly |
 | `internal/workflow/*` | collect/review/apply application state machines |
 | `internal/cli` | Cobra commands, flags, confirmation, progress and exit/output presentation |
@@ -118,3 +120,20 @@ The repository carries no dependency source snapshots or workspace restoration
 tooling. Module versions and checksums belong to `go.mod` and `go.sum`; old source
 and implementation records remain available in Git history. Current checks and
 release evidence are described in [verification](verification.md).
+
+## Schema 3 assessment
+
+`review` additionally publishes `assessment.json` and links `assessment`,
+`risk_counts`, `risk_highest` and `assessment_incomplete` from `review.json`.
+`--rules-policy FILE` enables or disables rules and overrides severity and
+thresholds; unknown rules or mistyped parameters are rejected.
+
+Rules that need a dimension declare it, and the engine skips them when the
+evidence is incomplete. Configuration rules and remediations stay limited to
+`h3c_wireless`; AP state is normalized (H3C `R/M`, `Run`, `R`; Huawei
+`normal`, `online`) so runtime rules apply to both vendors. The TKIP/WPA fix
+is the typed `change.TemplateSecurity`, which renders exactly the commands of
+`RenderChange`. The legacy recommendations and change plans are unchanged;
+`rules/parity_test.go` compares the ported checks with the legacy fixtures,
+and legacy fixtures in shapes the parser never emits must be reported as
+incomplete evidence.

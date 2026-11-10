@@ -174,7 +174,7 @@ func bindDocument(fs *pflag.FlagSet, kind string) *documentFlags {
 		switchFlag(fs, "json", "", setTrue(&o.JSON))
 		switchFlag(fs, "examples", "", setTrue(&o.Examples))
 	case "review":
-		names = []string{"batch", "output"}
+		names = []string{"batch", "output", "rules-policy"}
 		for _, name := range []string{"scripts", "no-scripts"} {
 			switchFlag(fs, name, "", func() error { o.Scripts = name == "scripts"; return nil })
 		}

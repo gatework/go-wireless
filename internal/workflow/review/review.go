@@ -3,6 +3,7 @@ package review
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"regexp"
@@ -12,10 +13,16 @@ import (
 	"github.com/gatework/go-wireless/internal/input"
 	"github.com/gatework/go-wireless/report"
 	domain "github.com/gatework/go-wireless/review"
+	"github.com/gatework/go-wireless/rules"
+	"github.com/gatework/go-wireless/wlan"
+
+	"github.com/gatework/go-netops/assess"
 )
 
 type Options struct {
 	Batch, Output string
+	// RulesPolicy is an optional YAML file tuning the schema 3 assessment.
+	RulesPolicy   string
 	Scripts       bool
 	NewReport     func(string, report.Options) (*report.Report, error)
 	ReportOptions report.Options
@@ -39,6 +46,21 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	if e != nil || len(paths) == 0 {
 		return Result{}, &Error{Stage: "no_reports"}
 	}
+	policy := assess.Policy{}
+	if o.RulesPolicy != "" {
+		body, e := input.Document(ctx, o.RulesPolicy)
+		if e != nil {
+			return Result{}, &Error{Stage: "rules_policy"}
+		}
+		if policy, e = assess.DecodePolicy(body); e != nil {
+			return Result{}, &Error{Stage: "rules_policy"}
+		}
+	}
+	assessor, e := rules.NewAssessor(policy, nil)
+	if e != nil {
+		return Result{}, &Error{Stage: "rules_policy"}
+	}
+	controllers := []*wlan.Controller{}
 	type sourceReport struct {
 		path, sha, name string
 		doc, advice     wireless.Record
@@ -59,6 +81,11 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		if e != nil {
 			return Result{}, &Error{Stage: "document"}
 		}
+		controller, e := wlan.DecodeDocument(body)
+		if e != nil {
+			return Result{}, &Error{Stage: "document"}
+		}
+		controllers = append(controllers, controller)
 		name := reviewUnsafe.ReplaceAllString(strings.TrimSuffix(filepath.Base(path), ".json"), "_")
 		if len(name) > 160 {
 			name = name[:160]
@@ -92,7 +119,28 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			counts[key] = n + value.(int)
 		}
 	}
-	checkpoint := wireless.Record{"status": "incomplete", "review_only": true, "devices": len(entries), "counts": counts, "source_batch": batch, "reports": entries}
+	assessment, e := assessor.Assess(ctx, controllers)
+	if e != nil {
+		if ctx.Err() != nil {
+			return Result{}, ctx.Err()
+		}
+		return Result{}, &Error{Stage: "assessment"}
+	}
+	assessmentBody, e := json.MarshalIndent(assessment, "", "  ")
+	if e != nil {
+		return Result{}, &Error{Stage: "assessment"}
+	}
+	if e = store.Publish(ctx, "assessment.json", append(assessmentBody, '\n')); e != nil {
+		if ctx.Err() != nil {
+			return Result{}, ctx.Err()
+		}
+		return Result{}, &Error{Stage: "publish"}
+	}
+	riskCounts := wireless.Record{}
+	for severity, n := range assessment.Counts {
+		riskCounts[severity.String()] = n
+	}
+	checkpoint := wireless.Record{"assessment": "assessment.json", "risk_counts": riskCounts, "risk_highest": assessment.Highest.String(), "assessment_incomplete": assessment.Incomplete, "status": "incomplete", "review_only": true, "devices": len(entries), "counts": counts, "source_batch": batch, "reports": entries}
 	final := wireless.CloneRecord(checkpoint)
 	final["status"] = "complete"
 	e = store.Finalize(ctx, "review.json", checkpoint, final, func(ctx context.Context, p *report.Report) error { return p.PublishReviewSummary(ctx, entries, counts) })
