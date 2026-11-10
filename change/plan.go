@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gatework/go-wireless/wlan"
 	"net/netip"
 	"reflect"
 	"regexp"
@@ -14,6 +13,7 @@ import (
 
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/record"
+	"github.com/gatework/go-wireless/wlan"
 )
 
 var configDigest = regexp.MustCompile(`\A[0-9a-f]{64}\z`)
