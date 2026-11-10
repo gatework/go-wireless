@@ -1,4 +1,4 @@
-# Recommendations, plans, review and apply API
+# Assessment, plans, review and apply API
 
 The ordinary Go runtime and `go test ./...` require no Ruby installation. These
 APIs implement the frozen Ruby Wireless behavior; the fingerprint oracle is
@@ -15,8 +15,10 @@ func CanonicalJSON(any) ([]byte, error)
 func Fingerprint(any) (string, error)
 // package change
 func RenderChange(Record) (commands, rollback []string, err error)
-func ChangeEligible(config, change Record) bool
-func ChangeSatisfied(config, change Record) bool
+type TemplateSecurity struct{ Name string; Enabled bool; CipherSuites, SecurityIEs []string }
+func (TemplateSecurity) Eligible(*wlan.Configuration) error
+func (TemplateSecurity) Satisfied(*wlan.Configuration) error
+func DecodeTemplateSecurity(any) (TemplateSecurity, error)
 type ChangePlan struct { /* immutable, private state */ }
 func NewChangePlan(Record) (ChangePlan, error)
 func (ChangePlan) Device() Record
@@ -29,10 +31,11 @@ func (ChangePlan) CheckAfter(Record) (string, error)
 // package wireless
 type ObjectOrder map[uintptr][]string
 func DecodeJSONDocument([]byte) (Record, ObjectOrder, error)
-// package review
-func DecodeReviewJSON([]byte) (Record, ObjectOrder, error)
-func ValidateReviewDocument(Record) error
-func Recommendations(Record, ...ObjectOrder) Record
+// package wlan
+func DecodeDocument([]byte) (*Controller, error)
+// package rules
+func NewAssessor(assess.Policy, Commands) (*Assessor, error)
+func (*Assessor) AssessWith(context.Context, []*wlan.Controller, Inputs) (Report, error)
 ```
 
 Canonical JSON sorts object keys recursively and preserves array order. It
@@ -46,39 +49,30 @@ of those exact canonical bytes, without newline.
 
 The decoders require one JSON object and reject trailing content, nonfinite
 numbers, invalid UTF-8 and malformed UTF-16 surrogate escapes. They preserve
-number tokens and source object key order. Returned records and ObjectOrder are
-caller-owned; the order is bound to those exact map instances and must not be
-reused with a different document. Recommendations reads but does not mutate its
-input and returns a deep-owned copy of device identity, advice and nested
-evidence using the core record copier. Subsequent mutations of the input or
-returned advice do not affect one another. Callers must not mutate the input
-during the call. With ObjectOrder it preserves the Ruby source iteration
-order of dimensions, nested reference evidence and resulting candidate indexes.
-Without ObjectOrder, Go map keys use lexical order deterministically. Explicit
-arrays always preserve their source order.
+number tokens and source object key order.
 
-Review validation accepts generic historical device reports, including
-`snapshot: null`, minimal observations without names/timestamps, and absent
-optional fields. A present null or wrong-type container is not treated as an
-absent field. It validates every container consumed by rules before output
-creation, without constructing a live Snapshot with stronger invariants.
+`wlan.DecodeDocument` checks the report envelope strictly before any output is
+created: device name and host are strings, `snapshot` is present (`null` for a
+report without evidence), every dimension has a valid status, and records and
+issues are arrays of objects. Fields inside records are decoded strictly per
+dimension; a field the typed model does not know marks that dimension
+`partial` with an `unmodeled_fact` issue, so rules requiring it are skipped
+and no change can be authorized from it.
 
-Recommendations covers incomplete evidence, legacy TKIP/WPA, missing or disabled
-bound templates, historical IP conflicts, AP state and administratively down
-radios. Every result is review-only, with no health assessment. The exact
-`h3c_wireless` identity enables H3C rules; `h3c` remains a parsing/collection alias
-but its recommendations are `platform_not_supported`, as in Ruby. Huawei never
-receives H3C commands. Historical scalar template names can produce advisory
-candidates under Ruby's name-string rule; only an actual valid string name can
-become a typed plan or apply action. Historical numeric tokens are parsed before
-Ruby-compatible scalar display (for example `1e+3` becomes `1000.0`); this display
-conversion does not use or change canonical fingerprint formatting.
+The schema 3 assessment (package `rules`) replaced the legacy
+`review.Recommendations`. It covers incomplete evidence, legacy TKIP/WPA,
+missing or disabled bound templates, historical IP conflicts, AP state,
+administratively down radios, baseline and temporal drift. Completeness is not
+health. The exact `h3c_wireless` identity enables H3C configuration rules;
+other platforms receive a blocked `platform_not_supported` finding and Huawei
+never receives H3C commands. Only an actual valid string template name can
+become a typed change.
 
 The only rendered action is `wireless_security`, with a known boolean enabled
 state, an allowed 1–63 character template name, existing CCMP/RSN alternatives
 and TKIP and/or WPA to remove. Rendering disables the template first and restores
-its original enabled state. Eligibility compares original ordered protocol
-arrays and enabled state. Satisfaction compares exact arrays after removing
+its original enabled state. `TemplateSecurity.Eligible` compares original ordered
+protocol arrays and enabled state on the strictly decoded typed configuration. Satisfaction compares exact arrays after removing
 TKIP/WPA and the original enabled state; CLI acknowledgement alone is insufficient.
 
 NewChangePlan validates once and deeply owns its document, device, action and
@@ -96,19 +90,25 @@ of the exact plan file bytes.
 ## Report package
 
 ```go
-func RecommendationHook(scripts bool) DeviceHook
-func (*Report) WriteReview(context.Context, wireless.Record,
-    basename, source, sourceSHA string, advice wireless.Record,
+func AssessmentHook(scripts bool) DeviceHook
+func (*Report) WriteAssessment(context.Context, wireless.Record, *wlan.Controller,
+    rules.ControllerAssessment, basename, source, sourceSHA string,
     scripts bool) (wireless.Record, error)
 func (*Report) FinalizeExecution(context.Context, wireless.Record) error
 ```
 
-Default collection installs the recommendation hook. Device JSON contains
-diagnostics, and `recommendations/` contains JSON, TXT and deduplicated ordered
-`verify.cli`. `--scripts` additionally preserves candidate commands/change data,
-writes wholly commented `suggested.cfg`/`rollback.cfg`, and writes per-item
-schema-1 plans only for eligible supported changes. Source path and hash bind to
-the final enriched device JSON, including its trailing newline.
+Default collection installs the assessment hook, which embeds the controller's
+assessment in device JSON under `assessment`. `recommendations/` contains the
+assessment JSON, a risk-ordered TXT report and deduplicated ordered
+`verify.cli`. Without `--scripts` no change, command or rollback is embedded or
+published. `--scripts` additionally writes wholly commented
+`suggested.cfg`/`rollback.cfg`, and one schema-1 plan per candidate whose typed
+change is still eligible on the decoded configuration. Plan contents are
+byte-identical to the retired legacy writer (`report/plan_parity_test.go`
+replays `testdata/typed/plan-oracle.json`); the one input where legacy planned
+and the typed review does not carries an unmodeled configuration field. Source
+path and hash bind to the final enriched device JSON, including its trailing
+newline.
 
 All artifacts use the existing private publisher. A writer returning nil error
 must still provide a durable storage receipt. Execution intent and acknowledgement
@@ -124,8 +124,9 @@ replays commands to repair logs.
 ## CLI and native transport
 
 The executable and its `internal/cli` command tree install actual review/apply
-behavior and default advice. Explicit `Commands` and `RecommendationHook` (or a
-ReportOptions hook) remain injectable. Review accepts `--batch`, `--output`,
+behavior and default advice. Explicit `Commands` and `RecommendationHook` (the
+device hook selector, default `report.AssessmentHook`, or a ReportOptions hook)
+remain injectable. Review accepts `--batch`, `--output`,
 `--scripts`/`--no-scripts`, and help. It reads and validates all sorted source
 files before creating a fresh private batch under `<batch>/reviews` or the
 explicit output root. It preserves original source bytes and never alters their

@@ -64,7 +64,7 @@ func CollectionDefaults(d CollectionDependencies) CollectionDependencies {
 		d.NewReport = report.New
 	}
 	if d.RecommendationHook == nil && d.ReportOptions.DeviceHook == nil {
-		d.RecommendationHook = report.RecommendationHook
+		d.RecommendationHook = report.AssessmentHook
 	}
 	return d
 }

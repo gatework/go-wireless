@@ -589,7 +589,7 @@ func TestRecommendationHookSelectedPerRunAndArtifactsFailureRetainsUnsaved(t *te
 						if dims["access_points"].(map[string]any)["status"] != "complete" {
 							t.Error("hook not given materialized wire document")
 						}
-						return report.Enrichment{Recommendations: wireless.Record{"counts": wireless.Record{}}, Artifacts: func(context.Context, *report.Report, report.PublishedDevice) error {
+						return report.Enrichment{Assessment: wireless.Record{"counts": wireless.Record{}}, Artifacts: func(context.Context, *report.Report, report.PublishedDevice) error {
 							return errors.New("private hook failure")
 						}}, nil
 					}

@@ -94,8 +94,8 @@ func TestDeviceSnapshotNumericKindsAndSingleHookWriter(t *testing.T) {
 		if has(document, "report_saved") || document["snapshot"] == nil {
 			t.Fatal(document)
 		}
-		return Enrichment{Recommendations: wireless.Record{"counts": wireless.Record{"review": 1}}, Artifacts: func(ctx context.Context, r *Report, p PublishedDevice) error {
-			if p.Document["recommendations"] == nil || !strings.HasSuffix(p.Path, ".json") {
+		return Enrichment{Assessment: wireless.Record{"counts": wireless.Record{"review": 1}}, Artifacts: func(ctx context.Context, r *Report, p PublishedDevice) error {
+			if p.Document["assessment"] == nil || !strings.HasSuffix(p.Path, ".json") {
 				t.Fatal(p)
 			}
 			saved, e := os.ReadFile(p.Path)

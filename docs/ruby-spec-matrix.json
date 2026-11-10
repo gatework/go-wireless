@@ -83,7 +83,6 @@
     "source": "spec/cli/inventory_spec.rb",
     "declared_blocks": 6,
     "implementation": [
-      "internal/bootstrap/inventory.go",
       "internal/bootstrap/inventory.go"
     ],
     "tests": [
@@ -137,11 +136,11 @@
     "declared_blocks": 8,
     "implementation": [
       "internal/cli/review.go",
-      "report/recommendations.go"
+      "report/assessment.go"
     ],
     "tests": [
       "internal/cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput",
-      "report/recommendations_test.go:TestReviewRubyFullConfiguration",
+      "report/plan_parity_test.go:TestTypedPlansMatchFrozenLegacyPlans",
       "report/report_test.go:TestFinalizeReviewUsesSameRecoveryAndConfinesPath"
     ],
     "status": "verified; corpus and focused tests"
@@ -398,15 +397,15 @@
     "source": "spec/recommendations_spec.rb",
     "declared_blocks": 7,
     "implementation": [
-      "review/recommendations.go",
+      "rules/rules.go",
       "fingerprint.go",
       "document.go",
-      "change/h3c.go"
+      "change/template_security.go"
     ],
     "tests": [
-      "recommendations_test.go:TestRubyRecommendations",
+      "rules/parity_test.go:TestRulesMatchLegacyRecommendations",
       "change_plan_test.go:TestTypedSecurityChange",
-      "report/recommendations_test.go:TestHistoricalExponentNameRemainsAdvisoryOnly"
+      "change/typed_parity_test.go:TestTemplateSecurityMatchesFrozenLegacyVerdicts"
     ],
     "status": "verified; corpus and focused tests"
   },

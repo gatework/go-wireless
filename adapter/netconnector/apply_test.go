@@ -1,7 +1,9 @@
 package netconnector
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	wireless "github.com/gatework/go-wireless"
 	changes "github.com/gatework/go-wireless/change"
 	"github.com/gatework/go-wireless/collect"
+	"github.com/gatework/go-wireless/wlan"
 )
 
 func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {
@@ -46,7 +49,21 @@ func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {
 		if e != nil {
 			return e
 		}
-		if !changes.ChangeSatisfied(facts, change) {
+		typed, e := changes.DecodeTemplateSecurity(change)
+		if e != nil {
+			return e
+		}
+		body, e := wireless.MarshalJSON(facts)
+		if e != nil {
+			return e
+		}
+		var cfg wlan.Configuration
+		strict := json.NewDecoder(bytes.NewReader(body))
+		strict.DisallowUnknownFields()
+		if e = strict.Decode(&cfg); e != nil {
+			return e
+		}
+		if typed.Satisfied(&cfg) != nil {
 			t.Fatal("readback mismatch", facts)
 		}
 		return nil

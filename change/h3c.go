@@ -2,7 +2,6 @@ package change
 
 import (
 	"errors"
-	"reflect"
 	"regexp"
 	"slices"
 
@@ -41,55 +40,4 @@ func RenderChange(change wireless.Record) ([]string, []string, error) {
 		return append(r, "quit", "return")
 	}
 	return wrap(remove), wrap(restore), nil
-}
-
-func planTemplate(config, change wireless.Record) wireless.Record {
-	for _, t := range record.Records(config["service_templates"]) {
-		if t["name"] == change["name"] {
-			return t
-		}
-	}
-	return nil
-}
-func ChangeEligible(config, change wireless.Record) bool {
-	if _, _, e := RenderChange(change); e != nil {
-		return false
-	}
-	t := planTemplate(config, change)
-	if t == nil || t["enabled"] != change["enabled"] {
-		return false
-	}
-	settings := record.Map(t["configuration"])
-	for _, key := range []string{"cipher_suites", "security_ies"} {
-		a, ok := record.Strings(settings[key])
-		b, bok := record.Strings(change[key])
-		if !ok || !bok || !reflect.DeepEqual(a, b) {
-			return false
-		}
-	}
-	return true
-}
-func ChangeSatisfied(config, change wireless.Record) bool {
-	if _, _, e := RenderChange(change); e != nil {
-		return false
-	}
-	t := planTemplate(config, change)
-	if t == nil || t["enabled"] != change["enabled"] {
-		return false
-	}
-	settings := record.Map(t["configuration"])
-	for key, removed := range map[string]string{"cipher_suites": "tkip", "security_ies": "wpa"} {
-		a, ok := record.Strings(settings[key])
-		before, bok := record.Strings(change[key])
-		expected := []string{}
-		for _, s := range before {
-			if s != removed {
-				expected = append(expected, s)
-			}
-		}
-		if !ok || !bok || !reflect.DeepEqual(a, expected) {
-			return false
-		}
-	}
-	return true
 }

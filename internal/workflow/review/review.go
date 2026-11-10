@@ -12,7 +12,6 @@ import (
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/input"
 	"github.com/gatework/go-wireless/report"
-	domain "github.com/gatework/go-wireless/review"
 	"github.com/gatework/go-wireless/rules"
 	"github.com/gatework/go-wireless/wlan"
 
@@ -86,7 +85,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	controllers := []*wlan.Controller{}
 	type sourceReport struct {
 		path, sha, name string
-		doc, advice     wireless.Record
+		doc             wireless.Record
 	}
 	inputs := []sourceReport{}
 	for i, path := range paths {
@@ -100,7 +99,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		if e != nil {
 			return Result{}, &Error{Stage: "read"}
 		}
-		doc, order, e := domain.DecodeReviewJSON(body)
+		doc, _, e := wireless.DecodeJSONDocument(body)
 		if e != nil {
 			return Result{}, &Error{Stage: "document"}
 		}
@@ -113,7 +112,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		if len(name) > 160 {
 			name = name[:160]
 		}
-		inputs = append(inputs, sourceReport{path: path, sha: fmt.Sprintf("%x", sha256.Sum256(body)), name: fmt.Sprintf("%d-%s", i+1, name), doc: doc, advice: domain.Recommendations(doc, order)})
+		inputs = append(inputs, sourceReport{path: path, sha: fmt.Sprintf("%x", sha256.Sum256(body)), name: fmt.Sprintf("%d-%s", i+1, name), doc: doc})
 	}
 	if ctx.Err() != nil {
 		return Result{}, ctx.Err()
@@ -126,10 +125,17 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	if e != nil {
 		return Result{}, &Error{Stage: "directory"}
 	}
+	assessment, e := assessor.AssessWith(ctx, controllers, comparison)
+	if e != nil {
+		if ctx.Err() != nil {
+			return Result{}, ctx.Err()
+		}
+		return Result{}, &Error{Stage: "assessment"}
+	}
 	entries := []wireless.Record{}
 	counts := wireless.Record{}
-	for _, in := range inputs {
-		entry, e := store.WriteReview(ctx, in.doc, in.name, in.path, in.sha, in.advice, o.Scripts)
+	for i, in := range inputs {
+		entry, e := store.WriteAssessment(ctx, in.doc, controllers[i], assessment.Controllers[i], in.name, in.path, in.sha, o.Scripts)
 		if e != nil {
 			if ctx.Err() != nil {
 				return Result{}, ctx.Err()
@@ -137,17 +143,10 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			return Result{}, &Error{Stage: "publish"}
 		}
 		entries = append(entries, entry)
-		for key, value := range in.advice["counts"].(wireless.Record) {
+		for key, value := range entry["counts"].(wireless.Record) {
 			n, _ := counts[key].(int)
 			counts[key] = n + value.(int)
 		}
-	}
-	assessment, e := assessor.AssessWith(ctx, controllers, comparison)
-	if e != nil {
-		if ctx.Err() != nil {
-			return Result{}, ctx.Err()
-		}
-		return Result{}, &Error{Stage: "assessment"}
 	}
 	assessmentBody, e := json.MarshalIndent(assessment, "", "  ")
 	if e != nil {

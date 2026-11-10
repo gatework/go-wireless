@@ -1,6 +1,7 @@
 package wlan
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,34 +13,71 @@ import (
 var ErrDocument = errors.New("wlan: invalid controller document")
 
 // DecodeDocument builds a controller from a collected report: "device"
-// identity and "snapshot.dimensions" observations. The "collection"
-// pseudo-dimension and unknown dimensions are ignored.
+// identity and "snapshot.dimensions" observations. The envelope is strict:
+// device name and host are strings, snapshot is present (null for a report
+// without evidence), every dimension has a valid status and records and
+// issues are arrays of objects. The "collection" pseudo-dimension and unknown
+// dimensions are then ignored; fields inside records are judged per
+// dimension, an unmodeled one making that dimension partial.
 func DecodeDocument(body []byte) (*Controller, error) {
 	var doc struct {
-		Device   Identity `json:"device"`
-		Snapshot struct {
-			Dimensions map[evidence.Dimension]struct {
-				Status  evidence.Status   `json:"status"`
-				Records []json.RawMessage `json:"records"`
-				Issues  []json.RawMessage `json:"issues"`
-			} `json:"dimensions"`
-		} `json:"snapshot"`
+		Device struct {
+			Identity
+			Name *string `json:"name"`
+		} `json:"device"`
+		Snapshot json.RawMessage `json:"snapshot"`
 	}
 	if err := json.Unmarshal(body, &doc); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrDocument, err)
 	}
-	if doc.Device.Host == "" {
-		return nil, fmt.Errorf("%w: missing device host", ErrDocument)
+	if doc.Device.Host == "" || doc.Device.Name == nil {
+		return nil, fmt.Errorf("%w: device name and host", ErrDocument)
+	}
+	doc.Device.Identity.Name = *doc.Device.Name
+	if doc.Snapshot == nil {
+		return nil, fmt.Errorf("%w: missing snapshot", ErrDocument)
+	}
+	var snapshot *struct {
+		Dimensions *map[evidence.Dimension]*struct {
+			Status  evidence.Status    `json:"status"`
+			Records *[]json.RawMessage `json:"records"`
+			Issues  *[]json.RawMessage `json:"issues"`
+		} `json:"dimensions"`
+	}
+	if err := json.Unmarshal(doc.Snapshot, &snapshot); err != nil {
+		return nil, fmt.Errorf("%w: snapshot: %w", ErrDocument, err)
 	}
 	dims := map[evidence.Dimension]Observed{}
-	for name, o := range doc.Snapshot.Dimensions {
-		if name == "collection" {
-			continue
+	if snapshot != nil {
+		if snapshot.Dimensions == nil {
+			return nil, fmt.Errorf("%w: missing snapshot dimensions", ErrDocument)
 		}
-		if !o.Status.Valid() {
-			return nil, fmt.Errorf("%w: dimension %s status", ErrDocument, name)
+		for name, o := range *snapshot.Dimensions {
+			if o == nil || !o.Status.Valid() || o.Records == nil || !objects(*o.Records) {
+				return nil, fmt.Errorf("%w: dimension %s", ErrDocument, name)
+			}
+			if o.Issues != nil && !objects(*o.Issues) {
+				return nil, fmt.Errorf("%w: dimension %s issues", ErrDocument, name)
+			}
+			if name == "collection" {
+				continue
+			}
+			var issues []json.RawMessage
+			if o.Issues != nil {
+				issues = *o.Issues
+			}
+			dims[name] = Observed{Status: o.Status, Records: *o.Records, Issues: issues}
 		}
-		dims[name] = Observed{Status: o.Status, Records: o.Records, Issues: o.Issues}
 	}
-	return NewController(doc.Device, dims), nil
+	return NewController(doc.Device.Identity, dims), nil
+}
+
+// objects reports whether every raw value is a JSON object.
+func objects(values []json.RawMessage) bool {
+	for _, v := range values {
+		if t := bytes.TrimLeft(v, " \t\r\n"); len(t) == 0 || t[0] != '{' {
+			return false
+		}
+	}
+	return true
 }

@@ -73,8 +73,8 @@ type WriteFunc func(context.Context, string, []byte) (storage.Receipt, error)
 // post-publication artifact callback. It is the recommendation enrichment boundary.
 type DeviceHook func(context.Context, wireless.Record) (Enrichment, error)
 type Enrichment struct {
-	Recommendations any
-	Artifacts       func(context.Context, *Report, PublishedDevice) error
+	Assessment any
+	Artifacts  func(context.Context, *Report, PublishedDevice) error
 }
 type PublishedDevice struct {
 	Basename, Path string
@@ -224,7 +224,7 @@ func (r *Report) WriteDevice(ctx context.Context, result Result, snapshot *wirel
 		if e != nil {
 			return &Error{Relative: "recommendations", Phase: "prepare"}
 		}
-		document["recommendations"] = enrichment.Recommendations
+		document["assessment"] = enrichment.Assessment
 	}
 	body, e := jsonBody(document)
 	if e != nil {
@@ -249,7 +249,7 @@ func (r *Report) WriteDevice(ctx context.Context, result Result, snapshot *wirel
 		lines = append(lines, "错误："+result.Error)
 	}
 	if r.hook != nil {
-		lines = append(lines, "修复建议：recommendations/"+name+".txt；候选配置未执行。")
+		lines = append(lines, "风险评估与修复建议：recommendations/"+name+".txt；候选配置未执行。")
 	}
 	if e = r.Publish(ctx, "devices/"+name+".txt", []byte(strings.Join(lines, "\n")+"\n")); e != nil {
 		return e
@@ -442,7 +442,7 @@ func (r *Report) FinalizeExecution(ctx context.Context, final wireless.Record) e
 	if final["status"] != "configuration_verified" || final["readback_verified"] != true {
 		return &Error{Relative: "execution.json", Phase: "checkpoint"}
 	}
-	checkpoint := cloneRecord(final)
+	checkpoint := wireless.CloneRecord(final)
 	checkpoint["status"] = "uncertain"
 	checkpoint["report_error"] = "execution_finalization_unconfirmed"
 	checkpointBody, e := jsonBody(checkpoint)
