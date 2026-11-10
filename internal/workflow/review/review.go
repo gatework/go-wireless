@@ -22,7 +22,11 @@ import (
 type Options struct {
 	Batch, Output string
 	// RulesPolicy is an optional YAML file tuning the schema 3 assessment.
-	RulesPolicy   string
+	RulesPolicy string
+	// Baseline is an optional frozen baseline YAML file.
+	Baseline string
+	// Previous is an optional earlier batch directory to compare with.
+	Previous      string
 	Scripts       bool
 	NewReport     func(string, report.Options) (*report.Report, error)
 	ReportOptions report.Options
@@ -59,6 +63,25 @@ func Run(ctx context.Context, o Options) (Result, error) {
 	assessor, e := rules.NewAssessor(policy, nil)
 	if e != nil {
 		return Result{}, &Error{Stage: "rules_policy"}
+	}
+	comparison := rules.Inputs{}
+	if o.Baseline != "" {
+		body, e := input.Document(ctx, o.Baseline)
+		if e != nil {
+			return Result{}, &Error{Stage: "baseline"}
+		}
+		b, e := wlan.DecodeBaseline(body)
+		if e != nil {
+			return Result{}, &Error{Stage: "baseline"}
+		}
+		comparison.Baseline = &b
+	}
+	if o.Previous != "" {
+		previous, e := readControllers(ctx, o.Previous)
+		if e != nil {
+			return Result{}, e
+		}
+		comparison.Previous = previous
 	}
 	controllers := []*wlan.Controller{}
 	type sourceReport struct {
@@ -119,7 +142,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			counts[key] = n + value.(int)
 		}
 	}
-	assessment, e := assessor.Assess(ctx, controllers)
+	assessment, e := assessor.AssessWith(ctx, controllers, comparison)
 	if e != nil {
 		if ctx.Err() != nil {
 			return Result{}, ctx.Err()
@@ -131,6 +154,17 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		return Result{}, &Error{Stage: "assessment"}
 	}
 	if e = store.Publish(ctx, "assessment.json", append(assessmentBody, '\n')); e != nil {
+		if ctx.Err() != nil {
+			return Result{}, ctx.Err()
+		}
+		return Result{}, &Error{Stage: "publish"}
+	}
+	draft, e := rules.DeriveBaseline(controllers).Encode()
+	if e != nil {
+		return Result{}, &Error{Stage: "assessment"}
+	}
+	draft = append([]byte("# 无线基线草案：由本批次当前状态生成，仅供审核；确认意图并删减后再用于 review --baseline。\n"), draft...)
+	if e = store.Publish(ctx, "baseline-draft.yaml", draft); e != nil {
 		if ctx.Err() != nil {
 			return Result{}, ctx.Err()
 		}
@@ -154,4 +188,32 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		return Result{}, ctx.Err()
 	}
 	return Result{Directory: store.Directory(), Devices: len(entries)}, nil
+}
+
+// readControllers decodes the device reports of an earlier batch.
+func readControllers(ctx context.Context, batch string) ([]*wlan.Controller, error) {
+	dir, e := filepath.Abs(batch)
+	if e != nil {
+		return nil, &Error{Stage: "previous"}
+	}
+	paths, e := filepath.Glob(filepath.Join(dir, "devices", "*.json"))
+	if e != nil || len(paths) == 0 {
+		return nil, &Error{Stage: "previous"}
+	}
+	out := []*wlan.Controller{}
+	for _, path := range paths {
+		body, e := input.Document(ctx, path)
+		if e != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			return nil, &Error{Stage: "previous"}
+		}
+		c, e := wlan.DecodeDocument(body)
+		if e != nil {
+			return nil, &Error{Stage: "previous"}
+		}
+		out = append(out, c)
+	}
+	return out, nil
 }

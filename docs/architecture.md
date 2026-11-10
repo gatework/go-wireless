@@ -137,3 +137,19 @@ is the typed `change.TemplateSecurity`, which renders exactly the commands of
 `rules/parity_test.go` compares the ported checks with the legacy fixtures,
 and legacy fixtures in shapes the parser never emits must be reported as
 incomplete evidence.
+
+## Baseline and changes
+
+Every review publishes `baseline-draft.yaml`: per controller, each service
+template's SSID, VLAN, enable state and security (AKM, ciphers, IEs), the
+majority AP firmware per model and the backup AC. The draft describes the
+current state, not the correct one; operators review and trim it before
+passing it back with `review --baseline FILE`, which reports drift
+(`wireless.baseline_*`) from the declared intent. `defaults` apply to every
+controller; `controllers.<host>` entries override per template and model.
+
+`review --previous DIR` compares with an earlier batch (`wireless.change_*`):
+running APs that disappeared or went down, LLDP uplink switch/port changes,
+AP firmware changes, and service templates added, removed or changed. A
+dimension incomplete in either batch infers no change; controllers present
+in only one batch are listed as `appeared` / `disappeared`.

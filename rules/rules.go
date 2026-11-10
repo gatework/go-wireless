@@ -426,11 +426,17 @@ type Commands interface {
 
 // Report is the schema 3 wireless assessment.
 type Report struct {
-	SchemaVersion int                     `json:"schema_version"`
-	Controllers   []ControllerAssessment  `json:"controllers"`
-	Counts        map[assess.Severity]int `json:"counts"`
-	Highest       assess.Severity         `json:"highest,omitempty"`
-	Incomplete    bool                    `json:"incomplete"`
+	SchemaVersion int                    `json:"schema_version"`
+	Controllers   []ControllerAssessment `json:"controllers"`
+	// Baseline holds drift from the declared intent, when a baseline is given.
+	Baseline []ControllerAssessment `json:"baseline,omitempty"`
+	// Changes holds per-controller changes since a previous batch.
+	Changes     []ControllerAssessment  `json:"changes,omitempty"`
+	Appeared    []string                `json:"appeared,omitempty"`
+	Disappeared []string                `json:"disappeared,omitempty"`
+	Counts      map[assess.Severity]int `json:"counts"`
+	Highest     assess.Severity         `json:"highest,omitempty"`
+	Incomplete  bool                    `json:"incomplete"`
 }
 
 // ControllerAssessment is one controller's result.
@@ -440,42 +446,136 @@ type ControllerAssessment struct {
 	Assessment assess.Assessment `json:"assessment"`
 }
 
-// Assessor runs the catalog under one policy.
-type Assessor struct {
-	engine *assess.Engine[*wlan.Controller]
+// Inputs are optional comparison points for an assessment.
+type Inputs struct {
+	Baseline *wlan.Baseline
+	Previous []*wlan.Controller
 }
 
-// NewAssessor validates the policy against the catalog.
+// Assessor runs the catalogs under one policy.
+type Assessor struct {
+	engine   *assess.Engine[*wlan.Controller]
+	baseline *assess.Engine[*BaselineScope]
+	temporal *assess.Engine[*Change]
+}
+
+func subset[M any](p assess.Policy, c *assess.Catalog[M]) assess.Policy {
+	out := assess.Policy{OnlyEnabled: p.OnlyEnabled, Rules: map[assess.RuleID]assess.RulePolicy{}}
+	for id, rp := range p.Rules {
+		if _, ok := c.Lookup(id); ok {
+			out.Rules[id] = rp
+		}
+	}
+	return out
+}
+
+// NewAssessor validates the policy against all catalogs; a rule named in the
+// policy must exist in one of them.
 func NewAssessor(policy assess.Policy, commands Commands) (*Assessor, error) {
 	catalog, err := assess.NewCatalog(Rules()...)
 	if err != nil {
 		return nil, err
 	}
+	baselineCatalog, err := assess.NewCatalog(BaselineRules()...)
+	if err != nil {
+		return nil, err
+	}
+	temporalCatalog, err := assess.NewCatalog(TemporalRules()...)
+	if err != nil {
+		return nil, err
+	}
+	for id := range policy.Rules {
+		_, a := catalog.Lookup(id)
+		_, b := baselineCatalog.Lookup(id)
+		_, c := temporalCatalog.Lookup(id)
+		if !a && !b && !c {
+			return nil, fmt.Errorf("%w: policy names unknown rule %s", assess.ErrInvalid, id)
+		}
+	}
 	var verify assess.VerifyCommands
 	if commands != nil {
 		verify = commands
 	}
-	engine, err := assess.NewEngine(catalog, policy, verify)
+	engine, err := assess.NewEngine(catalog, subset(policy, catalog), verify)
 	if err != nil {
 		return nil, err
 	}
-	return &Assessor{engine: engine}, nil
+	be, err := assess.NewEngine(baselineCatalog, subset(policy, baselineCatalog), verify)
+	if err != nil {
+		return nil, err
+	}
+	te, err := assess.NewEngine(temporalCatalog, subset(policy, temporalCatalog), verify)
+	if err != nil {
+		return nil, err
+	}
+	return &Assessor{engine: engine, baseline: be, temporal: te}, nil
 }
 
 // Assess evaluates every controller.
 func (a *Assessor) Assess(ctx context.Context, controllers []*wlan.Controller) (Report, error) {
+	return a.AssessWith(ctx, controllers, Inputs{})
+}
+
+// AssessWith also compares controllers with a baseline and a previous batch.
+func (a *Assessor) AssessWith(ctx context.Context, controllers []*wlan.Controller, in Inputs) (Report, error) {
 	r := Report{SchemaVersion: assess.SchemaVersion, Controllers: []ControllerAssessment{}, Counts: map[assess.Severity]int{}}
-	for _, c := range controllers {
-		as, err := a.engine.Run(ctx, c, c.Coverage)
-		if err != nil {
-			return Report{}, err
-		}
+	add := func(as assess.Assessment) {
 		for sev, n := range as.Counts {
 			r.Counts[sev] += n
 		}
 		r.Highest = max(r.Highest, as.Highest())
 		r.Incomplete = r.Incomplete || as.Incomplete()
+	}
+	for _, c := range controllers {
+		as, err := a.engine.Run(ctx, c, c.Coverage)
+		if err != nil {
+			return Report{}, err
+		}
+		add(as)
 		r.Controllers = append(r.Controllers, ControllerAssessment{Controller: c.Identity, Coverage: c.Coverage, Assessment: as})
+	}
+	if b := in.Baseline; b != nil {
+		if err := b.Validate(); err != nil {
+			return Report{}, err
+		}
+		for _, c := range controllers {
+			as, err := a.baseline.Run(ctx, &BaselineScope{Controller: c, Expect: b.For(c.Host)}, c.Coverage)
+			if err != nil {
+				return Report{}, err
+			}
+			add(as)
+			r.Baseline = append(r.Baseline, ControllerAssessment{Controller: c.Identity, Coverage: c.Coverage, Assessment: as})
+		}
+	}
+	if in.Previous != nil {
+		before := map[string]*wlan.Controller{}
+		for _, c := range in.Previous {
+			before[c.Host] = c
+		}
+		now := map[string]bool{}
+		for _, c := range controllers {
+			now[c.Host] = true
+			p, ok := before[c.Host]
+			if !ok {
+				r.Appeared = append(r.Appeared, c.Host)
+				continue
+			}
+			change := &Change{Previous: p, Current: c}
+			as, err := a.temporal.Run(ctx, change, change.Coverage())
+			if err != nil {
+				return Report{}, err
+			}
+			add(as)
+			r.Changes = append(r.Changes, ControllerAssessment{Controller: c.Identity, Coverage: change.Coverage(), Assessment: as})
+		}
+		for _, c := range in.Previous {
+			if !now[c.Host] {
+				r.Disappeared = append(r.Disappeared, c.Host)
+			}
+		}
+		slices.Sort(r.Appeared)
+		slices.Sort(r.Disappeared)
+		r.Incomplete = r.Incomplete || len(r.Disappeared) > 0
 	}
 	return r, nil
 }
