@@ -1,6 +1,8 @@
 package change
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"slices"
 
@@ -92,4 +94,38 @@ func nonNil(s []string) []string {
 		return []string{}
 	}
 	return s
+}
+
+// DecodeTemplateSecurity strictly decodes a persisted wireless_security
+// change record; any other kind or extra field is rejected.
+func DecodeTemplateSecurity(v any) (TemplateSecurity, error) {
+	body, err := wireless.MarshalJSON(v)
+	if err != nil {
+		return TemplateSecurity{}, ErrChangePlan
+	}
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(body, &raw) != nil {
+		return TemplateSecurity{}, ErrChangePlan
+	}
+	var kind string
+	if json.Unmarshal(raw["kind"], &kind) != nil || netchange.Kind(kind) != KindTemplateSecurity {
+		return TemplateSecurity{}, ErrChangePlan
+	}
+	delete(raw, "kind")
+	for _, required := range []string{"name", "enabled", "cipher_suites", "security_ies"} {
+		if v, ok := raw[required]; !ok || string(bytes.TrimSpace(v)) == "null" {
+			return TemplateSecurity{}, ErrChangePlan // null would silently decode as false or empty
+		}
+	}
+	rest, _ := json.Marshal(raw)
+	d := json.NewDecoder(bytes.NewReader(rest))
+	d.DisallowUnknownFields()
+	var t TemplateSecurity
+	if d.Decode(&t) != nil {
+		return TemplateSecurity{}, ErrChangePlan
+	}
+	if err := t.Validate(); err != nil {
+		return TemplateSecurity{}, err
+	}
+	return t, nil
 }

@@ -1,8 +1,10 @@
 package change
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/gatework/go-wireless/wlan"
 	"net/netip"
 	"reflect"
 	"regexp"
@@ -21,7 +23,8 @@ var configDigest = regexp.MustCompile(`\A[0-9a-f]{64}\z`)
 // and accessors detach mutable data; the zero value cannot be executed.
 type ChangePlan struct {
 	document           wireless.Record
-	device, change     wireless.Record
+	device             wireless.Record
+	change             TemplateSecurity
 	host, fingerprint  string
 	commands, rollback []string
 }
@@ -57,14 +60,15 @@ func NewChangePlan(document wireless.Record) (ChangePlan, error) {
 	if !ok || !configDigest.MatchString(fingerprint) {
 		return ChangePlan{}, ErrChangePlan
 	}
-	change, ok := owned["change"].(wireless.Record)
-	if !ok {
-		return ChangePlan{}, ErrChangePlan
-	}
-	commands, rollback, err := RenderChange(change)
+	change, err := DecodeTemplateSecurity(owned["change"])
 	if err != nil {
 		return ChangePlan{}, err
 	}
+	script, err := change.Render()
+	if err != nil {
+		return ChangePlan{}, err
+	}
+	commands, rollback := script.Commands, script.Rollback
 	given, givenOK := record.Strings(owned["commands"])
 	back, backOK := record.Strings(owned["rollback"])
 	if !givenOK || !backOK || !slices.Equal(commands, given) || !slices.Equal(rollback, back) {
@@ -97,16 +101,40 @@ func (p ChangePlan) CheckBefore(configuration wireless.Record) error {
 		return ErrChangePlan
 	}
 	fingerprint, err := wireless.Fingerprint(configuration)
-	if err != nil || fingerprint != p.fingerprint || !ChangeEligible(configuration, p.change) {
+	if err != nil || fingerprint != p.fingerprint {
+		return ErrChangePlan
+	}
+	typed, err := typedConfiguration(configuration)
+	if err != nil || p.change.Eligible(typed) != nil {
 		return ErrChangePlan
 	}
 	return nil
 }
 
+// typedConfiguration strictly decodes a configuration record; unknown fields
+// are rejected so unmodeled facts cannot authorize or verify a change.
+func typedConfiguration(configuration wireless.Record) (*wlan.Configuration, error) {
+	body, err := wireless.MarshalJSON(configuration)
+	if err != nil {
+		return nil, err
+	}
+	d := json.NewDecoder(bytes.NewReader(body))
+	d.DisallowUnknownFields()
+	var c wlan.Configuration
+	if err := d.Decode(&c); err != nil {
+		return nil, ErrChangePlan
+	}
+	return &c, nil
+}
+
 // CheckAfter verifies the requested settings and fingerprints the complete
 // readback. It does not assert business acceptance or saved configuration.
 func (p ChangePlan) CheckAfter(configuration wireless.Record) (string, error) {
-	if p.document == nil || !ChangeSatisfied(configuration, p.change) {
+	if p.document == nil {
+		return "", ErrChangePlan
+	}
+	typed, err := typedConfiguration(configuration)
+	if err != nil || p.change.Satisfied(typed) != nil {
 		return "", ErrChangePlan
 	}
 	return wireless.Fingerprint(configuration)
