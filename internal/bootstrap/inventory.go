@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"maps"
 	"net/netip"
 	"net/url"
 	"path/filepath"
@@ -103,11 +104,11 @@ func (o *Options) loadInventoryPolicy(ctx context.Context) error {
 		if strings.TrimSpace(StringValue(n["query"])) == "" || strings.ContainsRune(StringValue(n["query"]), 0) {
 			return ErrOptions
 		}
-		if v, ok := n["db_port"]; ok && v.(int) > 65535 {
+		if v, ok := n["db_port"].(int); ok && v > 65535 {
 			return ErrOptions
 		}
 	}
-	if v, ok := n["db_connect_timeout"]; ok && v.(int) > 2147483647 {
+	if v, ok := n["db_connect_timeout"].(int); ok && v > 2147483647 {
 		return ErrOptions
 	}
 	if v, ok := n["db_sslmode"]; ok && !in(StringValue(v), "disable", "allow", "prefer", "require", "verify-ca", "verify-full") {
@@ -132,9 +133,7 @@ func (o *Options) loadInventoryPolicy(ctx context.Context) error {
 	if has(o.Values, "netdisco_config") {
 		o.Values["inventory_configuration"] = data
 	} else {
-		for k, v := range data {
-			o.Values[k] = v
-		}
+		maps.Copy(o.Values, data)
 	}
 	return nil
 }
@@ -288,12 +287,13 @@ func inventoryLimits(n wireless.Record) (netdisco.Limits, error) {
 	l := netdisco.Limits{PageSize: 500, MaxPages: 10000, MaxDevices: 100000, MaxResponseBytes: 16 << 20, MaxInventoryBytes: 128 << 20, Timeout: 300 * time.Second}
 	for k, p := range map[string]*int{"page_size": &l.PageSize, "max_pages": &l.MaxPages, "max_devices": &l.MaxDevices} {
 		if v, ok := n[k]; ok {
-			*p = v.(int)
+			*p, _ = v.(int)
 		}
 	}
 	for k, p := range map[string]*int64{"max_response_bytes": &l.MaxResponseBytes, "max_inventory_bytes": &l.MaxInventoryBytes} {
 		if v, ok := n[k]; ok {
-			*p = int64(v.(int))
+			n, _ := v.(int)
+			*p = int64(n)
 		}
 	}
 	if v, ok := n["inventory_timeout"]; ok {

@@ -18,7 +18,7 @@ type Session struct {
 	device       *connector.Device
 	profile      parser.Profile
 	commands     map[string]bool
-	closeFailure atomic.Pointer[wireless.Failure]
+	closeFailure atomic.Pointer[wireless.FailureError]
 }
 
 // Borrow binds a validated query profile without connecting or owning device close.
@@ -132,7 +132,7 @@ func (s *Session) Execute(ctx context.Context, command string) (collect.Receipt,
 }
 
 // CloseFailure retains the first retirement failure for hosts borrowing a Session.
-func (s *Session) CloseFailure() *wireless.Failure {
+func (s *Session) CloseFailure() *wireless.FailureError {
 	f := s.closeFailure.Load()
 	if f == nil {
 		return nil

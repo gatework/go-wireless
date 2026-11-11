@@ -58,6 +58,7 @@ func NormalizeValue(raw string) *string {
 
 var macPattern = rx(`(?i)^(?:[0-9a-f]{12}|[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}|(?:[0-9a-f]{2}:){5}[0-9a-f]{2})$`)
 
+//nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseMAC(raw *string) (*string, error) {
 	if raw == nil {
 		return nil, nil
@@ -78,6 +79,7 @@ func ParseMAC(raw *string) (*string, error) {
 
 var ipv4CompatibleIPv6String = rx(`^::[0-9a-f]{1,4}:[0-9a-f]{1,4}$`)
 
+//nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseIP(raw *string) (*string, error) {
 	if raw == nil {
 		return nil, nil
@@ -120,13 +122,15 @@ func ParseInteger(raw *string, max *int64) (*int64, error) {
 	return &result, nil
 }
 func ParseVLAN(raw *string) (*int64, error) {
-	max := int64(4094)
-	v, err := ParseInteger(raw, &max)
+	limit := int64(4094)
+	v, err := ParseInteger(raw, &limit)
 	if err == nil && v != nil && *v == 0 {
 		return nil, errors.New("invalid wireless VLAN")
 	}
 	return v, err
 }
+
+//nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseNumber(raw *string, unit string) (*float64, error) {
 	if raw == nil {
 		return nil, nil
@@ -186,6 +190,7 @@ func ParseRatesMbps(raw *string) (*float64, *float64, error) {
 
 var channelPattern = rx(`^(\d+)(?:\s*\([^\n]*\))?$`)
 
+//nolint:nilnil // an absent or automatic channel parses to an absent value
 func ParseChannel(raw *string) (*int64, error) {
 	if raw == nil || strings.EqualFold(*raw, "auto") {
 		return nil, nil
@@ -194,8 +199,8 @@ func ParseChannel(raw *string) (*int64, error) {
 	if m == nil {
 		return nil, errors.New("invalid wireless channel")
 	}
-	max := int64(233)
-	v, err := ParseInteger(&m[1], &max)
+	limit := int64(233)
+	v, err := ParseInteger(&m[1], &limit)
 	if v != nil && *v == 0 {
 		return nil, nil
 	}

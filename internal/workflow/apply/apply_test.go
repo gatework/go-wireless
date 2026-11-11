@@ -65,9 +65,9 @@ func (j *journal) WriteExecution(ctx context.Context, state wireless.Record) err
 	if err != nil {
 		return err
 	}
-	copy, err := wireless.DecodeJSONDocument(body)
+	duplicate, err := wireless.DecodeJSONDocument(body)
 	if err == nil {
-		j.entries = append(j.entries, copy)
+		j.entries = append(j.entries, duplicate)
 	}
 	return err
 }
@@ -347,13 +347,13 @@ func TestRunStopsParentCancellationWithDetachedBorrowedContext(t *testing.T) {
 	}
 }
 
-// committedFailure is an alternate journal's publication contract, without a
+// committedError is an alternate journal's publication contract, without a
 // dependency on the concrete report implementation.
-type committedFailure struct{ committed bool }
+type committedError struct{ committed bool }
 
-func (committedFailure) Error() string                { return "PRIVATE publication" }
-func (e committedFailure) PublicationCommitted() bool { return e.committed }
-func (e committedFailure) ToMap() wireless.Record {
+func (committedError) Error() string                { return "PRIVATE publication" }
+func (e committedError) PublicationCommitted() bool { return e.committed }
+func (e committedError) ToMap() wireless.Record {
 	return wireless.Record{"relative": "execution.json", "phase": "directory_sync", "committed": e.committed, "durable": false}
 }
 
@@ -363,7 +363,7 @@ func TestRunRecognizesJournalCommitCapabilityBeforeSend(t *testing.T) {
 			plan, s := fixture(t)
 			j := &journal{writeHook: func(_ context.Context, state wireless.Record) error {
 				if state["status"] == "executing" {
-					return errors.Join(errors.New("PRIVATE outer"), committedFailure{committed: committed})
+					return errors.Join(errors.New("PRIVATE outer"), committedError{committed: committed})
 				}
 				return nil
 			}}

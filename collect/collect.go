@@ -25,7 +25,7 @@ func (APCredentials) MarshalJSON() ([]byte, error) { return []byte(`{}`), nil }
 type APCredentialsSource func(context.Context) (APCredentials, error)
 type APOutcome struct {
 	Result                          *wireless.Capture
-	Error, CleanupError, CloseError *wireless.Failure
+	Error, CleanupError, CloseError *wireless.FailureError
 	Skipped                         bool
 }
 
@@ -39,7 +39,7 @@ type APRequest struct {
 }
 
 type APReader interface {
-	Read(context.Context, APRequest) (APOutcome, error)
+	Read(ctx context.Context, request APRequest) (APOutcome, error)
 }
 type APFactory func(context.Context, Session, APCredentials) (APReader, error)
 type CollectorOptions struct {
@@ -73,19 +73,6 @@ func NewCollector(o CollectorOptions) *Collector {
 }
 func (c *Collector) String() string   { return "wireless.Collector" }
 func (c *Collector) GoString() string { return c.String() }
-func (c *Collector) unavailable(name wireless.Dimension, status wireless.Status, code string, details wireless.Record) wireless.Observation {
-	issue := wireless.CloneRecord(details)
-	if issue == nil {
-		issue = wireless.Record{}
-	}
-	issue["code"] = code
-	t := c.clock()
-	o, _ := wireless.NewObservation(wireless.ObservationOptions{Name: name, Status: status, Issues: []wireless.Record{issue}, CompletedAt: &t})
-	return o
-}
-func validAPName(s string) bool {
-	return strings.TrimSpace(s) != "" && utf8.ValidString(s) && !strings.ContainsFunc(s, unicode.IsControl)
-}
 func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Snapshot, error) {
 	profile := o.Profile
 	if !profile.Valid() {
@@ -100,7 +87,7 @@ func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Sna
 	if e != nil {
 		return wireless.Snapshot{}, errors.New("wireless: invalid target")
 	}
-	target := copied.(map[string]any)
+	target, _ := copied.(map[string]any) // CopyValue preserves the map type
 	scope, e := profile.CollectionScope(o.Dimensions)
 	if e != nil {
 		return wireless.Snapshot{}, e
@@ -141,7 +128,7 @@ func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Sna
 		}
 		stage = "prepare"
 		prep, err := reader.Read(ctx, profile.PreparationCommand())
-		var prepFailure *wireless.Failure
+		var prepFailure *wireless.FailureError
 		if err != nil {
 			prepFailure = wireless.FailureFrom(err, "command_execution_failed", "prepare")
 		} else {
@@ -234,27 +221,40 @@ func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Sna
 	}
 	return wireless.NewSnapshot(wireless.SnapshotOptions{Target: target, Dimensions: observations, ObservedAt: c.clock()})
 }
-func (c *Collector) collectCommand(out map[wireless.Dimension]wireless.Observation, p *parser.Profile, q parser.Query, cap wireless.Capture) {
+func validAPName(s string) bool {
+	return strings.TrimSpace(s) != "" && utf8.ValidString(s) && !strings.ContainsFunc(s, unicode.IsControl)
+}
+func (c *Collector) unavailable(name wireless.Dimension, status wireless.Status, code string, details wireless.Record) wireless.Observation {
+	issue := wireless.CloneRecord(details)
+	if issue == nil {
+		issue = wireless.Record{}
+	}
+	issue["code"] = code
+	t := c.clock()
+	o, _ := wireless.NewObservation(wireless.ObservationOptions{Name: name, Status: status, Issues: []wireless.Record{issue}, CompletedAt: &t})
+	return o
+}
+func (c *Collector) collectCommand(out map[wireless.Dimension]wireless.Observation, p *parser.Profile, q parser.Query, captured wireless.Capture) {
 	var parsed map[wireless.Dimension]wireless.Observation
 	var err error
-	if cap.Success() {
-		parsed, err = p.ParseMany(q.Dimensions, cap.Body(), true)
+	if captured.Success() {
+		parsed, err = p.ParseMany(q.Dimensions, captured.Body(), true)
 	}
 	for _, d := range q.Dimensions {
 		var obs wireless.Observation
-		if !cap.Success() {
-			f := cap.Failure()
+		if !captured.Success() {
+			f := captured.Failure()
 			details := f.ToMap()
 			details["command"] = q.Command
-			details["skipped"] = cap.Skipped()
+			details["skipped"] = captured.Skipped()
 			obs = c.unavailable(d, wireless.Failed, f.Code(), details)
 		} else if err != nil {
 			obs = c.unavailable(d, wireless.Failed, "command_processing_failed", wireless.Record{"stage": "parse", "command": q.Command})
 		} else {
 			obs = parsed[d]
 		}
-		start, end := cap.StartedAt(), cap.CompletedAt()
-		out[d], _ = wireless.NewObservation(wireless.ObservationOptions{Name: d, Status: obs.Status(), Records: obs.Records(), Issues: obs.Issues(), Evidence: cap.Evidence(), StartedAt: &start, CompletedAt: &end})
+		start, end := captured.StartedAt(), captured.CompletedAt()
+		out[d], _ = wireless.NewObservation(wireless.ObservationOptions{Name: d, Status: obs.Status(), Records: obs.Records(), Issues: obs.Issues(), Evidence: captured.Evidence(), StartedAt: &start, CompletedAt: &end})
 	}
 }
 

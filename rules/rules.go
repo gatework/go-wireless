@@ -30,7 +30,7 @@ func controller(c *wlan.Controller) assess.Subject { return assess.NewSubject("c
 func h3c(c *wlan.Controller) bool { return c.Platform == ActionablePlatform }
 
 // Rules returns the catalog in evaluation order.
-func Rules() []rule {
+func Rules() []assess.Rule[*wlan.Controller] {
 	return []rule{
 		evidenceIncomplete, platformLimited, legacySecurity, openSSID, templateBinding,
 		ipConflictHistory, apNotRunning, radioAdminDown, firmwareDrift,
@@ -421,7 +421,7 @@ var backupAC = assess.NewRule(assess.RuleMeta{
 
 // Commands resolves collection commands for verification hints.
 type Commands interface {
-	Command(evidence.Dimension) (string, error)
+	Command(dimension evidence.Dimension) (string, error)
 }
 
 // Report is the schema 3 wireless assessment.

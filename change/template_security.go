@@ -62,28 +62,6 @@ func (t TemplateSecurity) Render() (netchange.Script, error) {
 	return netchange.Script{Commands: t.wrap(remove), Rollback: t.wrap(restore)}, nil
 }
 
-// wrap places settings inside the template view, disabling the template
-// first and restoring its enabled state last.
-func (t TemplateSecurity) wrap(settings []string) []string {
-	out := append([]string{"system-view", "wlan service-template " + t.Name, " undo service-template enable"}, settings...)
-	if t.Enabled {
-		out = append(out, " service-template enable")
-	}
-	return append(out, "quit", "return")
-}
-
-func (t TemplateSecurity) template(c *wlan.Configuration) (*wlan.ServiceTemplate, error) {
-	if c == nil {
-		return nil, errors.New("no configuration")
-	}
-	for i := range c.ServiceTemplates {
-		if c.ServiceTemplates[i].Name == t.Name {
-			return &c.ServiceTemplates[i], nil
-		}
-	}
-	return nil, errors.New("service template not found")
-}
-
 // Eligible requires the template to still have the planned state.
 func (t TemplateSecurity) Eligible(c *wlan.Configuration) error {
 	tpl, err := t.template(c)
@@ -112,6 +90,28 @@ func (t TemplateSecurity) Satisfied(c *wlan.Configuration) error {
 		return errors.New("readback does not show TKIP/WPA removed")
 	}
 	return nil
+}
+
+// wrap places settings inside the template view, disabling the template
+// first and restoring its enabled state last.
+func (t TemplateSecurity) wrap(settings []string) []string {
+	out := append([]string{"system-view", "wlan service-template " + t.Name, " undo service-template enable"}, settings...)
+	if t.Enabled {
+		out = append(out, " service-template enable")
+	}
+	return append(out, "quit", "return")
+}
+
+func (t TemplateSecurity) template(c *wlan.Configuration) (*wlan.ServiceTemplate, error) {
+	if c == nil {
+		return nil, errors.New("no configuration")
+	}
+	for i := range c.ServiceTemplates {
+		if c.ServiceTemplates[i].Name == t.Name {
+			return &c.ServiceTemplates[i], nil
+		}
+	}
+	return nil, errors.New("service template not found")
 }
 
 func nonNil(s []string) []string {

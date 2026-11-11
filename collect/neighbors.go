@@ -2,6 +2,7 @@ package collect
 
 import (
 	"context"
+	"maps"
 
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/parser"
@@ -92,29 +93,27 @@ func (c *Collector) readAP(ctx context.Context, profile *parser.Profile, query p
 		issues = append(issues, wireless.FailureFrom(err, "command_execution_failed", "execute").ToMap())
 	}
 	source["attempted"] = !outcome.Skipped
-	cap := outcome.Result
-	if cap != nil && (!cap.Valid() || cap.Command() != query.Command() || outcome.Skipped && cap.Success()) {
+	captured := outcome.Result
+	if captured != nil && (!captured.Valid() || captured.Command() != query.Command() || outcome.Skipped && captured.Success()) {
 		issues = append(issues, wireless.Record{"code": "invalid_command_result", "stage": "response"})
-		cap = nil
+		captured = nil
 	}
-	if cap != nil {
-		ev := cap.Evidence()
+	if captured != nil {
+		ev := captured.Evidence()
 		if len(ev) > 0 {
 			merged := ev[0]
-			for k, v := range source {
-				merged[k] = v
-			}
+			maps.Copy(merged, source)
 			source = merged
 		}
-		if cap.Skipped() {
+		if captured.Skipped() {
 			source["attempted"] = false
 		}
-		if cap.Success() {
+		if captured.Success() {
 			model, _ := ap["model"].(string)
 			neighbor, e := parser.NewNeighborParser(profile, model)
 			var parsed wireless.Observation
 			if e == nil {
-				parsed, e = neighbor.Parse(cap.Body(), name, true)
+				parsed, e = neighbor.Parse(captured.Body(), name, true)
 			}
 			if e != nil {
 				issues = append(issues, wireless.Record{"code": "command_processing_failed", "stage": "parse"})
@@ -125,10 +124,10 @@ func (c *Collector) readAP(ctx context.Context, profile *parser.Profile, query p
 				source["neighbor_count"] = len(records)
 			}
 		} else {
-			issues = append(issues, cap.Failure().ToMap())
+			issues = append(issues, captured.Failure().ToMap())
 		}
 	}
-	for _, f := range []*wireless.Failure{outcome.Error, outcome.CleanupError, outcome.CloseError} {
+	for _, f := range []*wireless.FailureError{outcome.Error, outcome.CleanupError, outcome.CloseError} {
 		if f == nil {
 			continue
 		}
@@ -146,7 +145,7 @@ func (c *Collector) readAP(ctx context.Context, profile *parser.Profile, query p
 	if err != nil {
 		source["status"] = string(wireless.Failed)
 	}
-	if cap == nil && len(issues) == 0 {
+	if captured == nil && len(issues) == 0 {
 		issues = append(issues, wireless.Record{"code": "ap_collection_failed"})
 	}
 	for _, i := range issues {

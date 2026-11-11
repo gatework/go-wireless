@@ -173,10 +173,8 @@ func TestCoverageAllReasonBranches(t *testing.T) {
 func TestParserConcurrentReuse(t *testing.T) {
 	p, _ := parser.NewRuntimeParser(vendors.NewBuiltinRegistry(), "")
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 20 {
+		wg.Go(func() {
 			o, e := p.Parse(wireless.Clients, "Total clients: 1\nMAC address: 0200-0000-0001\nSSID: PRIVATE\n", parser.ParseOptions{Complete: true})
 			if e != nil || !o.Complete() {
 				t.Error("concurrent parse")
@@ -186,7 +184,7 @@ func TestParserConcurrentReuse(t *testing.T) {
 			if o.Records()[0]["ssid"] != "PRIVATE" {
 				t.Error("concurrent ownership")
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

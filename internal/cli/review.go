@@ -22,8 +22,7 @@ func reviewCommand(ctx context.Context, o *documentFlags, r *Runner) int {
 		if ctx.Err() != nil {
 			return 130
 		}
-		var problem *reviewrun.Error
-		if errors.As(err, &problem) {
+		if problem, ok := errors.AsType[*reviewrun.Error](err); ok {
 			messages := map[string]string{"batch_path": "批次路径错误", "no_reports": "无设备报告", "read": "设备报告读取失败", "document": "设备报告结构错误", "directory": "建议报告目录错误", "publish": "建议发布失败；已保存证据保留", "finalize": "建议摘要发布未确认；保留已有报告", "rules_policy": "风险规则策略无效", "baseline": "基线文件无效", "previous": "上一批次报告读取失败", "assessment": "风险评估失败"}
 			return r.failure(messages[problem.Stage])
 		}

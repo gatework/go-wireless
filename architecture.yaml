@@ -1,0 +1,81 @@
+# go-wireless import boundaries (STANDARD.md ARC-1), enforced by archcheck in `make check`.
+declared:
+  - .
+  - ./wlan
+  - ./rules
+  - ./change
+  - ./parser
+  - ./collect
+  - ./vendors
+  - ./vendors/h3c
+  - ./vendors/huawei
+  - ./vendors/internal/fields
+  - ./report
+  - ./adapter/netconnector
+  - ./internal/record
+  - ./internal/parsetext
+  - ./internal/input
+  - ./internal/nativeerr
+  - ./internal/buildinfo
+  - ./internal/bootstrap
+  - ./internal/cli
+  - ./internal/workflow/apply
+  - ./internal/workflow/collect
+  - ./internal/workflow/review
+  - ./cmd/wireless
+  - ./examples/library
+
+rules:
+  - name: domain packages never reach transport, presentation or composition
+    packages: [., ./wlan, ./rules, ./change, ./parser, ./collect, ./vendors/...]
+    deny: [github.com/gatework/go-net-connector/..., github.com/gatework/go-expect/...,
+           github.com/spf13/cobra/..., golang.org/x/term/...,
+           ./internal/bootstrap/..., ./internal/cli/..., ./internal/workflow/..., ./adapter/..., ./report/...]
+    transitive: true
+
+  - name: domain packages do no file or network I/O themselves
+    packages: [., ./wlan, ./rules, ./change, ./parser, ./collect, ./vendors/...]
+    deny: [net, net/http/..., io/fs, path/filepath, os/...]
+
+  - name: the root evidence package imports no local package
+    packages: [.]
+    deny: [./...]
+    transitive: true
+
+  - name: the typed model depends only on go-netops
+    packages: [./wlan]
+    deny: [./...]
+    transitive: true
+
+  - name: the rule catalog uses only the model and the change it proposes
+    packages: [./rules]
+    only_local: [., ./wlan, ./change]
+
+  - name: parser and collection stay vendor neutral
+    packages: [./parser/..., ./collect/...]
+    deny: [./vendors/...]
+    transitive: true
+
+  - name: Huawei does not depend on the H3C implementation
+    packages: [./vendors/huawei/...]
+    deny: [./vendors/h3c/...]
+    transitive: true
+
+  - name: generic records stay inside the parsers
+    packages: [./...]
+    except: [./parser/..., ./vendors/..., ./internal/record]
+    deny: [./internal/record]
+
+  - name: workflows never import composition, transport or presentation
+    packages: [./internal/workflow/...]
+    deny: [./internal/cli/..., ./internal/bootstrap/..., ./adapter/..., ./vendors/...,
+           github.com/gatework/go-net-connector/..., github.com/gatework/go-expect/...,
+           github.com/spf13/..., golang.org/x/term/...]
+
+  - name: the apply workflow does not depend on concrete publication
+    packages: [./internal/workflow/apply/...]
+    deny: [./report/...]
+
+  - name: bootstrap does not import the CLI
+    packages: [./internal/bootstrap/...]
+    deny: [./internal/cli/...]

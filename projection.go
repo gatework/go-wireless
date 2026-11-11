@@ -15,13 +15,14 @@ func NewProjection(dimensions Record) (Projection, error) {
 	if err != nil {
 		return Projection{}, err
 	}
-	for _, entry := range v.(Record) {
+	owned, _ := v.(Record)
+	for _, entry := range owned {
 		m, ok := entry.(Record)
 		if !ok || m["status"] == nil {
 			return Projection{}, errors.New("invalid wireless projection")
 		}
 	}
-	return Projection{v.(Record)}, nil
+	return Projection{owned}, nil
 }
 func (p Projection) Dimensions() Record {
 	if p.dimensions == nil {
@@ -31,7 +32,7 @@ func (p Projection) Dimensions() Record {
 }
 func (p Projection) Complete() bool {
 	for _, v := range p.dimensions {
-		if fmt.Sprint(v.(Record)["status"]) != "complete" {
+		if entry, _ := v.(Record); fmt.Sprint(entry["status"]) != "complete" {
 			return false
 		}
 	}

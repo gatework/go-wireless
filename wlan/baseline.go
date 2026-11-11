@@ -38,7 +38,7 @@ type Expectation struct {
 // Baseline is the frozen intent of one or more controllers.
 type Baseline struct {
 	SchemaVersion int                    `yaml:"schema_version" json:"schema_version"`
-	Defaults      Expectation            `yaml:"defaults,omitempty" json:"defaults,omitempty"`
+	Defaults      Expectation            `yaml:"defaults,omitempty" json:"defaults,omitzero"`
 	Controllers   map[string]Expectation `yaml:"controllers,omitempty" json:"controllers,omitempty"` // host -> overrides
 }
 

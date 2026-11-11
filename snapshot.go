@@ -35,7 +35,8 @@ func NewSnapshot(o SnapshotOptions) (Snapshot, error) {
 		}
 		dims[n] = obs
 	}
-	return Snapshot{v.(Record), dims, o.ObservedAt}, nil
+	identity, _ := v.(Record)
+	return Snapshot{identity, dims, o.ObservedAt}, nil
 }
 func (s Snapshot) Target() Record { return cloneRecord(s.target) }
 func (s Snapshot) Dimensions() map[Dimension]Observation {

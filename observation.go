@@ -168,7 +168,7 @@ func copyRecords(a []Record) ([]Record, error) {
 		if err != nil {
 			return nil, err
 		}
-		out[n] = v.(Record)
+		out[n], _ = v.(Record)
 	}
 	return out, nil
 }
@@ -180,6 +180,7 @@ type visit struct {
 
 var jsonNumberPattern = regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`)
 
+//nolint:nilnil // nil is JSON null
 func copyJSON(v any, seen map[visit]bool) (any, error) {
 	if v == nil {
 		return nil, nil
@@ -262,5 +263,6 @@ func cloneRecord(r Record) Record {
 		return nil
 	}
 	v, _ := copyJSON(r, map[visit]bool{})
-	return v.(Record)
+	clone, _ := v.(Record)
+	return clone
 }

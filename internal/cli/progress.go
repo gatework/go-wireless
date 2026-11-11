@@ -111,8 +111,9 @@ func (p *progress) finish(summary wireless.Record) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	success, partial, failed := 0, 0, 0
-	for _, item := range summary["devices"].([]any) {
-		d := item.(map[string]any)
+	devices, _ := summary["devices"].([]any)
+	for _, item := range devices {
+		d, _ := item.(map[string]any)
 		switch {
 		case d["report_saved"] != true:
 			failed++
@@ -130,8 +131,9 @@ func (p *progress) finish(summary wireless.Record) {
 	p.write(fmt.Sprintf("批次结束：成功 %d，部分成功 %d，失败 %d，跳过 %d\n", success, partial, failed, p.skipped), "")
 	if partial+failed > 0 {
 		failures := map[string]int{}
-		for _, item := range summary["devices"].([]any) {
-			d := item.(map[string]any)
+		devices, _ := summary["devices"].([]any)
+		for _, item := range devices {
+			d, _ := item.(map[string]any)
 			code := "collection_incomplete"
 			if d["report_saved"] != true {
 				code = "report_not_saved"
@@ -153,7 +155,8 @@ func (p *progress) finish(summary wireless.Record) {
 		}
 		p.write("未完成分类："+strings.Join(parts, "，")+"\n", "")
 	}
-	if pending := len(summary["pending"].([]wireless.Record)); pending > 0 {
+	if records, _ := summary["pending"].([]wireless.Record); len(records) > 0 {
+		pending := len(records)
 		p.write(fmt.Sprintf("未采集 %d 台；详见批次报告\n", pending), "")
 	}
 	p.write("证据完整性不代表网络健康，审查结果见报告。\n报告："+StringValue(summary["directory"])+"/summary.json\n文本报告："+StringValue(summary["directory"])+"/summary.txt\n", "")

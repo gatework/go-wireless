@@ -98,7 +98,7 @@ func TestWriteAssessmentPlansOnlyEligibleCandidates(t *testing.T) {
 		t.Fatal(plan)
 	}
 	for _, suffix := range []string{"suggested.cfg", "rollback.cfg"} {
-		for _, line := range strings.Split(strings.TrimSuffix(files["wlc."+suffix], "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimSuffix(files["wlc."+suffix], "\n"), "\n") {
 			if !strings.HasPrefix(line, "! ") {
 				t.Fatalf("%s has executable line %q", suffix, line)
 			}

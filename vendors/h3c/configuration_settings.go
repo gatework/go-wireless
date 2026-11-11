@@ -169,7 +169,8 @@ func (p *configurationParser) applySetting(scope *configurationScope, block *sou
 		if capture[3] != "" {
 			reason = capture[3]
 		}
-		p.data[key] = append(p.data[key].([]wireless.Record), wireless.Record{"mac_address": recordvalue.Scalar(mac), "reason": reason})
+		rows, _ := p.data[key].([]wireless.Record)
+		p.data[key] = append(rows, wireless.Record{"mac_address": recordvalue.Scalar(mac), "reason": reason})
 	case matches(`^(?:undo )?(?:wlan )?(auto-ap|auto-persistent|band-navigation|client inspect|radio-load-balance band-navigation) enable$`):
 		assign(keyName(capture[1]), enabled)
 	case matches(`^(?:undo )?(beacon ssid-hide|bss transition-management enable)$`):

@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// Failure contains only validated diagnostic vocabulary, never an external error.
-type Failure struct{ code, stage string }
+// FailureError contains only validated diagnostic vocabulary, never an external error.
+type FailureError struct{ code, stage string }
 
 var failureCodes = strings.Fields(`invalid_command_result command_failed command_execution_failed command_processing_failed command_aborted session_closed session_state_failed session_busy session_scope_ended connection_failed connection_closed authentication_error transport_error prompt_error login_timeout command_timeout write_timeout output_limit_exceeded script_output_limit_exceeded device_error log_error receipt_callback_failed step_callback_failed prepare_failed after_command_failed invalid_output_encoding cleanup_failed session_observer_failed cancelled deadline_exceeded controller_session_lost controller_prompt_mismatch ap_address_unavailable ap_not_online ap_authentication_failed ap_connection_failed ap_login_not_confirmed ap_session_lost ap_response_missing ap_exit_failed session_close_failed ap_collection_failed ap_session_setup_failed invalid_ap_credentials invalid_ap_connection invalid_ap_session invalid_ap_profile invalid_ap_query`)
 
-func NewFailure(code, stage string) *Failure {
+func NewFailure(code, stage string) *FailureError {
 	if !slices.Contains(failureCodes, code) {
 		code = "invalid_command_result"
 	}
@@ -23,23 +23,23 @@ func NewFailure(code, stage string) *Failure {
 	default:
 		stage = ""
 	}
-	return &Failure{code, stage}
+	return &FailureError{code, stage}
 }
-func (f *Failure) Code() string {
+func (f *FailureError) Code() string {
 	if f == nil {
 		return ""
 	}
 	return f.code
 }
-func (f *Failure) Stage() string {
+func (f *FailureError) Stage() string {
 	if f == nil {
 		return ""
 	}
 	return f.stage
 }
-func (f *Failure) Error() string    { return "wireless: " + f.Code() }
-func (f *Failure) GoString() string { return f.Error() }
-func (f *Failure) ToMap() Record {
+func (f *FailureError) Error() string    { return "wireless: " + f.Code() }
+func (f *FailureError) GoString() string { return f.Error() }
+func (f *FailureError) ToMap() Record {
 	if f == nil {
 		return nil
 	}
@@ -49,11 +49,11 @@ func (f *Failure) ToMap() Record {
 	}
 	return r
 }
-func safeFailure(err error, fallback, stage string) *Failure {
+func safeFailure(err error, fallback, stage string) *FailureError {
 	if err == nil {
 		return nil
 	}
-	if f, ok := errors.AsType[*Failure](err); ok {
+	if f, ok := errors.AsType[*FailureError](err); ok {
 		return NewFailure(f.Code(), stage)
 	}
 	if errors.Is(err, context.Canceled) {
@@ -65,7 +65,7 @@ func safeFailure(err error, fallback, stage string) *Failure {
 	return NewFailure(fallback, stage)
 }
 
-func cloneFailure(f *Failure) *Failure {
+func cloneFailure(f *FailureError) *FailureError {
 	if f == nil {
 		return nil
 	}
@@ -77,7 +77,7 @@ type CaptureOptions struct {
 	Body                   *string
 	StartedAt, CompletedAt time.Time
 	Evidence               []Record
-	Failure                *Failure
+	Failure                *FailureError
 	Skipped                bool
 }
 
@@ -88,7 +88,7 @@ type Capture struct {
 	command, body      string
 	started, completed time.Time
 	evidence           []Record
-	failure            *Failure
+	failure            *FailureError
 	skipped, valid     bool
 }
 
@@ -111,7 +111,7 @@ func (c Capture) Body() string           { return c.body }
 func (c Capture) StartedAt() time.Time   { return c.started }
 func (c Capture) CompletedAt() time.Time { return c.completed }
 func (c Capture) Evidence() []Record     { r, _ := copyRecords(c.evidence); return r }
-func (c Capture) Failure() *Failure      { return cloneFailure(c.failure) }
+func (c Capture) Failure() *FailureError { return cloneFailure(c.failure) }
 
 // Valid reports whether the capture was constructed with checked evidence.
 func (c Capture) Valid() bool   { return c.valid }

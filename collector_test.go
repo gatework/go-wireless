@@ -22,7 +22,7 @@ import (
 type testSession struct {
 	connected       bool
 	output          map[string]string
-	failures        map[string]*wireless.Failure
+	failures        map[string]*wireless.FailureError
 	stateErr, error error
 	calls           []string
 	onExecute       func(string)
@@ -46,7 +46,7 @@ func (s *testSession) Execute(_ context.Context, command string) (collect.Receip
 	return collect.NewReceipt(collect.ReceiptOptions{Attempted: true, Command: command, Raw: command + "\n" + body + "<WLC>", Body: body, Success: f == nil, Steps: 1, Failure: f}), nil
 }
 func controllerFixture() *testSession {
-	return &testSession{connected: true, output: map[string]string{"screen-length disable": "", "display wlan ap all verbose": "Total number of APs : 0\n", "display wlan client verbose": "Total number of clients : 0\n"}, failures: map[string]*wireless.Failure{}}
+	return &testSession{connected: true, output: map[string]string{"screen-length disable": "", "display wlan ap all verbose": "Total number of APs : 0\n", "display wlan client verbose": "Total number of clients : 0\n"}, failures: map[string]*wireless.FailureError{}}
 }
 func options(s collect.Session, dims ...wireless.Dimension) collect.CollectOptions {
 	return collect.CollectOptions{Target: wireless.Record{"host": "192.0.2.10"}, Profile: selectedProfile("h3c"), ConnectorPlatform: "h3c_wireless", Dimensions: dims, Open: func(ctx context.Context, run func(collect.Session) error) error { return run(s) }}
@@ -269,7 +269,7 @@ func TestCollectorAPLazyDependenciesSelectionAndBinding(t *testing.T) {
 	names := []string{"AP-1"}
 	o = options(s, wireless.LLDP)
 	o.APNames = names
-	cap := goodAPCapture(t, "No LLDP neighbors\n")
+	captured := goodAPCapture(t, "No LLDP neighbors\n")
 	reads := 0
 	c := collect.NewCollector(collect.CollectorOptions{APFactory: func(_ context.Context, session collect.Session, _ collect.APCredentials) (collect.APReader, error) {
 		if session != s {
@@ -281,7 +281,7 @@ func TestCollectorAPLazyDependenciesSelectionAndBinding(t *testing.T) {
 			if ap.AccessPoint["name"] != "AP-1" {
 				t.Fatal("selection changed")
 			}
-			return collect.APOutcome{Result: &cap}, nil
+			return collect.APOutcome{Result: &captured}, nil
 		}), nil
 	}})
 	snap = mustCollect(t, c, o)
@@ -292,7 +292,7 @@ func TestCollectorAPLazyDependenciesSelectionAndBinding(t *testing.T) {
 }
 func TestCollectorAPFailuresDoNotLoseFactsOrOtherAPs(t *testing.T) {
 	body := "LLDP neighbor-information of port 1[GE1]:\nLLDP neighbor index: 1\nChassis ID: switch\nPort ID: GE2\n"
-	cap := goodAPCapture(t, body)
+	captured := goodAPCapture(t, body)
 	for _, which := range []string{"error", "cleanup", "close", "read"} {
 		t.Run(which, func(t *testing.T) {
 			s := controllerFixture()
@@ -302,7 +302,7 @@ func TestCollectorAPFailuresDoNotLoseFactsOrOtherAPs(t *testing.T) {
 					if ap.AccessPoint["name"] == "AP-2" {
 						return collect.APOutcome{Error: wireless.NewFailure("ap_not_online", ""), Skipped: true}, nil
 					}
-					out := collect.APOutcome{Result: &cap}
+					out := collect.APOutcome{Result: &captured}
 					switch which {
 					case "error":
 						out.Error = wireless.NewFailure("device_error", "")
@@ -371,7 +371,7 @@ func TestCollectorAPInvalidCapturesSetupAndMissingNames(t *testing.T) {
 }
 func TestCollectorAPSkippedFailuresDeduplicateAndRepeat(t *testing.T) {
 	now := time.Now()
-	cap, e := wireless.NewCapture(wireless.CaptureOptions{Command: selectedProfile("h3c").APQuery().Command(), StartedAt: now, CompletedAt: now, Failure: wireless.NewFailure("session_closed", "session"), Skipped: true})
+	captured, e := wireless.NewCapture(wireless.CaptureOptions{Command: selectedProfile("h3c").APQuery().Command(), StartedAt: now, CompletedAt: now, Failure: wireless.NewFailure("session_closed", "session"), Skipped: true})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -383,7 +383,7 @@ func TestCollectorAPSkippedFailuresDeduplicateAndRepeat(t *testing.T) {
 		factoryCalls++
 		return apReaderFunc(func(context.Context, collect.APRequest) (collect.APOutcome, error) {
 			calls++
-			return collect.APOutcome{Result: &cap, Skipped: true, Error: wireless.NewFailure("session_closed", ""), CleanupError: wireless.NewFailure("session_closed", "")}, nil
+			return collect.APOutcome{Result: &captured, Skipped: true, Error: wireless.NewFailure("session_closed", ""), CleanupError: wireless.NewFailure("session_closed", "")}, nil
 		}), nil
 	}})
 	o := options(s, wireless.LLDP)
@@ -397,21 +397,21 @@ func TestReaderEvidenceImmutableSafeAndFirstFailure(t *testing.T) {
 	s := controllerFixture()
 	now := time.Date(2026, 10, 26, 0, 0, 0, 123000000, time.UTC)
 	r, _ := collect.NewReader(s, func() time.Time { return now })
-	cap, e := r.Read(t.Context(), "display wlan client verbose")
-	if e != nil || !cap.Success() {
-		t.Fatal(cap, e)
+	captured, e := r.Read(t.Context(), "display wlan client verbose")
+	if e != nil || !captured.Success() {
+		t.Fatal(captured, e)
 	}
 	raw := "display wlan client verbose\nTotal number of clients : 0\n<WLC>"
-	ev := cap.Evidence()[0]
+	ev := captured.Evidence()[0]
 	if ev["sha256"] != fmt.Sprintf("%x", sha256.Sum256([]byte(raw))) || ev["bytes"] != len(raw) || ev["observed_at"] != "2026-10-26T00:00:00.123000Z" {
 		t.Fatal(ev)
 	}
 	ev["bytes"] = 0
-	if cap.Evidence()[0]["bytes"] == 0 {
+	if captured.Evidence()[0]["bytes"] == 0 {
 		t.Fatal("mutable evidence")
 	}
-	data, _ := json.Marshal(cap)
-	for _, text := range []string{string(data), fmt.Sprint(cap), fmt.Sprintf("%#v", cap)} {
+	data, _ := json.Marshal(captured)
+	for _, text := range []string{string(data), fmt.Sprint(captured), fmt.Sprintf("%#v", captured)} {
 		if strings.Contains(text, "Total number") {
 			t.Fatal("body leaked")
 		}
@@ -429,9 +429,9 @@ func TestReaderRejectsMalformedReceiptsAndReentry(t *testing.T) {
 		s := controllerFixture()
 		s.receipt = func(string) collect.Receipt { return response }
 		r, _ := collect.NewReader(s, nil)
-		cap, e := r.Read(t.Context(), "query")
-		if e != nil || cap.Success() {
-			t.Fatal(cap, e)
+		captured, e := r.Read(t.Context(), "query")
+		if e != nil || captured.Success() {
+			t.Fatal(captured, e)
 		}
 	}
 	s := controllerFixture()
@@ -449,9 +449,9 @@ func TestReaderRejectsMalformedReceiptsAndReentry(t *testing.T) {
 	s = controllerFixture()
 	s.stateErr = errors.New("private state")
 	r, _ = collect.NewReader(s, nil)
-	cap, e := r.Read(t.Context(), "query")
-	if e != nil || !cap.Skipped() || cap.Failure().Code() != "session_state_failed" || len(s.calls) != 0 {
-		t.Fatal(cap, e)
+	captured, e := r.Read(t.Context(), "query")
+	if e != nil || !captured.Skipped() || captured.Failure().Code() != "session_state_failed" || len(s.calls) != 0 {
+		t.Fatal(captured, e)
 	}
 }
 
@@ -503,9 +503,9 @@ func TestCaptureValidationAndReaderClockBoundaries(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	cap, e := r.Read(ctx, "query")
-	if e != nil || !cap.Skipped() || cap.Failure().Code() != "cancelled" || len(s.calls) != 0 {
-		t.Fatal(cap, e)
+	captured, e := r.Read(ctx, "query")
+	if e != nil || !captured.Skipped() || captured.Failure().Code() != "cancelled" || len(s.calls) != 0 {
+		t.Fatal(captured, e)
 	}
 	ticks := 0
 	r, _ = collect.NewReader(s, func() time.Time {
@@ -515,9 +515,9 @@ func TestCaptureValidationAndReaderClockBoundaries(t *testing.T) {
 		}
 		return now
 	})
-	cap, e = r.Read(t.Context(), "query")
-	if e != nil || cap.Success() || len(cap.Evidence()) != 0 {
-		t.Fatal(cap, e)
+	captured, e = r.Read(t.Context(), "query")
+	if e != nil || captured.Success() || len(captured.Evidence()) != 0 {
+		t.Fatal(captured, e)
 	}
 }
 func TestCollectorAPCredentialsFailureAndUnsupportedCommandViews(t *testing.T) {

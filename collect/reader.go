@@ -20,14 +20,14 @@ type Receipt struct {
 	steps              int
 	success, valid     bool
 	attempted          bool
-	failure            *wireless.Failure
+	failure            *wireless.FailureError
 }
 type ReceiptOptions struct {
 	Command, Raw, Body string
 	Attempted          bool
 	Steps              int
 	Success            bool
-	Failure            *wireless.Failure
+	Failure            *wireless.FailureError
 }
 
 func NewReceipt(o ReceiptOptions) Receipt {
@@ -45,8 +45,8 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 
 // Session is borrowed: Execute must never connect, retry, or close another owner's lease.
 type Session interface {
-	State(context.Context) (bool, error)
-	Execute(context.Context, string) (Receipt, error)
+	State(ctx context.Context) (bool, error)
+	Execute(ctx context.Context, command string) (Receipt, error)
 }
 type Clock func() time.Time
 
@@ -56,7 +56,7 @@ type Reader struct {
 	session Session
 	clock   Clock
 	busy    atomic.Bool
-	failure atomic.Pointer[wireless.Failure]
+	failure atomic.Pointer[wireless.FailureError]
 }
 
 func NewReader(s Session, clock Clock) (*Reader, error) {
@@ -70,27 +70,7 @@ func NewReader(s Session, clock Clock) (*Reader, error) {
 }
 func (r *Reader) String() string   { return "wireless.Reader" }
 func (r *Reader) GoString() string { return r.String() }
-func (r *Reader) state(ctx context.Context) *wireless.Failure {
-	ok, e := r.session.State(ctx)
-	if e != nil {
-		return wireless.FailureFrom(e, "session_state_failed", "session")
-	}
-	if !ok {
-		return wireless.NewFailure("session_closed", "session")
-	}
-	return nil
-}
-func (r *Reader) failureCheck(ctx context.Context) *wireless.Failure {
-	if f := r.failure.Load(); f != nil {
-		return wireless.CloneFailure(f)
-	}
-	f := r.state(ctx)
-	if f != nil {
-		r.failure.CompareAndSwap(nil, f)
-	}
-	return wireless.CloneFailure(r.failure.Load())
-}
-func (r *Reader) Failure(ctx context.Context) *wireless.Failure {
+func (r *Reader) Failure(ctx context.Context) *wireless.FailureError {
 	if !r.busy.CompareAndSwap(false, true) {
 		return wireless.NewFailure("session_busy", "session")
 	}
@@ -168,4 +148,24 @@ func (r *Reader) Read(ctx context.Context, command string) (wireless.Capture, er
 		body = nil
 	}
 	return wireless.NewCapture(wireless.CaptureOptions{Command: command, Body: body, StartedAt: start, CompletedAt: r.clock(), Evidence: evidence, Failure: failure})
+}
+func (r *Reader) state(ctx context.Context) *wireless.FailureError {
+	ok, e := r.session.State(ctx)
+	if e != nil {
+		return wireless.FailureFrom(e, "session_state_failed", "session")
+	}
+	if !ok {
+		return wireless.NewFailure("session_closed", "session")
+	}
+	return nil
+}
+func (r *Reader) failureCheck(ctx context.Context) *wireless.FailureError {
+	if f := r.failure.Load(); f != nil {
+		return wireless.CloneFailure(f)
+	}
+	f := r.state(ctx)
+	if f != nil {
+		r.failure.CompareAndSwap(nil, f)
+	}
+	return wireless.CloneFailure(r.failure.Load())
 }

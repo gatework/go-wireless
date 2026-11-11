@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/pflag"
+
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/bootstrap"
-	"github.com/spf13/pflag"
 )
 
 type Flags struct {

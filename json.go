@@ -27,6 +27,8 @@ func MarshalJSONIndent(value any, prefix, indent string) ([]byte, error) {
 	} // Re-encode RawMessage to retain numeric tokens.
 	return json.MarshalIndent(json.RawMessage(b), prefix, indent)
 }
+
+//nolint:nilnil // nil is JSON null
 func wireNumbers(v reflect.Value, active map[visit]bool) (any, error) {
 	if !v.IsValid() {
 		return nil, nil
@@ -38,10 +40,10 @@ func wireNumbers(v reflect.Value, active map[visit]bool) (any, error) {
 		return wireNumbers(v.Elem(), active)
 	}
 	if v.CanInterface() {
-		if _, ok := v.Interface().(json.Marshaler); ok {
+		if _, ok := reflect.TypeAssert[json.Marshaler](v); ok {
 			return v.Interface(), nil
 		}
-		if _, ok := v.Interface().(json.Number); ok {
+		if _, ok := reflect.TypeAssert[json.Number](v); ok {
 			return v.Interface(), nil
 		}
 	}

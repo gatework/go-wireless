@@ -143,9 +143,11 @@ func Run(ctx context.Context, o Options) (Result, error) {
 			return Result{}, &Error{Stage: "publish"}
 		}
 		entries = append(entries, entry)
-		for key, value := range entry["counts"].(wireless.Record) {
+		entryCounts, _ := entry["counts"].(wireless.Record)
+		for key, value := range entryCounts {
 			n, _ := counts[key].(int)
-			counts[key] = n + value.(int)
+			v, _ := value.(int)
+			counts[key] = n + v
 		}
 	}
 	assessmentBody, e := json.MarshalIndent(assessment, "", "  ")

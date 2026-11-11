@@ -3,6 +3,7 @@ package wireless
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"strconv"
 	"unicode/utf8"
@@ -22,7 +23,7 @@ func DecodeJSONDocument(body []byte) (Record, error) {
 	if err != nil {
 		return nil, ErrDocument
 	}
-	if _, err = d.Token(); err != io.EOF {
+	if _, err = d.Token(); !errors.Is(err, io.EOF) {
 		return nil, ErrDocument
 	}
 	m, ok := v.(Record)

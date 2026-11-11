@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/gatework/go-wireless/internal/bootstrap"
 	"github.com/gatework/go-wireless/internal/buildinfo"
-	"github.com/spf13/cobra"
 )
 
 type exitError struct{ code int }
@@ -112,8 +113,7 @@ func (r *Runner) Run(ctx context.Context, argv []string) int {
 	})
 	root.SetArgs(argv)
 	if err := root.ExecuteContext(ctx); err != nil {
-		var status exitError
-		if errors.As(err, &status) {
+		if status, ok := errors.AsType[exitError](err); ok {
 			return status.code
 		}
 		labels := map[string]string{"collect": "WIRELESS 参数错误", "parse": "离线解析参数错误", "review": "建议参数错误", "apply": "下发参数错误"}

@@ -16,8 +16,8 @@ type Executor func(context.Context, int, []wireless.Record, func(context.Context
 
 // Journal is the existing report publisher; no acquisition is replayed to repair it.
 type Journal interface {
-	WriteDevice(context.Context, report.Result, *wireless.Snapshot) error
-	Finish(context.Context, []report.Result, report.FinishOptions) (wireless.Record, error)
+	WriteDevice(ctx context.Context, result report.Result, snapshot *wireless.Snapshot) error
+	Finish(ctx context.Context, results []report.Result, options report.FinishOptions) (wireless.Record, error)
 	RecoveryFailed() bool
 }
 

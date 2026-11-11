@@ -75,7 +75,7 @@ func NewRegistry(specs ...ProfileSpec) (*Registry, error) {
 		if spec.APNeighbors && !wireless.ValidCommand(spec.APPreparation) || !spec.APNeighbors && spec.APPreparation != "" {
 			return nil, errors.New("wireless parser: invalid AP preparation declaration")
 		}
-		cap := &profileCapability{platform: key, connector: spec.ConnectorPlatform, preparation: spec.Preparation, aliases: slices.Clone(spec.Aliases), parsers: map[string]QuerySpec{}, apNeighbors: spec.APNeighbors, apPreparation: spec.APPreparation}
+		capability := &profileCapability{platform: key, connector: spec.ConnectorPlatform, preparation: spec.Preparation, aliases: slices.Clone(spec.Aliases), parsers: map[string]QuerySpec{}, apNeighbors: spec.APNeighbors, apPreparation: spec.APPreparation}
 		dimensions := map[wireless.Dimension]bool{}
 		for _, query := range spec.Queries {
 			if !wireless.ValidCommand(query.Command) || query.Parse == nil || len(query.Dimensions) == 0 {
@@ -84,7 +84,7 @@ func NewRegistry(specs ...ProfileSpec) (*Registry, error) {
 			if slices.Contains(query.Dimensions, wireless.LLDP) && len(query.Dimensions) != 1 {
 				return nil, errors.New("wireless parser: AP query cannot share controller dimensions")
 			}
-			if _, exists := cap.parsers[query.Command]; exists {
+			if _, exists := capability.parsers[query.Command]; exists {
 				return nil, errors.New("wireless parser: duplicate command declaration")
 			}
 			for _, dimension := range query.Dimensions {
@@ -94,21 +94,21 @@ func NewRegistry(specs ...ProfileSpec) (*Registry, error) {
 				dimensions[dimension] = true
 			}
 			query.Dimensions = slices.Clone(query.Dimensions)
-			cap.queries = append(cap.queries, Query{Command: query.Command, Dimensions: slices.Clone(query.Dimensions)})
-			cap.parsers[query.Command] = query
+			capability.queries = append(capability.queries, Query{Command: query.Command, Dimensions: slices.Clone(query.Dimensions)})
+			capability.parsers[query.Command] = query
 		}
 		if spec.APNeighbors && !dimensions[wireless.LLDP] {
 			return nil, errors.New("wireless parser: AP neighbors require a query declaration")
 		}
-		names := append([]string{key}, cap.aliases...)
+		names := append([]string{key}, capability.aliases...)
 		for _, name := range names {
 			name = strings.ToLower(parsetext.Strip(name))
 			if name == "" || strings.ContainsFunc(name, unicode.IsControl) || r.entries[name] != nil {
 				return nil, errors.New("wireless parser: duplicate or invalid platform declaration")
 			}
-			r.entries[name] = cap
+			r.entries[name] = capability
 		}
-		r.ordered = append(r.ordered, cap)
+		r.ordered = append(r.ordered, capability)
 	}
 	return r, nil
 }
@@ -145,11 +145,11 @@ func (r *Registry) Fetch(platform, model string) (*Profile, error) {
 	if r == nil {
 		return nil, errors.New("wireless parser: registry required")
 	}
-	cap := r.entries[strings.ToLower(parsetext.Strip(platform))]
-	if cap == nil {
+	capability := r.entries[strings.ToLower(parsetext.Strip(platform))]
+	if capability == nil {
 		return nil, errors.New("unsupported parser platform")
 	}
-	return &Profile{platform: cap.platform, model: strings.ToLower(parsetext.Strip(model)), capability: cap}, nil
+	return &Profile{platform: capability.platform, model: strings.ToLower(parsetext.Strip(model)), capability: capability}, nil
 }
 
 // Valid reports whether the profile was selected from a validated registry.
@@ -178,12 +178,6 @@ func (p *Profile) PreparationCommand() string {
 	}
 	return p.capability.preparation
 }
-func (p *Profile) declarations() []Query {
-	if !p.Valid() {
-		return nil
-	}
-	return p.capability.queries
-}
 func (p *Profile) Dimensions() []wireless.Dimension {
 	out := []wireless.Dimension{}
 	for _, q := range p.declarations() {
@@ -207,19 +201,6 @@ func (p *Profile) Command(n wireless.Dimension) (string, error) {
 		}
 	}
 	return "", errors.New("unsupported parser dimension")
-}
-func ValidateNames(names []wireless.Dimension, allowEmpty bool) error {
-	if !allowEmpty && len(names) == 0 {
-		return errors.New("dimensions must be nonempty unique names")
-	}
-	seen := map[wireless.Dimension]bool{}
-	for _, n := range names {
-		if n == "" || seen[n] {
-			return errors.New("dimensions must be nonempty unique names")
-		}
-		seen[n] = true
-	}
-	return nil
 }
 func (p *Profile) Queries(names []wireless.Dimension) ([]Query, error) {
 	if !p.Valid() {
@@ -245,6 +226,19 @@ func (p *Profile) Queries(names []wireless.Dimension) ([]Query, error) {
 	}
 	return queries, nil
 }
+func ValidateNames(names []wireless.Dimension, allowEmpty bool) error {
+	if !allowEmpty && len(names) == 0 {
+		return errors.New("dimensions must be nonempty unique names")
+	}
+	seen := map[wireless.Dimension]bool{}
+	for _, n := range names {
+		if n == "" || seen[n] {
+			return errors.New("dimensions must be nonempty unique names")
+		}
+		seen[n] = true
+	}
+	return nil
+}
 func (p *Profile) String() string   { return fmt.Sprintf("<wireless.Profile platform=%s>", p.platform) }
 func (p *Profile) GoString() string { return p.String() }
 
@@ -253,6 +247,7 @@ func (p *Profile) Parse(name wireless.Dimension, content string, complete bool) 
 	out, err := p.ParseMany([]wireless.Dimension{name}, content, complete)
 	return out[name], err
 }
+
 func (p *Profile) ParseMany(names []wireless.Dimension, content string, complete bool) (map[wireless.Dimension]wireless.Observation, error) {
 	if p == nil || p.capability == nil {
 		return nil, errors.New("wireless parser: profile required")
@@ -287,6 +282,15 @@ func (p *Profile) ParseMany(names []wireless.Dimension, content string, complete
 	}
 	return out, nil
 }
+
+// MatchesConnector checks the explicit parser/transport pairing, including declared aliases.
+func (p *Profile) MatchesConnector(platform string) bool {
+	if p == nil || p.capability == nil {
+		return false
+	}
+	key := strings.ToLower(parsetext.Strip(platform))
+	return key == p.capability.connector || key == p.capability.platform || slices.Contains(p.capability.aliases, key)
+}
 func Unavailable(name wireless.Dimension, status wireless.Status, code string) wireless.Observation {
 	o, _ := wireless.NewObservation(wireless.ObservationOptions{Name: name, Status: status, Issues: []wireless.Record{{"code": code}}})
 	return o
@@ -299,11 +303,9 @@ func ResultObservation(name wireless.Dimension, result Result) wireless.Observat
 	return o
 }
 
-// MatchesConnector checks the explicit parser/transport pairing, including declared aliases.
-func (p *Profile) MatchesConnector(platform string) bool {
-	if p == nil || p.capability == nil {
-		return false
+func (p *Profile) declarations() []Query {
+	if !p.Valid() {
+		return nil
 	}
-	key := strings.ToLower(parsetext.Strip(platform))
-	return key == p.capability.connector || key == p.capability.platform || slices.Contains(p.capability.aliases, key)
+	return p.capability.queries
 }

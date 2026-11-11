@@ -35,7 +35,8 @@ func (p *parseState) parseModels(text string, complete bool) parser.Result {
 				continue
 			}
 			section = wireless.Record{"radio_id": id.String()}
-			model["radios"] = append(model["radios"].([]wireless.Record), section)
+			radios, _ := model["radios"].([]wireless.Record)
+			model["radios"] = append(radios, section)
 			mapping = h3cModelRadio
 		} else if model != nil && f.label == "version support list" && f.raw == nil {
 			section, mapping = nil, h3cModelVersion
@@ -46,7 +47,8 @@ func (p *parseState) parseModels(text string, complete bool) parser.Result {
 				version = m[1]
 			}
 			section = wireless.Record{"hardware_version": version}
-			model["versions"] = append(model["versions"].([]wireless.Record), section)
+			versions, _ := model["versions"].([]wireless.Record)
+			model["versions"] = append(versions, section)
 			mapping = h3cModelVersion
 		} else if field := mapping[f.label]; section != nil && field != "" {
 			v, e := convertModelField(field, f.raw)
@@ -60,7 +62,7 @@ func (p *parseState) parseModels(text string, complete bool) parser.Result {
 		}
 	}
 	for _, r := range records {
-		radios := r["radios"].([]wireless.Record)
+		radios, _ := r["radios"].([]wireless.Record)
 		incomplete := r["radio_count"] == nil || record.StringValue(r["radio_count"]) != record.StringValue(len(radios))
 		for _, radio := range radios {
 			for _, key := range []string{"modes", "default_mode", "bss_count"} {
@@ -72,7 +74,8 @@ func (p *parseState) parseModels(text string, complete bool) parser.Result {
 		if incomplete {
 			issues = append(issues, wireless.Record{"code": "incomplete_model", "model": r["model"]})
 		}
-		for _, version := range r["versions"].([]wireless.Record) {
+		versions, _ := r["versions"].([]wireless.Record)
+		for _, version := range versions {
 			bad := false
 			for _, key := range h3cModelVersion {
 				if version[key] == nil {
@@ -87,13 +90,15 @@ func (p *parseState) parseModels(text string, complete bool) parser.Result {
 		if parser.HasDuplicates(radios, []string{"radio_id"}) {
 			issues = append(issues, wireless.Record{"code": "duplicate_identity", "model": r["model"]})
 		}
-		if parser.HasDuplicates(r["versions"].([]wireless.Record), []string{"hardware_version"}) {
+		if parser.HasDuplicates(versions, []string{"hardware_version"}) {
 			issues = append(issues, wireless.Record{"code": "duplicate_identity", "model": r["model"]})
 		}
 	}
 	total := reportedTotal(text, "AP models", &issues, nil, "")
 	return parser.FieldsResult(records, issues, complete, total, []string{"model"})
 }
+
+//nolint:nilnil // an absent field converts to JSON null
 func convertModelField(field string, raw *string) (any, error) {
 	switch field {
 	case "vendor_id", "license_weight", "license_type", "radio_count", "bss_count":

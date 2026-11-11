@@ -53,7 +53,8 @@ func (c ConfigurationCapture) Data() any {
 }
 func (c ConfigurationCapture) Path() []any {
 	v, _ := wireless.CopyValue(c.path)
-	return v.([]any)
+	list, _ := v.([]any)
+	return list
 }
 func (c ConfigurationCapture) FirstLine() int { return c.first + 1 }
 func (c ConfigurationCapture) LastLine() int  { return c.last + 1 }
@@ -94,7 +95,7 @@ func ParseConfigurationSource(content string, complete bool) (*ConfigurationSour
 	if _, err := parser.NormalizeText(content, true); err != nil {
 		s := &ConfigurationSource{}
 		s.observation = parser.Unavailable(wireless.Configuration, wireless.Failed, "invalid_output")
-		return s, nil
+		return s, nil //nolint:nilerr // invalid text is reported as a failed observation, not an error
 	}
 	if parser.TerminalUnsupported(content) {
 		s := &ConfigurationSource{}
@@ -159,7 +160,7 @@ func (s *ConfigurationSource) MarshalJSON() ([]byte, error) {
 func (s *ConfigurationSource) capture(block *sourceBlock, data any, path []any) {
 	v, _ := wireless.CopyValue(data)
 	p, _ := wireless.CopyValue(path)
-	s.captures = append(s.captures, ConfigurationCapture{s, block.index, block.last, v, p.([]any)})
+	s.captures = append(s.captures, ConfigurationCapture{s, block.index, block.last, v, asList(p)})
 }
 func readConfigurationSource(content string) *ConfigurationSource {
 	hash := sha256.Sum256([]byte(content))
@@ -225,4 +226,10 @@ func readConfigurationSource(content string) *ConfigurationSource {
 		s.issues = append(s.issues, wireless.Record{"code": "incomplete_banner"})
 	}
 	return s
+}
+
+// asList returns v as a list, or nil when it is not one.
+func asList(v any) []any {
+	list, _ := v.([]any)
+	return list
 }

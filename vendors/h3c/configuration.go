@@ -130,6 +130,8 @@ func (p *configurationParser) globalScope(kind string, identity *string) *config
 	}
 	return &configurationScope{kind, record, path}
 }
+
+//nolint:nilnil // a line that opens no scope yields no scope
 func (p *configurationParser) rootScope(line string) (*configurationScope, error) {
 	if m := rootEntity.FindStringSubmatch(line); m != nil {
 		kind := map[string]string{"ap-group": "ap_groups", "service-template": "service_templates", "ap": "access_points"}[strings.ToLower(m[1])]
@@ -168,7 +170,7 @@ func (p *configurationParser) rootScope(line string) (*configurationScope, error
 			recordvalue.Map(p.data[kind])[name] = record
 			identity = name
 		} else {
-			rows := p.data[kind].([]wireless.Record)
+			rows, _ := p.data[kind].([]wireless.Record)
 			identity = len(rows)
 			p.data[kind] = append(rows, record)
 		}
@@ -185,6 +187,8 @@ func (p *configurationParser) rootScope(line string) (*configurationScope, error
 	}
 	return nil, nil
 }
+
+//nolint:nilnil // a line that opens no scope yields no scope
 func (p *configurationParser) nestedScope(line string, owner *configurationScope) (*configurationScope, error) {
 	if m := nestedModel.FindStringSubmatch(line); m != nil {
 		if owner.kind != "ap_groups" {
@@ -285,8 +289,8 @@ func (p *configurationParser) unsupported(block *sourceBlock) {
 		pending = pending[:len(pending)-1]
 		p.source.states[b.index] = "unsupported"
 		p.issues = append(p.issues, wireless.Record{"code": "unrecognized_wireless_configuration", "line": b.index + 1})
-		for i := len(b.children) - 1; i >= 0; i-- {
-			pending = append(pending, b.children[i])
+		for _, v := range slices.Backward(b.children) {
+			pending = append(pending, v)
 		}
 	}
 }
@@ -299,8 +303,8 @@ func (p *configurationParser) ignore(block *sourceBlock) {
 			p.unsupported(b)
 		} else {
 			p.source.states[b.index] = "ignored"
-			for i := len(b.children) - 1; i >= 0; i-- {
-				pending = append(pending, b.children[i])
+			for _, v := range slices.Backward(b.children) {
+				pending = append(pending, v)
 			}
 		}
 	}
@@ -395,7 +399,7 @@ func (p *configurationParser) applyBlock(block *sourceBlock, scope *configuratio
 			if strings.Contains(line, "static-blacklist") {
 				key = "blacklist"
 			}
-			rows := p.data[key].([]wireless.Record)
+			rows, _ := p.data[key].([]wireless.Record)
 			p.source.capture(block, rows[len(rows)-1], []any{key, len(rows) - 1})
 		} else {
 			p.source.capture(block, scope.record, scope.path)
@@ -422,6 +426,7 @@ func (p *configurationParser) bindTemplate(record wireless.Record, name string, 
 		return nil
 	}
 	bindings[name] = binding
-	record["service_templates"] = append(record["service_templates"].([]wireless.Record), binding)
+	templates, _ := record["service_templates"].([]wireless.Record)
+	record["service_templates"] = append(templates, binding)
 	return nil
 }

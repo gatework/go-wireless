@@ -51,7 +51,7 @@ func inventoryHTTP(t *testing.T, calls *int) *http.Client {
 			}
 			body = `[{"ip":"192.0.2.10","vendor":"H3C","model":"WX3540"}]`
 		}
-		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}}, nil
 	})}
 }
 

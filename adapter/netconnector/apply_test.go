@@ -110,7 +110,7 @@ func TestNativeOpenersDoNotCloseAnotherOperationsLease(t *testing.T) {
 						return nil
 					})
 				}
-				failure, ok := errors.AsType[*wireless.Failure](err)
+				failure, ok := errors.AsType[*wireless.FailureError](err)
 				if !ok || failure.Code() != "session_busy" || closeErr != nil {
 					t.Fatalf("busy result: %v, cleanup=%v", err, closeErr)
 				}

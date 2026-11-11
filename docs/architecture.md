@@ -28,9 +28,9 @@ this includes AP LLDP. Huawei does not import H3C. Change does not import review
 Workflow never imports bootstrap, CLI, Cobra, concrete connector, adapter or vendor
 packages. Apply consumes publication state through narrow interfaces and native
 diagnostics through internal/nativeerr; collect/review retain their report value
-contracts. Apply does not import the concrete report implementation. `scripts/check-architecture.py`
-checks these boundaries for entire package subtrees from the compiled package
-graph in the normal CI pipeline. Domain infrastructure and ownership rules inspect
+contracts. Apply does not import the concrete report implementation. `architecture.yaml`,
+enforced by the shared archcheck in `make check`, declares these boundaries for
+entire package subtrees against the compiled package graph. Domain infrastructure and ownership rules inspect
 transitive dependencies too, so an internal helper cannot hide an inverted import.
 Standard-library I/O restrictions and workflow adapter boundaries stay direct; the
 workflow intentionally consumes nativeerr. Its negative and permitted-boundary controls run

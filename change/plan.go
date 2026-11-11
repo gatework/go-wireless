@@ -39,7 +39,7 @@ func NewChangePlan(document wireless.Record) (ChangePlan, error) {
 	if err != nil {
 		return ChangePlan{}, ErrChangePlan
 	}
-	owned := value.(wireless.Record)
+	owned, _ := value.(wireless.Record) // CopyValue preserves the Record type
 	if !schemaOne(owned["schema_version"]) || owned["platform"] != "h3c_wireless" {
 		return ChangePlan{}, ErrChangePlan
 	}

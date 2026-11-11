@@ -30,14 +30,14 @@ func NewCoverage(o CoverageOptions) (Coverage, error) {
 		if err != nil {
 			return Coverage{}, err
 		}
-		obs = v.(Record)
+		obs, _ = v.(Record)
 	}
 	if o.Projection != nil {
 		v, err := copyJSON(o.Projection, map[visit]bool{})
 		if err != nil {
 			return Coverage{}, err
 		}
-		proj = v.(Record)
+		proj, _ = v.(Record)
 	}
 	return Coverage{obs, proj, append([]Dimension{}, o.Dimensions...), o.Now, o.StaleAfter}, nil
 }

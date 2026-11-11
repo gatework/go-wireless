@@ -95,7 +95,7 @@ func fixtureObserver(t *testing.T, steps []exchange, closeFail bool, event func(
 			done <- fmt.Errorf("unexpected extra write %q", b[:n])
 			return
 		}
-		if e != io.EOF && e != io.ErrClosedPipe {
+		if !errors.Is(e, io.EOF) && !errors.Is(e, io.ErrClosedPipe) {
 			done <- e
 			return
 		}
@@ -296,9 +296,9 @@ func TestNativeBorrowDoesNotConnectOrRunArbitraryCommands(t *testing.T) {
 	}
 	_ = d.Close()
 	r, _ := collect.NewReader(s, nil)
-	cap, e := r.Read(t.Context(), "display wlan client verbose")
-	if e != nil || !cap.Skipped() {
-		t.Fatal(cap, e)
+	captured, e := r.Read(t.Context(), "display wlan client verbose")
+	if e != nil || !captured.Skipped() {
+		t.Fatal(captured, e)
 	}
 }
 
@@ -384,9 +384,9 @@ func TestNativeBodyRemovesOnlyFirstEchoAndPreservesIndentation(t *testing.T) {
 	d, _ := fixture(t, []exchange{{command + "\n", command + "\r\n  body\r\n" + command + "\r\n<WLC>"}}, false, nil)
 	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
-	cap, e := r.Read(t.Context(), command)
-	if e != nil || cap.Body() != "  body\n"+command+"\n" {
-		t.Fatalf("body=%q err=%v", cap.Body(), e)
+	captured, e := r.Read(t.Context(), command)
+	if e != nil || captured.Body() != "  body\n"+command+"\n" {
+		t.Fatalf("body=%q err=%v", captured.Body(), e)
 	}
 }
 
@@ -396,9 +396,9 @@ func TestNativeInvalidEncodingRetainsReceipt(t *testing.T) {
 	d, _ := fixture(t, []exchange{{command + "\n", output}}, false, nil)
 	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
-	cap, e := r.Read(t.Context(), command)
-	if e != nil || cap.Success() || cap.Failure().Code() != "invalid_output_encoding" || cap.Evidence()[0]["bytes"] != len(output) || d.Connected() {
-		t.Fatal(cap, e, cap.Evidence())
+	captured, e := r.Read(t.Context(), command)
+	if e != nil || captured.Success() || captured.Failure().Code() != "invalid_output_encoding" || captured.Evidence()[0]["bytes"] != len(output) || d.Connected() {
+		t.Fatal(captured, e, captured.Evidence())
 	}
 }
 
@@ -422,12 +422,12 @@ func TestNativeControllerReadFailurePreservesCloseDiagnostic(t *testing.T) {
 	d, _ := fixture(t, []exchange{{"display wlan client verbose\n", "partial"}}, true, nil)
 	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
-	cap, e := r.Read(t.Context(), "display wlan client verbose")
-	if e != nil || cap.Success() || s.CloseFailure() == nil || s.CloseFailure().Code() != "session_close_failed" || d.Connected() {
-		t.Fatal(cap, e, s.CloseFailure())
+	captured, e := r.Read(t.Context(), "display wlan client verbose")
+	if e != nil || captured.Success() || s.CloseFailure() == nil || s.CloseFailure().Code() != "session_close_failed" || d.Connected() {
+		t.Fatal(captured, e, s.CloseFailure())
 	}
 	diagnostic := s.CloseFailure()
-	*diagnostic = wireless.Failure{}
+	*diagnostic = wireless.FailureError{}
 	if s.CloseFailure().Code() != "session_close_failed" {
 		t.Fatal("retained close diagnostic was mutable")
 	}
@@ -475,9 +475,9 @@ func TestReviewLateCancellationRetainsOwnedCloseFailure(t *testing.T) {
 	})
 	s, _ := Borrow(d, selectedProfile())
 	r, _ := collect.NewReader(s, nil)
-	cap, e := r.Read(ctx, "display wlan client verbose")
-	if e != nil || cap.Success() || cap.Body() != "" || cap.Failure().Code() != "cancelled" || d.Connected() {
-		t.Fatalf("cancellation result %v %v", cap, e)
+	captured, e := r.Read(ctx, "display wlan client verbose")
+	if e != nil || captured.Success() || captured.Body() != "" || captured.Failure().Code() != "cancelled" || d.Connected() {
+		t.Fatalf("cancellation result %v %v", captured, e)
 	}
 	if s.CloseFailure() == nil || s.CloseFailure().Code() != "session_close_failed" {
 		t.Fatal("late cancellation lost owned close failure")

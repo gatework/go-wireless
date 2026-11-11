@@ -66,16 +66,6 @@ type Controller struct {
 	Issues           map[evidence.Dimension][]evidence.Issue `json:"issues,omitempty"`
 }
 
-// Has reports whether a dimension is complete.
-func (c *Controller) Has(d evidence.Dimension) bool { return c.Coverage.Status(d).Complete() }
-
-// Observed is the parser output for one dimension.
-type Observed struct {
-	Status  evidence.Status
-	Records []json.RawMessage
-	Issues  []json.RawMessage
-}
-
 // NewController decodes observed dimensions into a typed controller.
 func NewController(id Identity, dims map[evidence.Dimension]Observed) *Controller {
 	c := &Controller{Identity: id, Coverage: evidence.Coverage{}, Issues: map[evidence.Dimension][]evidence.Issue{}}
@@ -106,6 +96,16 @@ func NewController(id Identity, dims map[evidence.Dimension]Observed) *Controlle
 	}
 	return c
 }
+
+// Observed is the parser output for one dimension.
+type Observed struct {
+	Status  evidence.Status
+	Records []json.RawMessage
+	Issues  []json.RawMessage
+}
+
+// Has reports whether a dimension is complete.
+func (c *Controller) Has(d evidence.Dimension) bool { return c.Coverage.Status(d).Complete() }
 
 func (c *Controller) decode(dim evidence.Dimension, records []json.RawMessage) error {
 	switch dim {

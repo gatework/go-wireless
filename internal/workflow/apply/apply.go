@@ -18,8 +18,8 @@ type Opener func(context.Context, func(context.Context, change.ApplySession) err
 // Each call receives a detached projection that the journal may retain.
 // FinalizeExecution must preserve a recoverable checkpoint if publication fails.
 type Journal interface {
-	WriteExecution(context.Context, wireless.Record) error
-	FinalizeExecution(context.Context, wireless.Record) error
+	WriteExecution(ctx context.Context, state wireless.Record) error
+	FinalizeExecution(ctx context.Context, state wireless.Record) error
 }
 
 // publicationStatus is the journal capability needed to retain uncertain intent.
@@ -52,9 +52,10 @@ func Run(ctx context.Context, plan change.ChangePlan, planSHA256 string, open Op
 	fail := func(cause, cleanup error) (Result, error) {
 		state.fail(ctx.Err() != nil)
 		fallback := "command_execution_failed"
-		if state.stage == "connect" {
+		switch state.stage {
+		case "connect":
 			fallback = "connection_failed"
-		} else if state.stage == "response" {
+		case "response":
 			fallback = "invalid_command_result"
 		}
 		state.diagnostics.collect(cause, "operation_errors", fallback, state.stage)

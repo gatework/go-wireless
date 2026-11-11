@@ -52,8 +52,8 @@ func Strings(v any) ([]string, bool) {
 		return nil, false
 	}
 	r := []string{}
-	for i := 0; i < rv.Len(); i++ {
-		s, ok := rv.Index(i).Interface().(string)
+	for i := range rv.Len() {
+		s, ok := reflect.TypeAssert[string](rv.Index(i))
 		if !ok {
 			return nil, false
 		}

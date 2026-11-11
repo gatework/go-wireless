@@ -10,8 +10,6 @@ import (
 	"github.com/gatework/go-wireless/wlan"
 )
 
-func ptr[T any](v T) *T { return &v }
-
 func run(t *testing.T, c *wlan.Controller, policy assess.Policy) []assess.Finding {
 	t.Helper()
 	a, err := rules.NewAssessor(policy, nil)
@@ -38,7 +36,7 @@ func h3c(dims ...evidence.Dimension) *wlan.Controller {
 }
 
 func template(name string, enabled *bool, ciphers, ies []string) wlan.ServiceTemplate {
-	return wlan.ServiceTemplate{Name: name, SSID: ptr(name), Enabled: enabled, Configuration: wlan.Settings{CipherSuites: ciphers, SecurityIEs: ies}}
+	return wlan.ServiceTemplate{Name: name, SSID: new(name), Enabled: enabled, Configuration: wlan.Settings{CipherSuites: ciphers, SecurityIEs: ies}}
 }
 
 // Parser-shaped reproduction of legacy recommendation case 0.
@@ -46,12 +44,12 @@ func TestSecurityAndBindingMatchLegacyCommands(t *testing.T) {
 	c := h3c(wlan.DimConfiguration)
 	c.Configuration = &wlan.Configuration{
 		ServiceTemplates: []wlan.ServiceTemplate{
-			template("corp0", ptr(true), []string{"ccmp", "tkip"}, []string{"rsn", "wpa"}),
-			template("corp1", ptr(false), []string{"ccmp", "tkip"}, []string{"rsn", "wpa"}),
+			template("corp0", new(true), []string{"ccmp", "tkip"}, []string{"rsn", "wpa"}),
+			template("corp1", new(false), []string{"ccmp", "tkip"}, []string{"rsn", "wpa"}),
 			template("corp2", nil, []string{"ccmp", "tkip"}, []string{"rsn", "wpa"}),
-			template("blocked", ptr(true), []string{"tkip"}, []string{"wpa"}),
+			template("blocked", new(true), []string{"tkip"}, []string{"wpa"}),
 		},
-		AccessPoints: map[string]wlan.Settings{"z": {Radios: map[string]wlan.Settings{"2": {ServiceTemplates: []wlan.TemplateBinding{{Name: "missing", VLANID: ptr(4)}, {Name: "corp1"}}}}}},
+		AccessPoints: map[string]wlan.Settings{"z": {Radios: map[string]wlan.Settings{"2": {ServiceTemplates: []wlan.TemplateBinding{{Name: "missing", VLANID: new(4)}, {Name: "corp1"}}}}}},
 		APGroups:     []wlan.APGroup{{Name: "g", Configuration: wlan.Settings{Radios: map[string]wlan.Settings{"1": {ServiceTemplates: []wlan.TemplateBinding{{Name: "second"}}}}}}},
 	}
 	fs := run(t, c, assess.Policy{})
@@ -86,15 +84,15 @@ func TestSecurityAndBindingMatchLegacyCommands(t *testing.T) {
 func TestRuntimeRules(t *testing.T) {
 	c := h3c(wlan.DimAccessPoints, wlan.DimRadios, wlan.DimIPConflicts)
 	c.AccessPoints = []wlan.AccessPoint{
-		{Name: "ap1", Model: "WA6638", OperationalStatus: "R/M", OSVersion: "7.1.064", ClientCount: ptr(wlan.Number("80"))},
+		{Name: "ap1", Model: "WA6638", OperationalStatus: "R/M", OSVersion: "7.1.064", ClientCount: new(wlan.Number("80"))},
 		{Name: "ap2", Model: "WA6638", OperationalStatus: "Run", OSVersion: "7.1.064"},
 		{Name: "ap3", Model: "WA6638", OperationalStatus: "R", OSVersion: "7.1.070"},
 		{Name: "ap4", Model: "WA6638", OperationalStatus: "Idle"},
 	}
 	c.Radios = []wlan.Radio{
-		{APName: "ap1", RadioID: "1", Channel: ptr(6), ChannelWidth: ptr(wlan.Number("40")), Utilization: ptr(85), NoiseDBm: ptr(-70.0)},
-		{APName: "ap1", RadioID: "2", Channel: ptr(36), ChannelWidth: ptr(wlan.Number("80")), AdminStatus: "Down"},
-		{APName: "ap2", RadioID: "1", Channel: ptr(3), ChannelWidth: ptr(wlan.Number("20")), Utilization: ptr(30), NoiseDBm: ptr(-95.0)},
+		{APName: "ap1", RadioID: "1", Channel: new(6), ChannelWidth: new(wlan.Number("40")), Utilization: new(85), NoiseDBm: new(-70.0)},
+		{APName: "ap1", RadioID: "2", Channel: new(36), ChannelWidth: new(wlan.Number("80")), AdminStatus: "Down"},
+		{APName: "ap2", RadioID: "1", Channel: new(3), ChannelWidth: new(wlan.Number("20")), Utilization: new(30), NoiseDBm: new(-95.0)},
 	}
 	c.IPConflicts = []wlan.IPConflict{{IPAddress: "10.0.0.9"}, {IPAddress: "10.0.0.9"}}
 	fs := run(t, c, assess.Policy{})
@@ -146,10 +144,10 @@ func TestOpenSSIDAndBackupAC(t *testing.T) {
 	c := h3c(wlan.DimConfiguration)
 	c.Configuration = &wlan.Configuration{
 		ServiceTemplates: []wlan.ServiceTemplate{
-			template("guest", ptr(true), nil, nil),
-			template("corp", ptr(true), []string{"ccmp"}, []string{"rsn"}),
-			template("portal", ptr(true), nil, nil),
-			template("off", ptr(false), nil, nil),
+			template("guest", new(true), nil, nil),
+			template("corp", new(true), []string{"ccmp"}, []string{"rsn"}),
+			template("portal", new(true), nil, nil),
+			template("off", new(false), nil, nil),
 		},
 		APGroups: []wlan.APGroup{{Name: "default-group"}},
 	}

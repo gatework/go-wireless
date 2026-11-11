@@ -52,12 +52,12 @@ func (p *parseState) parseAPs(text string, complete bool) map[wireless.Dimension
 				p.assign(ensureMap(ensureMap(radio, "details"), section), label, record.Scalar(raw), &issues, line)
 				continue
 			}
-			owner, mapping := ap, h3cAp
+			owner, mapping := ap, h3cAP
 			if radio != nil && h3cRadio[label] != "" {
 				owner, mapping = radio, h3cRadio
 			}
 			var details wireless.Record
-			if h3cApDetails[label] {
+			if h3cAPDetails[label] {
 				details = ap
 			} else if h3cRadioDetails[label] {
 				details = radio

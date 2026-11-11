@@ -100,7 +100,7 @@ var h3cBssSecurity = map[string]bool{
 	"btm status":               true,
 	"mlo status":               true,
 }
-var h3cAp = map[string]string{
+var h3cAP = map[string]string{
 	"ap id":             "ap_id",
 	"ap group name":     "group_name",
 	"state":             "operational_status",
@@ -128,7 +128,7 @@ var h3cRadio = map[string]string{
 	"operating bandwidth": "channel_width",
 	"channel band-width":  "channel_width",
 }
-var h3cApDetails = map[string]bool{
+var h3cAPDetails = map[string]bool{
 	"backup type":                   true,
 	"ready-for-switchover":          true,
 	"system uptime":                 true,

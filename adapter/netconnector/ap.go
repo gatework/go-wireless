@@ -194,14 +194,14 @@ func (a *APSession) Read(ctx context.Context, request collect.APRequest) (out co
 			out.Error = wireless.NewFailure("ap_session_lost", "execute")
 			return nil
 		}
-		cap, capErr := reader.Read(ctx, request.Query.Command())
+		captured, capErr := reader.Read(ctx, request.Query.Command())
 		if capErr != nil {
 			out.Error = nativeerr.Failure(capErr, "command_execution_failed", "execute")
 			return nil
 		}
-		out.Result = &cap
-		if !cap.Success() {
-			out.Error = cap.Failure()
+		out.Result = &captured
+		if !captured.Success() {
+			out.Error = captured.Failure()
 		} else if strings.TrimSpace(op.RawPrompt()) != apPrompt {
 			out.Error = wireless.NewFailure("ap_session_lost", "execute")
 		}

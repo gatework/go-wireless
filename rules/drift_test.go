@@ -26,14 +26,14 @@ func controllerWith(aps []wlan.AccessPoint, templates ...wlan.ServiceTemplate) *
 }
 
 func TestWirelessBaseline(t *testing.T) {
-	corp := template("corp", ptr(true), []string{"ccmp"}, []string{"rsn"})
-	corp.VLANID = ptr(20)
+	corp := template("corp", new(true), []string{"ccmp"}, []string{"rsn"})
+	corp.VLANID = new(20)
 	c := controllerWith([]wlan.AccessPoint{{Name: "ap1", Model: "WA6638", OperationalStatus: "R/M", OSVersion: "7.1.064"}}, corp)
 	b := wlan.Baseline{SchemaVersion: 1,
 		Defaults: wlan.Expectation{
-			ServiceTemplates: map[string]wlan.TemplateExpectation{"corp": {VLAN: ptr(10), CipherSuites: []string{"ccmp", "gcmp256"}}, "guest": {}},
+			ServiceTemplates: map[string]wlan.TemplateExpectation{"corp": {VLAN: new(10), CipherSuites: []string{"ccmp", "gcmp256"}}, "guest": {}},
 			APFirmware:       map[string]string{"WA6638": "7.1.070"},
-			BackupAC:         ptr("192.0.2.11"),
+			BackupAC:         new("192.0.2.11"),
 		},
 	}
 	a, _ := rules.NewAssessor(assess.Policy{}, nil)
@@ -65,12 +65,12 @@ func TestWirelessBaseline(t *testing.T) {
 }
 
 func TestWirelessChanges(t *testing.T) {
-	corp := template("corp", ptr(true), []string{"ccmp"}, []string{"rsn"})
+	corp := template("corp", new(true), []string{"ccmp"}, []string{"rsn"})
 	before := controllerWith([]wlan.AccessPoint{
 		{Name: "ap1", OperationalStatus: "R/M", OSVersion: "7.1.064"},
 		{Name: "ap2", OperationalStatus: "R/M"},
 		{Name: "ap3", OperationalStatus: "R/M"},
-	}, corp, template("guest", ptr(true), nil, nil))
+	}, corp, template("guest", new(true), nil, nil))
 	before.LLDP = []wlan.LLDPNeighbor{{APName: "ap1", LocalInterface: "GE1/0/1", RemoteName: "sw1", RemoteInterface: "GE1/0/10"}}
 	after := controllerWith([]wlan.AccessPoint{
 		{Name: "ap1", OperationalStatus: "R/M", OSVersion: "7.1.070"},

@@ -99,8 +99,8 @@ GOWORK=off go test -race ./...
 GOWORK=off go vet ./...
 python3 -O scripts/test_check_delivery.py
 python3 scripts/check-delivery.py
-# CI 同时执行只读模块、格式和完整 race 检查
-bash scripts/ci
+# 提交前的统一门禁（gatework Go 规范 MOD-5），CI 执行同一入口
+make check
 ```
 
 [兼容矩阵](docs/compatibility.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[验证说明](docs/verification.md) 列出当前检查入口、已发布版本证据与实测边界。测试使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。

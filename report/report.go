@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -138,7 +139,6 @@ func New(root string, o Options) (*Report, error) {
 }
 func (r *Report) Directory() string    { return r.directory }
 func (r *Report) RecoveryFailed() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.recoveryFailed }
-func (r *Report) recoveryFailure()     { r.mu.Lock(); r.recoveryFailed = true; r.mu.Unlock() }
 
 // Publish is the only artifact writer; relative paths are confined to this batch.
 func (r *Report) Publish(ctx context.Context, relative string, body []byte) error {
@@ -177,28 +177,7 @@ func (r *Report) Publish(ctx context.Context, relative string, body []byte) erro
 	}
 	return nil
 }
-func safeRelative(path string) bool {
-	return path != "" && !filepath.IsAbs(path) && filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, ".."+string(filepath.Separator)) && !strings.ContainsAny(path, "\x00\r\n")
-}
 
-var unsafeName = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
-
-func Basename(device wireless.Record) string {
-	name, _ := device["name"].(string)
-	name = unsafeName.ReplaceAllString(name, "_")
-	if len(name) > 100 {
-		name = name[:100]
-	}
-	host, _ := device["host"].(string)
-	return name + "-" + strings.ReplaceAll(host, ":", "_")
-}
-func jsonBody(value any) ([]byte, error) {
-	b, e := wireless.MarshalJSONIndent(value, "", "  ")
-	if e != nil {
-		return nil, &Error{Relative: "[document]", Phase: "encode"}
-	}
-	return append(b, '\n'), nil
-}
 func (r *Report) WriteDevice(ctx context.Context, result Result, snapshot *wireless.Snapshot) error {
 	document := result.ToMap()
 	delete(document, "report_saved")
@@ -256,8 +235,7 @@ func (r *Report) WriteDevice(ctx context.Context, result Result, snapshot *wirel
 	}
 	if enrichment.Artifacts != nil {
 		if e = enrichment.Artifacts(ctx, r, PublishedDevice{Basename: name, Path: filepath.Join(r.directory, relative), SHA256: fmt.Sprintf("%x", sha256.Sum256(body)), JSON: append([]byte(nil), body...), Document: document}); e != nil {
-			var publishError *Error
-			if errors.As(e, &publishError) {
+			if _, ok := errors.AsType[*Error](e); ok {
 				return e
 			}
 			return &Error{Relative: "recommendations/" + name, Phase: "artifacts"}
@@ -265,13 +243,28 @@ func (r *Report) WriteDevice(ctx context.Context, result Result, snapshot *wirel
 	}
 	return nil
 }
-
-type FinishOptions struct {
-	Interrupted                              bool
-	Requested                                []wireless.Record
-	ReportError, ExecutionError, OutputError any
+func safeRelative(path string) bool {
+	return path != "" && !filepath.IsAbs(path) && filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, ".."+string(filepath.Separator)) && !strings.ContainsAny(path, "\x00\r\n")
 }
 
+var unsafeName = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
+
+func Basename(device wireless.Record) string {
+	name, _ := device["name"].(string)
+	name = unsafeName.ReplaceAllString(name, "_")
+	if len(name) > 100 {
+		name = name[:100]
+	}
+	host, _ := device["host"].(string)
+	return name + "-" + strings.ReplaceAll(host, ":", "_")
+}
+func jsonBody(value any) ([]byte, error) {
+	b, e := wireless.MarshalJSONIndent(value, "", "  ")
+	if e != nil {
+		return nil, &Error{Relative: "[document]", Phase: "encode"}
+	}
+	return append(b, '\n'), nil
+}
 func (r *Report) Finish(ctx context.Context, results []Result, o FinishOptions) (wireless.Record, error) {
 	r.mu.Lock()
 	r.recoveryFailed = false
@@ -309,9 +302,7 @@ func (r *Report) Finish(ctx context.Context, results []Result, o FinishOptions) 
 		}
 	}
 	checkpoint := wireless.Record{}
-	for k, v := range summary {
-		checkpoint[k] = v
-	}
+	maps.Copy(checkpoint, summary)
 	checkpoint["status"] = "incomplete"
 	if o.Interrupted {
 		checkpoint["status"] = "interrupted"
@@ -344,6 +335,12 @@ func (r *Report) Finish(ctx context.Context, results []Result, o FinishOptions) 
 		return nil, err
 	}
 	return summary, nil
+}
+
+type FinishOptions struct {
+	Interrupted                              bool
+	Requested                                []wireless.Record
+	ReportError, ExecutionError, OutputError any
 }
 
 // Finalize publishes an incomplete/interrupted checkpoint, artifacts, then the
@@ -380,9 +377,7 @@ func (r *Report) Finalize(ctx context.Context, relative string, checkpoint, fina
 		var pe *Error
 		if errors.Is(e, context.Canceled) {
 			cancelledCheckpoint := wireless.Record{}
-			for key, value := range checkpoint {
-				cancelledCheckpoint[key] = value
-			}
+			maps.Copy(cancelledCheckpoint, checkpoint)
 			cancelledCheckpoint["status"] = "interrupted"
 			cancelledBody, encodeErr := jsonBody(cancelledCheckpoint)
 			if encodeErr == nil {
@@ -397,34 +392,6 @@ func (r *Report) Finalize(ctx context.Context, relative string, checkpoint, fina
 		return e
 	}
 	return nil
-}
-func (r *Report) restore(relative string, body []byte) {
-	if e := r.Publish(context.Background(), relative, body); e != nil {
-		r.recoveryFailure()
-		var pe *Error
-		if !errors.As(e, &pe) || !pe.Committed {
-			r.discard(relative)
-		}
-	}
-}
-func (r *Report) discard(relative string) {
-	if e := os.Remove(filepath.Join(r.directory, relative)); e != nil && !errors.Is(e, os.ErrNotExist) {
-		r.recoveryFailure()
-	}
-}
-func (r *Report) invalidateComplete(relative string) {
-	b, e := os.ReadFile(filepath.Join(r.directory, relative))
-	if errors.Is(e, os.ErrNotExist) {
-		return
-	}
-	var v map[string]any
-	if e != nil || json.Unmarshal(b, &v) != nil {
-		r.recoveryFailure()
-		return
-	}
-	if v["status"] == "complete" {
-		r.discard(relative)
-	}
 }
 
 func (r *Report) WriteExecution(ctx context.Context, state wireless.Record) error {
@@ -470,4 +437,35 @@ func (r *Report) FinalizeExecution(ctx context.Context, final wireless.Record) e
 		return e
 	}
 	return nil
+}
+func (r *Report) recoveryFailure() { r.mu.Lock(); r.recoveryFailed = true; r.mu.Unlock() }
+func (r *Report) restore(relative string, body []byte) {
+	if e := r.Publish(context.Background(), relative, body); e != nil {
+		r.recoveryFailure()
+		var pe *Error
+		if !errors.As(e, &pe) || !pe.Committed {
+			r.discard(relative)
+		}
+	}
+}
+
+func (r *Report) discard(relative string) {
+	if e := os.Remove(filepath.Join(r.directory, relative)); e != nil && !errors.Is(e, os.ErrNotExist) {
+		r.recoveryFailure()
+	}
+}
+
+func (r *Report) invalidateComplete(relative string) {
+	b, e := os.ReadFile(filepath.Join(r.directory, relative))
+	if errors.Is(e, os.ErrNotExist) {
+		return
+	}
+	var v map[string]any
+	if e != nil || json.Unmarshal(b, &v) != nil {
+		r.recoveryFailure()
+		return
+	}
+	if v["status"] == "complete" {
+		r.discard(relative)
+	}
 }

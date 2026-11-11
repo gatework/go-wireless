@@ -159,7 +159,7 @@ func (p *parseState) assignField(record wireless.Record, mapping map[string]stri
 		}
 		p.assign(record, field, v, issues, line, identity)
 	} else if details != nil {
-		var v any = recordvalue.Scalar(raw)
+		var v = recordvalue.Scalar(raw)
 		if strings.HasSuffix(label, "url") {
 			v = raw != nil && parsetext.Strip(*raw) != ""
 		}

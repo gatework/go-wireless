@@ -47,17 +47,17 @@ func TestRubyFieldCorpus(t *testing.T) {
 				v, e := parser.ParseIP(raw)
 				actual, err = record.Scalar(v), e
 			case "integer":
-				var max *int64
+				var limit *int64
 				if c.Kwargs["max"] != nil {
 					n, err := c.Kwargs["max"].(json.Number).Int64()
 					if err != nil {
 						t.Fatal(err)
 					}
-					max = &n
+					limit = &n
 				}
 				var maximum *big.Int
-				if max != nil {
-					maximum = big.NewInt(*max)
+				if limit != nil {
+					maximum = big.NewInt(*limit)
 				}
 				v, e := parser.ParseIntegerExact(raw, maximum)
 				actual, err = record.IntegerJSON(v), e

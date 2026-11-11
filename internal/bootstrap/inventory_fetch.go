@@ -91,7 +91,8 @@ func compileInventory(data wireless.Record, environment map[string]string, cwd s
 		return s, nil
 	}
 	db := map[string]string{}
-	for key, name := range map[string]string{"host": "ND_DB_HOST", "dbname": "ND_DB_NAME", "user": "ND_DB_USER", "password": "ND_DB_PASS"} {
+	for key, name := range map[string]string{ //nolint:gosec // maps settings to environment variable names, not secrets
+		"host": "ND_DB_HOST", "dbname": "ND_DB_NAME", "user": "ND_DB_USER", "password": "ND_DB_PASS"} {
 		db[key] = secret(environment, name)
 	}
 	s.postgresIdentity = db["host"] != "" && db["dbname"] != "" && db["user"] != ""

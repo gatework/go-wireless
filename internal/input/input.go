@@ -16,7 +16,7 @@ var ErrInput = errors.New("wireless: invalid input file")
 // must return promptly; the CLI never closes them or spawns a reader goroutine.
 // A Runner exclusively reads its input for the duration of a command.
 type ContextReader interface {
-	ReadContext(context.Context, []byte) (int, error)
+	ReadContext(ctx context.Context, p []byte) (int, error)
 }
 
 func Read(ctx context.Context, input io.Reader, p []byte) (int, error) {
@@ -44,7 +44,7 @@ func Read(ctx context.Context, input io.Reader, p []byte) (int, error) {
 
 type Reader struct {
 	Source  io.Reader
-	Context context.Context
+	Context context.Context //nolint:containedctx // an io.Reader adapter cannot take ctx per Read
 }
 
 func (r Reader) Read(p []byte) (int, error) { return Read(r.Context, r.Source, p) }

@@ -77,27 +77,27 @@ func TestChangePlanOwnsDocumentActionAndRenderedCommands(t *testing.T) {
 	plan.Device()["host"] = "192.0.2.99"
 	plan.Commands()[0] = "save force"
 	plan.Rollback()[0] = "save force"
-	copy := plan
-	gotJSON, err := wireless.MarshalJSON(copy)
+	duplicate := plan
+	gotJSON, err := wireless.MarshalJSON(duplicate)
 	if err != nil || !bytes.Equal(gotJSON, wantJSON) {
 		t.Fatalf("plan changed through an alias: %s, %v", gotJSON, err)
 	}
-	if copy.Host() != "192.0.2.10" || !reflect.DeepEqual(copy.Commands(), wantCommands) || !reflect.DeepEqual(copy.Rollback(), wantRollback) {
+	if duplicate.Host() != "192.0.2.10" || !reflect.DeepEqual(duplicate.Commands(), wantCommands) || !reflect.DeepEqual(duplicate.Rollback(), wantRollback) {
 		t.Fatal("rendered execution changed through an alias")
 	}
 	before, after := changePlanConfigurations(t)
-	if err := copy.CheckBefore(before); err != nil {
+	if err := duplicate.CheckBefore(before); err != nil {
 		t.Fatal("original action or fingerprint changed", err)
 	}
-	fingerprint, err := copy.CheckAfter(after)
+	fingerprint, err := duplicate.CheckAfter(after)
 	wantFingerprint, _ := wireless.Fingerprint(after)
 	if err != nil || fingerprint != wantFingerprint {
 		t.Fatal("readback verification changed", fingerprint, err)
 	}
-	if copy.CheckBefore(after) == nil {
+	if duplicate.CheckBefore(after) == nil {
 		t.Fatal("accepted drift from original configuration")
 	}
-	if _, err := copy.CheckAfter(before); err == nil {
+	if _, err := duplicate.CheckAfter(before); err == nil {
 		t.Fatal("accepted unapplied readback")
 	}
 }

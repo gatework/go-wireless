@@ -37,7 +37,7 @@ func (d *diagnostics) append(field string, entry wireless.Record) {
 	d.seen[field][key] = true
 	d.fields[field] = append(d.fields[field], wireless.CloneRecord(entry))
 }
-func (d *diagnostics) failure(field string, f *wireless.Failure) {
+func (d *diagnostics) failure(field string, f *wireless.FailureError) {
 	if f == nil {
 		return
 	}
@@ -48,6 +48,7 @@ func (d *diagnostics) failure(field string, f *wireless.Failure) {
 }
 func (d *diagnostics) collect(err error, field, fallback, stage string) {
 	var visit func(error, bool)
+	//nolint:errorlint // visit walks the error tree itself; each node is classified on its own
 	visit = func(err error, unknown bool) {
 		if err == nil {
 			return
@@ -61,11 +62,11 @@ func (d *diagnostics) collect(err error, field, fallback, stage string) {
 				d.failure(field, wireless.NewFailure("deadline_exceeded", stage))
 			}
 			return
-		case *wireless.Failure:
+		case *wireless.FailureError:
 			d.failure(field, nativeerr.Classify(e, fallback, stage))
 			return
 		}
-		if failure, cause := nativeerr.ClassifyNative(err, fallback, stage); failure != nil {
+		if failure, ok, cause := nativeerr.ClassifyNative(err, fallback, stage); ok {
 			d.failure(field, failure)
 			visit(cause, false)
 			return
