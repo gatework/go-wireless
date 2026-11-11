@@ -8,7 +8,7 @@
 4. 确认版本 tag/release 不存在，给该 SHA 创建 tag，创建草稿并上传八个已验证文件。重新下载草稿资产并验证后发布；禁止覆盖已有 tag 或附件。
 5. 回读公开 tag、main、release、资产及仓库可见性，执行正式版本的独立 Go consumer 和 `go install`，保留每项证据。
 
-八个制品包括四个平台的 wireless 二进制归档、同提交源码归档、REVISION、MANIFEST.json、SHA256SUMS。二进制归档包含 bin/wireless、README、MIT 项目许可、完整第三方许可（包括 fpconv 的 Boost 许可）、VERSION 和 REVISION。`wireless --version` 打印版本与源提交。
+八个制品包括四个平台的 wireless 二进制归档、同提交源码归档、REVISION、MANIFEST.json、SHA256SUMS。二进制归档包含 bin/wireless、README、MIT 项目许可、完整第三方许可、VERSION 和 REVISION。`wireless --version` 打印版本与源提交。
 
 打包只读取干净的已提交树。归档采用稳定顺序、固定时间与权限，Go 构建固定平台选项并去除本地路径和 build ID。相同源码与编译器可生成相同字节。版本占位、replace、脏树、不安全符号链接、已有输出和重算校验和后的内容篡改均由发布测试拒绝。
 

@@ -99,7 +99,7 @@ func Run(ctx context.Context, o Options) (Result, error) {
 		if e != nil {
 			return Result{}, &Error{Stage: "read"}
 		}
-		doc, _, e := wireless.DecodeJSONDocument(body)
+		doc, e := wireless.DecodeJSONDocument(body)
 		if e != nil {
 			return Result{}, &Error{Stage: "document"}
 		}

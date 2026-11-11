@@ -1,17 +1,13 @@
 # Assessment, plans, review and apply API
 
-The ordinary Go runtime and `go test ./...` require no Ruby installation. These
-APIs implement the frozen Ruby Wireless behavior; the fingerprint oracle is
-Ruby 4.0.7 with **JSON gem 3.1.0**, including its bundled `fpconv.c`, not RFC 8785
-or Go's ordinary JSON float formatting. Source hashes and fixture provenance are
-in `docs/change-oracle.json`. The Boost Software License is retained in
-`fpconv.go`, a pure-Go translation of that generator's Grisu2 implementation.
+The Go runtime and `go test ./...` require no Ruby installation. Ruby byte
+compatibility was dropped with schema 3; Ruby fixtures remain only as test
+inputs whose provenance is recorded in `docs/change-oracle.json`.
 
 ## Evidence, review and change packages
 
 ```go
 // package wireless
-func CanonicalJSON(any) ([]byte, error)
 func Fingerprint(any) (string, error)
 // package change
 func RenderChange(Record) (commands, rollback []string, err error)
@@ -29,8 +25,7 @@ func (ChangePlan) CheckBefore(Record) error
 func (ChangePlan) CheckAfter(Record) (string, error)
 
 // package wireless
-type ObjectOrder map[uintptr][]string
-func DecodeJSONDocument([]byte) (Record, ObjectOrder, error)
+func DecodeJSONDocument([]byte) (Record, error)
 // package wlan
 func DecodeDocument([]byte) (*Controller, error)
 // package rules
@@ -38,18 +33,17 @@ func NewAssessor(assess.Policy, Commands) (*Assessor, error)
 func (*Assessor) AssessWith(context.Context, []*wlan.Controller, Inputs) (Report, error)
 ```
 
-Canonical JSON sorts object keys recursively and preserves array order. It
-preserves arbitrary integer precision, distinguishes integer syntax from
-`json.Number` decimal/exponent syntax, and encodes float64 using the Ruby
-fpconv digit and formatting rules. Integral floats remain floats; negative zero
-remains `-0.0`. UTF-8, HTML and U+2028/U+2029 remain unescaped, while JSON control
-characters are escaped. Invalid UTF-8, malformed number tokens, nonfinite
-numbers, unsupported values and cycles fail. Fingerprint is lowercase SHA256
-of those exact canonical bytes, without newline.
+`Fingerprint` is the go-netops canonical SHA-256 (`evidence.Fingerprint`: sorted
+keys, numbers kept as written, no HTML escaping) of a value's `MarshalJSON` wire
+encoding. Because the live readback and the stored JSON pass through the same
+encoder, they fingerprint alike, including integral floats (`20.0`) and large
+integers. Invalid UTF-8 is rejected rather than replaced, so distinct byte
+strings can never share a fingerprint; nonfinite numbers and invalid number
+tokens fail too.
 
-The decoders require one JSON object and reject trailing content, nonfinite
-numbers, invalid UTF-8 and malformed UTF-16 surrogate escapes. They preserve
-number tokens and source object key order.
+`DecodeJSONDocument` requires one JSON object and rejects trailing content,
+invalid UTF-8 and malformed UTF-16 surrogate escapes. Numbers keep their source
+text as `json.Number`.
 
 `wlan.DecodeDocument` checks the report envelope strictly before any output is
 created: device name and host are strings, `snapshot` is present (`null` for a
@@ -226,8 +220,7 @@ Ruby via a real PTY and injected session. Go's default tests apply the original
 Ruby-generated plan through both injected sessions and real PTY confirmation;
 native transport tests use in-memory duplex transcripts. No test here is a
 live-device, SSH-server, external-service or production acceptance claim.
-`export-ruby-fpconv.rb` and `export-ruby-recommendations.rb` are explicit development
-oracles that emit corpus JSON to stdout; they are never called by Go production
+`export-ruby-recommendations.rb` is an explicit development oracle that emits corpus JSON to stdout; it is never called by Go production
 code or the ordinary test suite.
 
 The apply workflow keeps progress in a private typed execution state. Journal and

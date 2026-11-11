@@ -45,7 +45,7 @@ func applyCommand(ctx context.Context, o *documentFlags, r *Runner) int {
 	if e != nil {
 		return r.failure("计划读取失败")
 	}
-	document, _, e := wireless.DecodeJSONDocument(body)
+	document, e := wireless.DecodeJSONDocument(body)
 	if e != nil {
 		return r.failure("计划结构、目标、指纹或命令无效")
 	}

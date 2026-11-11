@@ -4,109 +4,81 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"reflect"
-	"sort"
 	"strconv"
 	"unicode/utf8"
 )
 
-// ObjectOrder retains source object key order for derived evidence arrays.
-// Arrays always retain input order. Live Go maps use lexical key order.
-type ObjectOrder map[uintptr][]string
-
-func (o ObjectOrder) Keys(m Record) []string {
-	if k, ok := o[reflect.ValueOf(m).Pointer()]; ok {
-		return k
-	}
-	k := make([]string, 0, len(m))
-	for key := range m {
-		k = append(k, key)
-	}
-	sort.Strings(k)
-	return k
-}
-
-// DecodeJSONDocument preserves arbitrary integer/float intent, rejects trailing
-// content and invalid UTF-8, and records object order without altering facts.
-func DecodeJSONDocument(body []byte) (Record, ObjectOrder, error) {
+// DecodeJSONDocument decodes one JSON object into generic records. Numbers
+// keep their source text (json.Number), nested objects are Records, and
+// invalid UTF-8, malformed UTF-16 surrogate escapes and trailing content are
+// rejected.
+func DecodeJSONDocument(body []byte) (Record, error) {
 	if !utf8.Valid(body) || !validJSONSurrogates(body) {
-		return nil, nil, ErrDocument
+		return nil, ErrDocument
 	}
 	d := json.NewDecoder(bytes.NewReader(body))
 	d.UseNumber()
-	order := ObjectOrder{}
-	var read func() (any, error)
-	read = func() (any, error) {
-		token, e := d.Token()
-		if e != nil {
-			return nil, e
-		}
-		switch delim := token.(type) {
-		case json.Delim:
-			switch delim {
-			case '{':
-				m := Record{}
-				keys := []string{}
-				for d.More() {
-					key, e := d.Token()
-					if e != nil {
-						return nil, e
-					}
-					k, ok := key.(string)
-					if !ok {
-						return nil, ErrDocument
-					}
-					v, e := read()
-					if e != nil {
-						return nil, e
-					}
-					if _, exists := m[k]; !exists {
-						keys = append(keys, k)
-					}
-					m[k] = v
-				}
-				if _, e = d.Token(); e != nil {
-					return nil, e
-				}
-				order[reflect.ValueOf(m).Pointer()] = keys
-				return m, nil
-			case '[':
-				a := []any{}
-				for d.More() {
-					v, e := read()
-					if e != nil {
-						return nil, e
-					}
-					a = append(a, v)
-				}
-				_, e = d.Token()
-				return a, e
-			default:
-				return nil, ErrDocument
-			}
-		default:
-			return token, nil
-		}
+	v, err := readJSONValue(d)
+	if err != nil {
+		return nil, ErrDocument
 	}
-	v, e := read()
-	if e != nil {
-		return nil, nil, ErrDocument
-	}
-	if _, e = d.Token(); e != io.EOF {
-		return nil, nil, ErrDocument
+	if _, err = d.Token(); err != io.EOF {
+		return nil, ErrDocument
 	}
 	m, ok := v.(Record)
 	if !ok {
-		return nil, nil, ErrDocument
+		return nil, ErrDocument
 	}
-	if _, e = CanonicalJSON(m); e != nil {
-		return nil, nil, e
-	}
-	return m, order, nil
+	return m, nil
 }
 
-// encoding/json replaces malformed surrogate escapes; Ruby rejects them. Check
-// escaped UTF-16 pairs before the generic decoder can erase this distinction.
+// readJSONValue reads one value, decoding every object as a Record.
+func readJSONValue(d *json.Decoder) (any, error) {
+	token, err := d.Token()
+	if err != nil {
+		return nil, err
+	}
+	delim, ok := token.(json.Delim)
+	if !ok {
+		return token, nil
+	}
+	switch delim {
+	case '{':
+		m := Record{}
+		for d.More() {
+			key, err := d.Token()
+			if err != nil {
+				return nil, err
+			}
+			k, ok := key.(string)
+			if !ok {
+				return nil, ErrDocument
+			}
+			if m[k], err = readJSONValue(d); err != nil {
+				return nil, err
+			}
+		}
+		_, err = d.Token()
+		return m, err
+	case '[':
+		a := []any{}
+		for d.More() {
+			v, err := readJSONValue(d)
+			if err != nil {
+				return nil, err
+			}
+			a = append(a, v)
+		}
+		_, err = d.Token()
+		return a, err
+	default:
+		return nil, ErrDocument
+	}
+}
+
+// validJSONSurrogates reports whether every \\u escape in body forms valid
+// UTF-16. encoding/json would silently replace a malformed surrogate, which
+// could make two different documents decode alike.
 func validJSONSurrogates(body []byte) bool {
 	inString := false
 	for i := 0; i < len(body); i++ {

@@ -105,4 +105,4 @@ bash scripts/ci
 
 [兼容矩阵](docs/compatibility.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[验证说明](docs/verification.md) 列出当前检查入口、已发布版本证据与实测边界。测试使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。
 
-许可沿用参考项目 [MIT](LICENSE)，原署名完整保留。fpconv 的 Boost Software License 在源码中保留；发行包的 THIRD_PARTY_NOTICES.txt 汇集实际模块依赖及 fpconv 的许可。
+许可沿用参考项目 [MIT](LICENSE)，原署名完整保留；发行包的 THIRD_PARTY_NOTICES.txt 汇集实际模块依赖的许可。

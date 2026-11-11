@@ -25,7 +25,6 @@ def fixture(root):
     (root / 'VERSION').write_text('v0.1.0\n')
     (root / 'README.md').write_text('release fixture\n')
     (root / 'LICENSE').write_text('fixture license\n')
-    (root / 'fpconv.go').write_text('// Boost Software License - Version 1.0\n// fixture bundled notice\n\npackage wireless\n')
     (root / 'internal/buildinfo').mkdir(parents=True)
     (root / 'internal/buildinfo/version.go').write_text('package buildinfo\nvar Identity = "go-wireless development revision unknown"\n')
     for name in BINS:
@@ -160,7 +159,6 @@ class ReleaseTests(unittest.TestCase):
                 self.assertEqual(archive.extractfile('VERSION').read(), b'v0.1.0\n')
                 self.assertEqual(archive.extractfile('REVISION').read(), (self.sha + '\n').encode())
                 self.assertIn(b'Go standard library', archive.extractfile('THIRD_PARTY_NOTICES.txt').read())
-                self.assertIn(b'fixture bundled notice', archive.extractfile('THIRD_PARTY_NOTICES.txt').read())
 
     def test_output_is_never_overwritten(self):
         self.good_copy()

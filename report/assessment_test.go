@@ -19,7 +19,7 @@ const tkipDocument = `{"device":{"name":"wlc","host":"192.0.2.1","platform":"h3c
 
 func assessed(t *testing.T, body string) (wireless.Record, *wlan.Controller, rules.ControllerAssessment) {
 	t.Helper()
-	doc, _, err := wireless.DecodeJSONDocument([]byte(body))
+	doc, err := wireless.DecodeJSONDocument([]byte(body))
 	if err != nil {
 		t.Fatal(err)
 	}

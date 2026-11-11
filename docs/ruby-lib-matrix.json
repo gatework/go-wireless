@@ -25,12 +25,11 @@
       "fingerprint.go",
       "document.go",
       "change/template_security.go",
-      "fpconv.go",
       "change/apply.go"
     ],
     "tests": [
       "change_plan_test.go:TestTypedSecurityChange",
-      "change_plan_test.go:TestRubyFPConvCorpus"
+      "change_plan_test.go:TestFingerprintMatchesStoredDocument"
     ]
   },
   {

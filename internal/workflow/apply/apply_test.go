@@ -65,7 +65,7 @@ func (j *journal) WriteExecution(ctx context.Context, state wireless.Record) err
 	if err != nil {
 		return err
 	}
-	copy, _, err := wireless.DecodeJSONDocument(body)
+	copy, err := wireless.DecodeJSONDocument(body)
 	if err == nil {
 		j.entries = append(j.entries, copy)
 	}
@@ -88,7 +88,7 @@ func fixture(t *testing.T) (change.ChangePlan, *session) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, _, err := wireless.DecodeJSONDocument(body)
+	document, err := wireless.DecodeJSONDocument(body)
 	if err != nil {
 		t.Fatal(err)
 	}

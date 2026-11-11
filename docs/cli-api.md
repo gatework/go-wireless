@@ -157,8 +157,8 @@ marshalers use this boundary. Arbitrary unrelated structs retain encoding/json's
 normal semantics. Use the shared helper when explicitly exporting ToMap/facts.
 When reading JSON into generic maps, always use Decoder.UseNumber: normal
 Unmarshal into map[string]any rounds large integers and loses numeric kinds.
-The core CanonicalJSON/Fingerprint APIs implement Ruby JSON 3.1 canonical float
-fingerprint spelling separately; see docs/change-api.md.
+`Fingerprint` hashes exactly this wire encoding through the go-netops
+canonical form; see docs/change-api.md.
 
 ## Report publisher and recommendation hook
 

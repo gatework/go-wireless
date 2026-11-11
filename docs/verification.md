@@ -29,10 +29,10 @@ GOWORK=off bash scripts/ci
 ## 保留的回归依据
 
 - `testdata/` 提供解析、来源、字段、精确数值、建议及变更计划的合成/冻结金样，供当前 Go 测试读取。
-- `docs/ruby-baseline.json`、`ruby-spec-matrix.json`、`ruby-lib-matrix.json` 保留参考 Ruby 源码身份、34 个 spec 与全部 lib 的实现/测试映射。`change-oracle.json` 固定变更和 fpconv fixture 的校验和。
+- `docs/ruby-baseline.json`、`ruby-spec-matrix.json`、`ruby-lib-matrix.json` 保留参考 Ruby 源码身份、34 个 spec 与全部 lib 的实现/测试映射。`change-oracle.json` 固定变更 fixture 的校验和。
 - `scripts/export-ruby-*.rb` 与 `check-ruby-change-interop.rb` 是显式开发对照工具，普通 Go 测试和运行不调用 Ruby。原始金样及来源哈希不因目录清理而重生。
 - `scripts/test_check_delivery.py` 验证证据篡改、依赖替换、占位版本、秘密文件和符号链接拒绝。源码导出仅包含当前源码、文档、测试与工具，不携带依赖归档或恢复脚本。
-- `fpconv.go` 中的完整 Boost 许可与来源头、项目 MIT LICENSE 和发行包第三方许可保留。
+- 项目 MIT LICENSE 和发行包第三方许可保留。
 
 兼容范围、非逐字等价项与测试映射见 [兼容矩阵](compatibility.md)。旧依赖快照、实施草案和过程日志由 Git 历史或仓库外的验证记录保存，不参与当前源码交付。
 

@@ -1,12 +1,9 @@
 package wireless_test
 
 import (
-	"compress/gzip"
 	"encoding/json"
-	"io"
 	"math"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -14,65 +11,44 @@ import (
 	"github.com/gatework/go-wireless/change"
 )
 
-func TestCanonicalRubyProbes(t *testing.T) {
-	b, _ := os.ReadFile("testdata/ruby-canonical-probes.json")
-	var cases []struct {
-		Input                  string `json:"input_json"`
-		Canonical, Fingerprint string
-	}
-	if e := json.Unmarshal(b, &cases); e != nil {
-		t.Fatal(e)
-	}
-	for _, c := range cases {
-		var v any
-		d := json.NewDecoder(strings.NewReader(c.Input))
-		d.UseNumber()
-		if e := d.Decode(&v); e != nil {
-			t.Fatal(e)
-		}
-		got, e := wireless.CanonicalJSON(v)
-		if e != nil || string(got) != c.Canonical {
-			t.Fatalf("%s: %s %v", c.Input, got, e)
-		}
-		h, e := wireless.Fingerprint(v)
-		if e != nil || h != c.Fingerprint {
-			t.Fatal(h, e)
+func TestFingerprintRejectsInvalidValues(t *testing.T) {
+	for _, v := range []any{math.Inf(1), math.NaN(), string([]byte{255}), wireless.Record{string([]byte{255}): 1}, wireless.Record{"name": string([]byte{0xb2, 0xe2})}, json.Number("01")} {
+		if _, e := wireless.Fingerprint(v); e == nil {
+			t.Fatalf("accepted %#v", v)
 		}
 	}
 }
-func TestRubyFPConvCorpus(t *testing.T) {
-	f, e := os.Open("testdata/ruby-fpconv.json.gz")
-	if e != nil {
-		t.Fatal(e)
+
+// TestFingerprintMatchesStoredDocument pins the property apply relies on: a
+// live configuration record and the same record read back from its stored
+// JSON fingerprint alike, including integral floats and large integers.
+func TestFingerprintMatchesStoredDocument(t *testing.T) {
+	live := wireless.Record{"service_templates": []any{wireless.Record{"name": "corp", "enabled": true, "power": 20.0, "ratio": 0.25, "id": json.Number("9007199254740993")}}}
+	body, err := wireless.MarshalJSON(live)
+	if err != nil {
+		t.Fatal(err)
 	}
-	defer f.Close()
-	g, e := gzip.NewReader(f)
-	if e != nil {
-		t.Fatal(e)
+	stored, err := wireless.DecodeJSONDocument(body)
+	if err != nil {
+		t.Fatal(err)
 	}
-	defer g.Close()
-	b, _ := io.ReadAll(g)
-	var c struct {
-		Cases []struct{ Bits, Canonical string }
+	a, err := wireless.Fingerprint(live)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if e = json.Unmarshal(b, &c); e != nil {
-		t.Fatal(e)
+	b, err := wireless.Fingerprint(stored)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, v := range c.Cases {
-		bits, _ := strconv.ParseUint(v.Bits, 16, 64)
-		got, e := wireless.CanonicalJSON(math.Float64frombits(bits))
-		if e != nil || string(got) != v.Canonical {
-			t.Fatalf("bits=%s got=%s want=%s err=%v", v.Bits, got, v.Canonical, e)
-		}
+	if a != b {
+		t.Fatalf("live %s stored %s", a, b)
 	}
-}
-func TestCanonicalRejectsInvalidValues(t *testing.T) {
-	for _, v := range []any{math.Inf(1), math.NaN(), string([]byte{255}), wireless.Record{string([]byte{255}): 1}, json.Number("01"), json.Number("1e999")} {
-		if _, e := wireless.CanonicalJSON(v); e == nil {
-			t.Fatalf("accepted %T", v)
-		}
+	changed := wireless.Record{"service_templates": []any{wireless.Record{"name": "corp", "enabled": true, "power": 20.5, "ratio": 0.25, "id": json.Number("9007199254740993")}}}
+	if c, _ := wireless.Fingerprint(changed); c == a {
+		t.Fatal("a changed value kept the fingerprint")
 	}
 }
+
 func TestTypedSecurityChange(t *testing.T) {
 	c := wireless.Record{"kind": "wireless_security", "name": "corp", "enabled": true, "cipher_suites": []any{"ccmp", "tkip"}, "security_ies": []any{"rsn", "wpa"}}
 	cmd, roll, e := change.RenderChange(c)
@@ -98,7 +74,7 @@ func TestPlanValidationRejectsTamperedBoundaries(t *testing.T) {
 	}
 	mutations := []func(wireless.Record){func(p wireless.Record) { p["schema_version"] = 2 }, func(p wireless.Record) { p["platform"] = "huawei" }, func(p wireless.Record) { p["device"].(wireless.Record)["host"] = "192.0.2.10/32" }, func(p wireless.Record) { p["device"].(wireless.Record)["host"] = "2001:0db8::1" }, func(p wireless.Record) { p["expected_config_sha256"] = "bad" }, func(p wireless.Record) { p["rollback"] = []string{"return"} }, func(p wireless.Record) { p["change"].(wireless.Record)["enabled"] = nil }, func(p wireless.Record) { p["change"].(wireless.Record)["name"] = "lab\nsave" }, func(p wireless.Record) { p["change"].(wireless.Record)["cipher_suites"] = []any{"tkip"} }, func(p wireless.Record) { p["change"].(wireless.Record)["security_ies"] = []any{"wpa"} }, func(p wireless.Record) { p["change"].(wireless.Record)["kind"] = "arbitrary" }}
 	for i, mutate := range mutations {
-		p, _, e := wireless.DecodeJSONDocument(body)
+		p, e := wireless.DecodeJSONDocument(body)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -110,11 +86,11 @@ func TestPlanValidationRejectsTamperedBoundaries(t *testing.T) {
 }
 func TestJSONRejectsInvalidUnicodeSurrogates(t *testing.T) {
 	for _, body := range []string{`{"s":"\ud800"}`, `{"s":"\udc00"}`, `{"s":"\ud800\u0041"}`} {
-		if _, _, e := wireless.DecodeJSONDocument([]byte(body)); e == nil {
+		if _, e := wireless.DecodeJSONDocument([]byte(body)); e == nil {
 			t.Fatal("accepted invalid surrogate", body)
 		}
 	}
-	if _, _, e := wireless.DecodeJSONDocument([]byte(`{"s":"\ud83d\ude00"}`)); e != nil {
+	if _, e := wireless.DecodeJSONDocument([]byte(`{"s":"\ud83d\ude00"}`)); e != nil {
 		t.Fatal(e)
 	}
 }

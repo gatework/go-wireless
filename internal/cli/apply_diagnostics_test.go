@@ -85,7 +85,7 @@ func TestApplyRetainsIndependentSafeDiagnostics(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			state, _, e := wireless.DecodeJSONDocument(body)
+			state, e := wireless.DecodeJSONDocument(body)
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -98,7 +98,7 @@ func TestApplyRetainsIndependentSafeDiagnostics(t *testing.T) {
 				}
 				for _, line := range strings.Split(stderr.String(), "\n") {
 					if strings.HasPrefix(line, "安全诊断：") {
-						state, _, e = wireless.DecodeJSONDocument([]byte(strings.TrimPrefix(line, "安全诊断：")))
+						state, e = wireless.DecodeJSONDocument([]byte(strings.TrimPrefix(line, "安全诊断：")))
 						if e != nil {
 							t.Fatal(e)
 						}

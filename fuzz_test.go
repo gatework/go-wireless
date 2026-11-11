@@ -1,7 +1,6 @@
 package wireless_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"testing"
 
@@ -12,9 +11,9 @@ import (
 	h3c "github.com/gatework/go-wireless/vendors/h3c"
 )
 
-// A successful generic decoder must remain stable through the exact Ruby
-// canonical boundary, including source numeric kinds and Unicode escapes.
-func FuzzJSONCanonicalRoundtrip(f *testing.F) {
+// A decoded document re-encoded by MarshalJSON must decode to a document
+// with the same fingerprint: apply compares exactly these two forms.
+func FuzzJSONFingerprintRoundtrip(f *testing.F) {
 	for _, seed := range []string{`{}`, `{"integer":9007199254740993,"float":-0.0}`, `{"text":"中文\\n","n":1e+30}`, `{"x":"\ud800"}`, `{} {}`, `{"n":1e9999}`} {
 		f.Add(seed)
 	}
@@ -22,21 +21,24 @@ func FuzzJSONCanonicalRoundtrip(f *testing.F) {
 		if len(input) > 1<<20 {
 			t.Skip()
 		}
-		doc, _, err := wireless.DecodeJSONDocument([]byte(input))
+		doc, err := wireless.DecodeJSONDocument([]byte(input))
 		if err != nil {
 			return
 		}
-		canonical, err := wireless.CanonicalJSON(doc)
+		want, err := wireless.Fingerprint(doc)
 		if err != nil {
 			return
-		} // decoder accepts historical values outside canonical domain
-		again, _, err := wireless.DecodeJSONDocument(canonical)
-		if err != nil {
-			t.Fatal("canonical output rejected", err)
 		}
-		encoded, err := wireless.CanonicalJSON(again)
-		if err != nil || !bytes.Equal(canonical, encoded) {
-			t.Fatal("canonical bytes changed", err)
+		body, err := wireless.MarshalJSON(doc)
+		if err != nil {
+			t.Fatal("fingerprinted document does not encode", err)
+		}
+		again, err := wireless.DecodeJSONDocument(body)
+		if err != nil {
+			t.Fatal("encoded document rejected", err)
+		}
+		if got, err := wireless.Fingerprint(again); err != nil || got != want {
+			t.Fatalf("fingerprint changed: %s -> %s (%v)", want, got, err)
 		}
 	})
 }

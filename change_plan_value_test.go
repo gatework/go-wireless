@@ -23,7 +23,7 @@ func changePlanDocument(t *testing.T) wireless.Record {
 	if err != nil {
 		t.Fatal(err)
 	}
-	document, _, err := wireless.DecodeJSONDocument(body)
+	document, err := wireless.DecodeJSONDocument(body)
 	if err != nil {
 		t.Fatal(err)
 	}

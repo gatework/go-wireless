@@ -100,7 +100,7 @@ func planBodies(t *testing.T, dir string) []string {
 // typedPlans runs the typed review output for one document.
 func typedPlans(t *testing.T, body []byte) ([]string, bool) {
 	t.Helper()
-	doc, _, err := wireless.DecodeJSONDocument(body)
+	doc, err := wireless.DecodeJSONDocument(body)
 	if err != nil {
 		return nil, false
 	}

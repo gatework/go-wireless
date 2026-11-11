@@ -50,7 +50,7 @@ func collectChangeFixture(t *testing.T) (string, string) {
 	if code != 0 {
 		t.Fatal(code, errs.String())
 	}
-	summary, _, e := wireless.DecodeJSONDocument(out.Bytes())
+	summary, e := wireless.DecodeJSONDocument(out.Bytes())
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -74,7 +74,7 @@ func TestCollectReviewApplyFullFingerprintRoundtrip(t *testing.T) {
 	}
 	for _, path := range []string{collectPlan, reviewPlans[0]} {
 		body, _ := os.ReadFile(path)
-		plan, _, e := wireless.DecodeJSONDocument(body)
+		plan, e := wireless.DecodeJSONDocument(body)
 		if e != nil {
 			t.Fatal(e)
 		}
