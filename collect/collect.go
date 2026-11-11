@@ -92,7 +92,6 @@ func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Sna
 	if e != nil {
 		return wireless.Snapshot{}, e
 	}
-	dims := scope.Dimensions()
 	names := append([]string(nil), o.APNames...)
 	for _, n := range names {
 		if !validAPName(n) {
@@ -102,109 +101,171 @@ func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Sna
 	if !profile.MatchesConnector(o.ConnectorPlatform) {
 		return wireless.Snapshot{}, errors.New("wireless: connector platform mismatch")
 	}
-	observations := map[wireless.Dimension]wireless.Observation{}
+	run := &collection{collector: c, profile: profile, scope: scope, apNames: names, credentials: o.APCredentials,
+		observations: map[wireless.Dimension]wireless.Observation{}, stage: "connect"}
 	for _, dimension := range scope.Unsupported() {
-		observations[dimension] = c.unavailable(dimension, wireless.Unsupported, "unsupported_platform_dimension", nil)
+		run.observations[dimension] = c.unavailable(dimension, wireless.Unsupported, "unsupported_platform_dimension", nil)
 	}
-	queries := scope.Queries()
-	var mu sync.Mutex
-	var running sync.WaitGroup
-	started, ended, reentered := false, false, false
-	stage := "connect"
+	var admission singleSession
 	openErr := o.Open(ctx, func(session Session) error {
-		mu.Lock()
-		if ended || started {
-			reentered = true
-			mu.Unlock()
+		if !admission.enter() {
 			return nil
 		}
-		started = true
-		running.Add(1)
-		mu.Unlock()
-		defer running.Done()
-		reader, err := NewReader(session, c.clock)
-		if err != nil {
-			return wireless.NewFailure("session_state_failed", "session")
-		}
-		stage = "prepare"
-		prep, err := reader.Read(ctx, profile.PreparationCommand())
-		var prepFailure *wireless.FailureError
-		if err != nil {
-			prepFailure = wireless.FailureFrom(err, "command_execution_failed", "prepare")
-		} else {
-			prepFailure = prep.Failure()
-		}
-		for _, q := range queries {
-			if prepFailure != nil {
-				for _, d := range q.Dimensions {
-					observations[d] = c.unavailable(d, wireless.Failed, prepFailure.Code(), wireless.Record{"skipped": true, "stage": stage})
-				}
-				continue
-			}
-			stage = "collect"
-			capture, err := reader.Read(ctx, q.Command)
-			if err != nil {
-				for _, d := range q.Dimensions {
-					observations[d] = c.unavailable(d, wireless.Failed, wireless.FailureFrom(err, "command_execution_failed", "execute").Code(), wireless.Record{"command": q.Command, "stage": "execute"})
-				}
-				continue
-			}
-			c.collectCommand(observations, profile, q, capture)
-		}
-		if scope.APNeighbors() {
-			failure := prepFailure
-			if failure == nil {
-				failure = reader.Failure(ctx)
-			}
-			if failure != nil {
-				observations[wireless.LLDP] = c.unavailable(wireless.LLDP, wireless.Failed, failure.Code(), wireless.Record{"skipped": true, "stage": stage})
-			} else {
-				observations[wireless.LLDP] = c.collectNeighbors(ctx, profile, scope.APQuery(), session, observations[wireless.AccessPoints], names, o.APCredentials)
-			}
-		}
-		stage = "close"
-		return nil
+		defer admission.leave()
+		return run.session(ctx, session)
 	})
-	mu.Lock()
-	ended = true
-	mu.Unlock()
-	running.Wait()
+	reentered := admission.close()
 	if openErr != nil {
-		codes := collectionFailureCodes(openErr, stage)
-		first := codes[0]
-		for _, d := range dims {
-			if _, ok := observations[d]; !ok {
-				observations[d] = c.unavailable(d, wireless.Failed, first, wireless.Record{"skipped": true, "stage": stage})
-			}
-		}
-		issues := make([]wireless.Record, 0, len(codes))
-		for _, code := range codes {
-			issues = append(issues, wireless.Record{"code": code})
-		}
-		completed := c.clock()
-		observations[wireless.Collection], _ = wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Collection, Status: wireless.Failed, Issues: issues, CompletedAt: &completed})
+		run.openFailed(openErr)
 	}
-	mu.Lock()
-	repeat := reentered
-	mu.Unlock()
-	if repeat {
-		if prior, ok := observations[wireless.Collection]; ok {
-			issues := append([]wireless.Record{{"code": "session_reentered"}}, prior.Issues()...)
-			t := c.clock()
-			observations[wireless.Collection], _ = wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Collection, Status: wireless.Failed, Issues: issues, CompletedAt: &t})
+	if reentered {
+		run.reentered()
+	}
+	return run.snapshot(target)
+}
+
+// singleSession admits one session callback and joins it when collection
+// ends; a second or late callback is recorded as reentry.
+type singleSession struct {
+	mu                         sync.Mutex
+	running                    sync.WaitGroup
+	started, ended, reentrance bool
+}
+
+func (s *singleSession) enter() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended || s.started {
+		s.reentrance = true
+		return false
+	}
+	s.started = true
+	s.running.Add(1)
+	return true
+}
+
+func (s *singleSession) leave() { s.running.Done() }
+
+// close ends admission, joins the admitted callback and reports reentry.
+func (s *singleSession) close() bool {
+	s.mu.Lock()
+	s.ended = true
+	s.mu.Unlock()
+	s.running.Wait()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.reentrance
+}
+
+// collection is one controller collection inside its session.
+type collection struct {
+	collector    *Collector
+	profile      *parser.Profile
+	scope        parser.CollectionScope
+	apNames      []string
+	credentials  APCredentialsSource
+	observations map[wireless.Dimension]wireless.Observation
+	stage        string
+}
+
+// session runs preparation, every query, then AP neighbors on session.
+func (r *collection) session(ctx context.Context, session Session) error {
+	c := r.collector
+	reader, err := NewReader(session, c.clock)
+	if err != nil {
+		return wireless.NewFailure("session_state_failed", "session")
+	}
+	r.stage = "prepare"
+	prep, err := reader.Read(ctx, r.profile.PreparationCommand())
+	var prepFailure *wireless.FailureError
+	if err != nil {
+		prepFailure = wireless.FailureFrom(err, "command_execution_failed", "prepare")
+	} else {
+		prepFailure = prep.Failure()
+	}
+	for _, q := range r.scope.Queries() {
+		r.query(ctx, reader, q, prepFailure)
+	}
+	if r.scope.APNeighbors() {
+		failure := prepFailure
+		if failure == nil {
+			failure = reader.Failure(ctx)
+		}
+		if failure != nil {
+			r.observations[wireless.LLDP] = c.unavailable(wireless.LLDP, wireless.Failed, failure.Code(), wireless.Record{"skipped": true, "stage": r.stage})
 		} else {
-			observations[wireless.Collection] = c.unavailable(wireless.Collection, wireless.Failed, "session_reentered", nil)
+			r.observations[wireless.LLDP] = c.collectNeighbors(ctx, r.profile, r.scope.APQuery(), session, r.observations[wireless.AccessPoints], r.apNames, r.credentials)
 		}
 	}
-	for _, d := range dims {
-		if _, ok := observations[d]; !ok {
-			observations[d] = c.unavailable(d, wireless.Failed, "session_not_opened", wireless.Record{"skipped": true})
+	r.stage = "close"
+	return nil
+}
+
+// query runs one query, or marks its dimensions skipped after a failed
+// preparation.
+func (r *collection) query(ctx context.Context, reader *Reader, q parser.Query, prepFailure *wireless.FailureError) {
+	c := r.collector
+	if prepFailure != nil {
+		for _, d := range q.Dimensions {
+			r.observations[d] = c.unavailable(d, wireless.Failed, prepFailure.Code(), wireless.Record{"skipped": true, "stage": r.stage})
+		}
+		return
+	}
+	r.stage = "collect"
+	capture, err := reader.Read(ctx, q.Command)
+	if err != nil {
+		for _, d := range q.Dimensions {
+			r.observations[d] = c.unavailable(d, wireless.Failed, wireless.FailureFrom(err, "command_execution_failed", "execute").Code(), wireless.Record{"command": q.Command, "stage": "execute"})
+		}
+		return
+	}
+	c.collectCommand(r.observations, r.profile, q, capture)
+}
+
+// openFailed marks every unobserved dimension failed at the last stage and
+// records the session failure codes.
+func (r *collection) openFailed(openErr error) {
+	c := r.collector
+	codes := collectionFailureCodes(openErr, r.stage)
+	for _, d := range r.scope.Dimensions() {
+		if _, ok := r.observations[d]; !ok {
+			r.observations[d] = c.unavailable(d, wireless.Failed, codes[0], wireless.Record{"skipped": true, "stage": r.stage})
 		}
 	}
-	if _, ok := observations[wireless.Collection]; !ok {
+	issues := make([]wireless.Record, 0, len(codes))
+	for _, code := range codes {
+		issues = append(issues, wireless.Record{"code": code})
+	}
+	completed := c.clock()
+	r.observations[wireless.Collection], _ = wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Collection, Status: wireless.Failed, Issues: issues, CompletedAt: &completed})
+}
+
+// reentered records that the opener called back more than once.
+func (r *collection) reentered() {
+	c := r.collector
+	prior, ok := r.observations[wireless.Collection]
+	if !ok {
+		r.observations[wireless.Collection] = c.unavailable(wireless.Collection, wireless.Failed, "session_reentered", nil)
+		return
+	}
+	issues := append([]wireless.Record{{"code": "session_reentered"}}, prior.Issues()...)
+	t := c.clock()
+	r.observations[wireless.Collection], _ = wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Collection, Status: wireless.Failed, Issues: issues, CompletedAt: &t})
+}
+
+// snapshot fills dimensions the session never reached, derives the overall
+// collection status and builds the snapshot.
+func (r *collection) snapshot(target map[string]any) (wireless.Snapshot, error) {
+	c := r.collector
+	for _, d := range r.scope.Dimensions() {
+		if _, ok := r.observations[d]; !ok {
+			r.observations[d] = c.unavailable(d, wireless.Failed, "session_not_opened", wireless.Record{"skipped": true})
+		}
+	}
+	if _, ok := r.observations[wireless.Collection]; !ok {
 		status := wireless.Complete
 		available := false
-		for _, v := range observations {
+		for _, v := range r.observations {
 			if !v.Complete() {
 				status = wireless.Failed
 			}
@@ -214,13 +275,15 @@ func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Sna
 			status = wireless.Partial
 		}
 		t := c.clock()
-		observations[wireless.Collection], e = wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Collection, Status: status, CompletedAt: &t})
+		observation, e := wireless.NewObservation(wireless.ObservationOptions{Name: wireless.Collection, Status: status, CompletedAt: &t})
 		if e != nil {
 			return wireless.Snapshot{}, e
 		}
+		r.observations[wireless.Collection] = observation
 	}
-	return wireless.NewSnapshot(wireless.SnapshotOptions{Target: target, Dimensions: observations, ObservedAt: c.clock()})
+	return wireless.NewSnapshot(wireless.SnapshotOptions{Target: target, Dimensions: r.observations, ObservedAt: c.clock()})
 }
+
 func validAPName(s string) bool {
 	return strings.TrimSpace(s) != "" && utf8.ValidString(s) && !strings.ContainsFunc(s, unicode.IsControl)
 }
