@@ -20,9 +20,8 @@ import (
 )
 
 func applyCommand(ctx context.Context, o *documentFlags, r *Runner) int {
-	flags, help := o.Values, o.Help
-	var e error
-	if help {
+	flags := o.Values
+	if o.Help {
 		return r.Help("apply")
 	}
 	if !(r.Terminal(r.Input) && r.Terminal(r.Output) && r.Terminal(r.Error)) {
@@ -33,64 +32,80 @@ func applyCommand(ctx context.Context, o *documentFlags, r *Runner) int {
 	}
 	port := 22
 	if v := flags["--port"]; v != "" {
-		port, e = strconv.Atoi(v)
-		if e != nil || port < 1 || port > 65535 {
+		var e error
+		if port, e = strconv.Atoi(v); e != nil || port < 1 || port > 65535 {
 			return r.failure("SSH 端口无效")
 		}
 	}
-	body, e := input.Document(ctx, flags["--plan"])
+	plan, hash, code, ok := r.loadPlan(ctx, flags["--plan"])
+	if !ok {
+		return code
+	}
+	if code, confirmed := r.confirmApply(ctx, plan, hash); !confirmed {
+		return code
+	}
+	return r.executeApply(ctx, flags, plan, hash, port)
+}
+
+// loadPlan reads and validates the plan file; hash identifies its exact bytes.
+func (r *Runner) loadPlan(ctx context.Context, path string) (plan change.ChangePlan, hash string, code int, ok bool) {
+	body, e := input.Document(ctx, path)
 	if ctx.Err() != nil {
-		return 130
+		return change.ChangePlan{}, "", 130, false
 	}
 	if e != nil {
-		return r.failure("计划读取失败")
+		return change.ChangePlan{}, "", r.failure("计划读取失败"), false
 	}
 	document, e := wireless.DecodeJSONDocument(body)
 	if e != nil {
-		return r.failure("计划结构、目标、指纹或命令无效")
+		return change.ChangePlan{}, "", r.failure("计划结构、目标、指纹或命令无效"), false
 	}
-	plan, e := change.NewChangePlan(document)
-	if e != nil {
-		return r.failure("计划结构、目标、指纹或命令无效")
+	if plan, e = change.NewChangePlan(document); e != nil {
+		return change.ChangePlan{}, "", r.failure("计划结构、目标、指纹或命令无效"), false
 	}
-	hash := fmt.Sprintf("%x", sha256.Sum256(body))
-	device := plan.Device()
-	host := plan.Host()
-	commands := plan.Commands()
-	rollback := plan.Rollback()
-	document = plan.ToMap()
+	return plan, fmt.Sprintf("%x", sha256.Sum256(body)), 0, true
+}
+
+// confirmApply shows the plan and requires the operator to type the exact
+// confirmation token; any other input cancels without connecting.
+func (r *Runner) confirmApply(ctx context.Context, plan change.ChangePlan, hash string) (code int, confirmed bool) {
+	device, host, document := plan.Device(), plan.Host(), plan.ToMap()
 	var display strings.Builder
 	fmt.Fprintf(&display, "目标：%s（%s）；%s；%s\n影响：%s\n", safe(StringValue(device["name"])), host, safe(StringValue(document["scope"])), safe(StringValue(document["title"])), safe(StringValue(document["impact"])))
-	if prerequisites, ok := stringList(document["prerequisites"]); ok == nil {
+	if prerequisites, err := stringList(document["prerequisites"]); err == nil {
 		for _, v := range prerequisites {
 			fmt.Fprintf(&display, "条件：%s\n", safe(v))
 		}
 	}
-	fmt.Fprintf(&display, "计划 SHA256：%s\n拟执行命令：\n%s\n条件回退（不自动执行）：\n%s\n", hash, strings.Join(commands, "\n"), strings.Join(rollback, "\n"))
+	fmt.Fprintf(&display, "计划 SHA256：%s\n拟执行命令：\n%s\n条件回退（不自动执行）：\n%s\n", hash, strings.Join(plan.Commands(), "\n"), strings.Join(plan.Rollback(), "\n"))
 	token := "APPLY " + host + " " + hash[:12]
 	fmt.Fprintf(&display, "确认业务策略及维护窗口后输入 %s；其他输入取消：", token)
-	if _, e = io.WriteString(r.Output, display.String()); e != nil {
-		return 2
+	if _, e := io.WriteString(r.Output, display.String()); e != nil {
+		return 2, false
 	}
 	if f, ok := r.Output.(interface{ Flush() error }); ok {
-		if e = f.Flush(); e != nil {
-			return 2
+		if e := f.Flush(); e != nil {
+			return 2, false
 		}
 	}
 	line, e := r.ReadLine(ctx)
 	if ctx.Err() != nil {
-		return 130
+		return 130, false
 	}
 	if e != nil && !errors.Is(e, io.EOF) {
-		return r.failure("确认输入失败")
+		return r.failure("确认输入失败"), false
 	}
-	line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
-	if line != token {
+	if strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r") != token {
 		if _, e = fmt.Fprintln(r.Output, "已取消，未连接设备。"); e != nil {
-			return 2
+			return 2, false
 		}
-		return 1
+		return 1, false
 	}
+	return 0, true
+}
+
+// executeApply opens the device session and runs the confirmed plan once.
+func (r *Runner) executeApply(ctx context.Context, flags map[string]string, plan change.ChangePlan, hash string, port int) int {
 	open, e := bootstrap.PrepareApply(ctx, r.Environment, flags["--env-file"], r.Discovery, r.Registry, r.ApplyFactory, plan, port)
 	if e != nil {
 		if ctx.Err() != nil {
