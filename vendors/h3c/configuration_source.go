@@ -165,6 +165,19 @@ func (s *ConfigurationSource) capture(block *sourceBlock, data any, path []any) 
 func readConfigurationSource(content string) *ConfigurationSource {
 	hash := sha256.Sum256([]byte(content))
 	s := &ConfigurationSource{content: content, checksum: hex.EncodeToString(hash[:]), roots: []*sourceBlock{}, captures: []ConfigurationCapture{}, issues: []wireless.Record{}}
+	s.lines = splitSourceLines(content)
+	s.states = make([]string, len(s.lines))
+	for i := range s.states {
+		s.states[i] = "pending"
+	}
+	s.buildBlocks()
+	return s
+}
+
+// splitSourceLines splits content into physical lines, keeping each line's
+// terminator (CRLF, CR or LF) in raw.
+func splitSourceLines(content string) []SourceLine {
+	var lines []SourceLine
 	for start := 0; start < len(content); {
 		end := start
 		for end < len(content) && content[end] != '\r' && content[end] != '\n' {
@@ -178,38 +191,46 @@ func readConfigurationSource(content string) *ConfigurationSource {
 			}
 		}
 		raw := content[start:end]
-		s.lines = append(s.lines, SourceLine{len(s.lines), len(raw) - len(strings.TrimLeft(raw, " \t")), raw, parsetext.Strip(raw)})
-		s.states = append(s.states, "pending")
+		lines = append(lines, SourceLine{len(lines), len(raw) - len(strings.TrimLeft(raw, " \t")), raw, parsetext.Strip(raw)})
 		start = end
 	}
-	stack := []*sourceBlock{}
-	b := parsetext.Banner{}
+	return lines
+}
+
+// buildBlocks nests lines into blocks by indentation; "#" and "return" close
+// every open block, and banners, blank and terminal-invalid lines are not
+// blocks.
+func (s *ConfigurationSource) buildBlocks() {
+	var stack []*sourceBlock
+	closeTo := func(depth, last int) {
+		for len(stack) > depth {
+			stack[len(stack)-1].last = last
+			stack = stack[:len(stack)-1]
+		}
+	}
+	banner := parsetext.Banner{}
 	for index, line := range s.lines {
-		if b.Consume(line.text) {
+		switch {
+		case banner.Consume(line.text):
 			s.states[index] = "ignored"
 			continue
-		}
-		if parser.TerminalInvalid(line.raw) {
+		case parser.TerminalInvalid(line.raw):
 			s.issues = append(s.issues, wireless.Record{"code": "incomplete_configuration", "line": index + 1})
 			s.states[index] = "invalid"
 			continue
-		}
-		if line.text == "#" || line.text == "return" {
-			for len(stack) > 0 {
-				stack[len(stack)-1].last = index - 1
-				stack = stack[:len(stack)-1]
-			}
+		case line.text == "#" || line.text == "return":
+			closeTo(0, index-1)
+			s.states[index] = "ignored"
+			continue
+		case line.text == "":
 			s.states[index] = "ignored"
 			continue
 		}
-		if line.text == "" {
-			s.states[index] = "ignored"
-			continue
+		depth := len(stack)
+		for depth > 0 && line.indent <= s.lines[stack[depth-1].index].indent {
+			depth--
 		}
-		for len(stack) > 0 && line.indent <= s.lines[stack[len(stack)-1].index].indent {
-			stack[len(stack)-1].last = index - 1
-			stack = stack[:len(stack)-1]
-		}
+		closeTo(depth, index-1)
 		block := &sourceBlock{index: index, last: -1, children: []*sourceBlock{}}
 		if len(stack) == 0 {
 			s.roots = append(s.roots, block)
@@ -222,10 +243,9 @@ func readConfigurationSource(content string) *ConfigurationSource {
 	for _, block := range stack {
 		block.last = len(s.lines) - 1
 	}
-	if b.Open() {
+	if banner.Open() {
 		s.issues = append(s.issues, wireless.Record{"code": "incomplete_banner"})
 	}
-	return s
 }
 
 // asList returns v as a list, or nil when it is not one.
