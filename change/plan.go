@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	wireless "github.com/gatework/go-wireless"
-	"github.com/gatework/go-wireless/internal/record"
 	"github.com/gatework/go-wireless/wlan"
 )
 
@@ -69,8 +68,8 @@ func NewChangePlan(document wireless.Record) (ChangePlan, error) {
 		return ChangePlan{}, err
 	}
 	commands, rollback := script.Commands, script.Rollback
-	given, givenOK := record.Strings(owned["commands"])
-	back, backOK := record.Strings(owned["rollback"])
+	given, givenOK := stringList(owned["commands"])
+	back, backOK := stringList(owned["rollback"])
 	if !givenOK || !backOK || !slices.Equal(commands, given) || !slices.Equal(rollback, back) {
 		return ChangePlan{}, ErrChangePlan
 	}
@@ -185,4 +184,24 @@ func decimalOne(number string) bool {
 		exponent = "-" + exponent
 	}
 	return exponent == strconv.Itoa(wanted)
+}
+
+// stringList returns v as strings when it is a list of strings only.
+func stringList(v any) ([]string, bool) {
+	switch list := v.(type) {
+	case []string:
+		return list, true
+	case []any:
+		out := make([]string, 0, len(list))
+		for _, item := range list {
+			s, ok := item.(string)
+			if !ok {
+				return nil, false
+			}
+			out = append(out, s)
+		}
+		return out, true
+	default:
+		return nil, false
+	}
 }

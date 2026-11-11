@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"math"
 	"time"
-
-	"github.com/gatework/go-wireless/internal/record"
 )
 
 type CoverageOptions struct {
@@ -67,12 +65,12 @@ func (c Coverage) MarshalJSON() ([]byte, error) { return MarshalJSON(c.ToMap()) 
 func (c Coverage) String() string               { return "<wireless.Coverage>" }
 func (c Coverage) GoString() string             { return c.String() }
 func (c Coverage) dimension(n string) Record {
-	stored := record.Map(c.observations[n])
-	latest := record.Map(stored["latest"])
-	projection := record.Map(c.projection[n])
+	stored := asRecord(c.observations[n])
+	latest := asRecord(stored["latest"])
+	projection := asRecord(c.projection[n])
 	at := parseTimestamp(firstPresent(latest, "completed_at", "observed_at"))
 	projectedAt := parseTimestamp(projection["observed_at"])
-	last := record.Map(stored["last_complete"])
+	last := asRecord(stored["last_complete"])
 	if latest["status"] == "complete" {
 		last = latest
 	}
@@ -141,4 +139,10 @@ func parseTimestamp(v any) *time.Time {
 		return nil
 	}
 	return &t
+}
+
+// asRecord returns v as a Record, or nil (which reads as empty) otherwise.
+func asRecord(v any) Record {
+	m, _ := v.(Record)
+	return m
 }

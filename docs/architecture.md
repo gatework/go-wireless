@@ -132,8 +132,8 @@ Rules that need a dimension declare it, and the engine skips them when the
 evidence is incomplete. Configuration rules and remediations stay limited to
 `h3c_wireless`; AP state is normalized (H3C `R/M`, `Run`, `R`; Huawei
 `normal`, `online`) so runtime rules apply to both vendors. The TKIP/WPA fix
-is the typed `change.TemplateSecurity`, which renders exactly the commands of
-`RenderChange`. The legacy recommendations and change plans are unchanged;
+is the typed `change.TemplateSecurity`, the only source of applicable commands.
+Review output and plans come from the typed assessment;
 `rules/parity_test.go` compares the ported checks with the legacy fixtures,
 and legacy fixtures in shapes the parser never emits must be reported as
 incomplete evidence.

@@ -10,7 +10,6 @@ inputs whose provenance is recorded in `docs/change-oracle.json`.
 // package wireless
 func Fingerprint(any) (string, error)
 // package change
-func RenderChange(Record) (commands, rollback []string, err error)
 type TemplateSecurity struct{ Name string; Enabled bool; CipherSuites, SecurityIEs []string }
 func (TemplateSecurity) Eligible(*wlan.Configuration) error
 func (TemplateSecurity) Satisfied(*wlan.Configuration) error

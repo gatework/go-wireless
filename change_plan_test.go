@@ -50,19 +50,29 @@ func TestFingerprintMatchesStoredDocument(t *testing.T) {
 }
 
 func TestTypedSecurityChange(t *testing.T) {
-	c := wireless.Record{"kind": "wireless_security", "name": "corp", "enabled": true, "cipher_suites": []any{"ccmp", "tkip"}, "security_ies": []any{"rsn", "wpa"}}
-	cmd, roll, e := change.RenderChange(c)
+	c := change.TemplateSecurity{Name: "corp", Enabled: true, CipherSuites: []string{"ccmp", "tkip"}, SecurityIEs: []string{"rsn", "wpa"}}
+	script, e := c.Render()
 	if e != nil {
 		t.Fatal(e)
 	}
-	if strings.Join(cmd, "\n") != "system-view\nwlan service-template corp\n undo service-template enable\n undo security-ie wpa\n undo cipher-suite tkip\n service-template enable\nquit\nreturn" {
-		t.Fatal(cmd)
+	if strings.Join(script.Commands, "\n") != "system-view\nwlan service-template corp\n undo service-template enable\n undo security-ie wpa\n undo cipher-suite tkip\n service-template enable\nquit\nreturn" {
+		t.Fatal(script.Commands)
 	}
-	if len(roll) != 8 || roll[3] != " cipher-suite tkip" {
-		t.Fatal(roll)
+	if len(script.Rollback) != 8 || script.Rollback[3] != " cipher-suite tkip" {
+		t.Fatal(script.Rollback)
 	}
-	c["enabled"] = nil
-	if _, _, e = change.RenderChange(c); e == nil {
+	for _, bad := range []change.TemplateSecurity{
+		{Name: "bad name", Enabled: true, CipherSuites: []string{"ccmp", "tkip"}, SecurityIEs: []string{"rsn"}},
+		{Name: "corp", Enabled: true, CipherSuites: []string{"tkip"}, SecurityIEs: []string{"rsn"}},
+		{Name: "corp", Enabled: true, CipherSuites: []string{"ccmp"}, SecurityIEs: []string{"rsn"}},
+	} {
+		if _, e := bad.Render(); e == nil {
+			t.Fatalf("rendered %+v", bad)
+		}
+	}
+	var unknown any
+	_ = json.Unmarshal([]byte(`{"kind":"wireless_security","name":"corp","enabled":null,"cipher_suites":["ccmp","tkip"],"security_ies":["rsn","wpa"]}`), &unknown)
+	if _, e := change.DecodeTemplateSecurity(unknown); e == nil {
 		t.Fatal("unknown enable accepted")
 	}
 }

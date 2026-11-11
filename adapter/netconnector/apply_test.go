@@ -38,18 +38,17 @@ func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {
 		if e != nil || hash != "294aea47c2657702a541a4d791b3376d5a96c3a9bcadbda1a606d64545d5d573" {
 			t.Fatal(hash, e)
 		}
-		change := wireless.Record{"kind": "wireless_security", "name": "lab", "enabled": true, "cipher_suites": []string{"ccmp", "tkip"}, "security_ies": []string{"rsn", "wpa"}}
-		commands, _, _ := changes.RenderChange(change)
-		for _, cmd := range commands {
+		typed := changes.TemplateSecurity{Name: "lab", Enabled: true, CipherSuites: []string{"ccmp", "tkip"}, SecurityIEs: []string{"rsn", "wpa"}}
+		script, e := typed.Render()
+		if e != nil {
+			return e
+		}
+		for _, cmd := range script.Commands {
 			if e = session.Write(ctx, cmd); e != nil {
 				return e
 			}
 		}
 		facts, e := session.ReadConfiguration(ctx)
-		if e != nil {
-			return e
-		}
-		typed, e := changes.DecodeTemplateSecurity(change)
 		if e != nil {
 			return e
 		}

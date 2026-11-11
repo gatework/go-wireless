@@ -26,7 +26,7 @@
 |---|---|---|
 | `lib/wireless.rb` | observation.go; parser/registry.go; collect/collect.go | core_test.go:TestObservationOwnershipAndSafeFormatting |
 | `lib/wireless/ap_session.rb` | adapter/netconnector/ap.go | adapter/netconnector/native_test.go:TestNativeAPDialoguePaginationAndExactReturn |
-| `lib/wireless/change_plan.rb` | fingerprint.go; document.go; change/h3c.go; change/apply.go | change_plan_test.go:TestTypedSecurityChange; change_plan_test.go:TestFingerprintMatchesStoredDocument |
+| `lib/wireless/change_plan.rb` | fingerprint.go; document.go; change/template_security.go; change/apply.go | change_plan_test.go:TestTypedSecurityChange; change_plan_test.go:TestFingerprintMatchesStoredDocument |
 | `lib/wireless/cli.rb` | internal/cli/runner.go; cmd/wireless/main.go | internal/cli/subprocess_test.go:TestSubprocessCLI |
 | `lib/wireless/cli/apply.rb` | internal/cli/apply.go; internal/workflow/apply/diagnostics.go | internal/cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay; internal/cli/apply_diagnostics_test.go:TestApplyRetainsIndependentSafeDiagnostics |
 | `lib/wireless/cli/collect.rb` | internal/cli/runner.go | internal/cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse |
