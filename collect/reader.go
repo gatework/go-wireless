@@ -22,6 +22,8 @@ type Receipt struct {
 	attempted          bool
 	failure            *wireless.FailureError
 }
+
+// ReceiptOptions describes one session command result for NewReceipt.
 type ReceiptOptions struct {
 	Command, Raw, Body string
 	Attempted          bool
@@ -30,15 +32,24 @@ type ReceiptOptions struct {
 	Failure            *wireless.FailureError
 }
 
+// NewReceipt returns a valid receipt.
 func NewReceipt(o ReceiptOptions) Receipt {
 	return Receipt{command: o.Command, raw: o.Raw, body: o.Body, steps: o.Steps, success: o.Success, valid: true, attempted: o.Attempted, failure: wireless.CloneFailure(o.Failure)}
 }
-func (r Receipt) Raw() string  { return r.raw }
+
+// Raw returns the raw output, prompts included.
+func (r Receipt) Raw() string { return r.raw }
+
+// Body returns the response without the echoed command and prompt.
 func (r Receipt) Body() string { return r.body }
 func (r Receipt) String() string {
 	return fmt.Sprintf("wireless.Receipt{steps:%d success:%t}", r.steps, r.success)
 }
+
+// GoString formats metadata only, never output.
 func (r Receipt) GoString() string { return r.String() }
+
+// MarshalJSON encodes metadata only, never output.
 func (r Receipt) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireless.Record{"steps": r.steps, "success": r.success})
 }
@@ -48,6 +59,8 @@ type Session interface {
 	State(ctx context.Context) (bool, error)
 	Execute(ctx context.Context, command string) (Receipt, error)
 }
+
+// Clock returns the current time.
 type Clock func() time.Time
 
 // Reader serializes borrowed command reads, validates receipts and preserves first failure.
@@ -59,6 +72,8 @@ type Reader struct {
 	failure atomic.Pointer[wireless.FailureError]
 }
 
+// NewReader returns a reader over a borrowed session; a nil clock means
+// time.Now.
 func NewReader(s Session, clock Clock) (*Reader, error) {
 	if s == nil {
 		return nil, errors.New("wireless: session required")
@@ -68,8 +83,13 @@ func NewReader(s Session, clock Clock) (*Reader, error) {
 	}
 	return &Reader{session: s, clock: clock}, nil
 }
-func (r *Reader) String() string   { return "wireless.Reader" }
+func (r *Reader) String() string { return "wireless.Reader" }
+
+// GoString formats metadata only.
 func (r *Reader) GoString() string { return r.String() }
+
+// Failure returns the first failure that made the session unusable, checking
+// the session state.
 func (r *Reader) Failure(ctx context.Context) *wireless.FailureError {
 	if !r.busy.CompareAndSwap(false, true) {
 		return wireless.NewFailure("session_busy", "session")

@@ -9,15 +9,23 @@ type APQuery struct {
 	command    string
 }
 
-func (q APQuery) Valid() bool     { return q.capability != nil }
+// Valid reports whether the query was selected from a validated profile.
+func (q APQuery) Valid() bool { return q.capability != nil }
+
+// Command returns the LLDP query command run on the AP.
 func (q APQuery) Command() string { return q.command }
+
+// PreparationCommand returns the command that prepares the AP session (for
+// example disabling paging).
 func (q APQuery) PreparationCommand() string {
 	if !q.Valid() {
 		return ""
 	}
 	return q.capability.apPreparation
 }
-func (APQuery) String() string     { return "wireless.APQuery" }
+func (APQuery) String() string { return "wireless.APQuery" }
+
+// GoString formats metadata only.
 func (q APQuery) GoString() string { return q.String() }
 
 // APQuery returns the declared AP neighbor query, or zero for an unsupported profile.

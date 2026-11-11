@@ -89,7 +89,7 @@ func TestPlanValidationRejectsTamperedBoundaries(t *testing.T) {
 			t.Fatal(e)
 		}
 		mutate(p)
-		if _, err := change.NewChangePlan(p); err == nil {
+		if _, err := change.NewPlan(p); err == nil {
 			t.Fatal("accepted mutation", i)
 		}
 	}

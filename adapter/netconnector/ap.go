@@ -22,6 +22,8 @@ var devicePrompt = regexp.MustCompile(`\A<[^<>\r\n]+>\z`)
 var authFailure = regexp.MustCompile(`(?i)Login\s+incorrect|Authentication\s+failed`)
 var connectionFailure = regexp.MustCompile(`(?i)Connection\s+(?:refused|timed\s+out|closed|reset|was\s+closed)|No\s+route\s+to\s+host|Unable\s+to\s+connect`)
 
+// APSession reads AP queries by telnetting from the controller to each AP
+// inside a borrowed controller operation.
 type APSession struct {
 	device      *connector.Device
 	profile     parser.Profile
@@ -30,6 +32,8 @@ type APSession struct {
 	usable      atomic.Bool
 }
 
+// NewAPSession validates the AP credentials and returns an AP session over
+// the controller device.
 func NewAPSession(controller *connector.Device, profile *parser.Profile, credentials collect.APCredentials, clock collect.Clock) (*APSession, error) {
 	valid := func(s string) bool {
 		return strings.TrimSpace(s) != "" && utf8.ValidString(s) && !strings.ContainsFunc(s, unicode.IsControl)
@@ -47,7 +51,9 @@ func NewAPSession(controller *connector.Device, profile *parser.Profile, credent
 	a.usable.Store(true)
 	return a, nil
 }
-func (*APSession) String() string     { return "wireless.adapter.APSession" }
+func (*APSession) String() string { return "wireless.adapter.APSession" }
+
+// GoString formats metadata only, never credentials.
 func (a *APSession) GoString() string { return a.String() }
 
 // APFactory binds the exact borrowed controller supplied by Collect.

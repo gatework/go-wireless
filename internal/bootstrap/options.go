@@ -27,11 +27,15 @@ import (
 
 //go:embed templates/*
 var templates embed.FS
+
+// ErrOptions reports invalid public configuration or command options.
 var ErrOptions = errors.New("wireless: invalid public configuration or options")
 
 // ErrLegacyConfiguration identifies the removed common/wireless shared layout.
 var ErrLegacyConfiguration = fmt.Errorf("wireless: move common settings to the root of net-connector.yml and wireless settings to wireless.yml: %w", ErrOptions)
 
+// Discovery locates configuration: the working and home directories, the
+// program path and the search directories.
 type Discovery struct {
 	CWD, Home, Program string
 	Directories        []string
@@ -159,6 +163,9 @@ func readConfigurationFile(ctx context.Context, path string, missingOK bool) ([]
 	}
 	return body, found, nil
 }
+
+// Dynamic reports whether devices come from an inventory source rather than a
+// static list.
 func (o *Options) Dynamic() bool {
 	if o.runtime != nil {
 		return o.runtime.dynamic
@@ -420,6 +427,8 @@ func number(v any) (float64, bool) {
 		return 0, false
 	}
 }
+
+// StringValue returns v when it is a string, otherwise "".
 func StringValue(v any) string { s, _ := v.(string); return s }
 func stringList(v any) ([]string, error) {
 	a, ok := v.([]any)
@@ -793,6 +802,9 @@ func initializeFile(path string, body []byte) (bool, error) {
 	}
 	return true, nil
 }
+
+// LoadEnvironment reads the .env files a command would read and returns the
+// effective environment and its sources.
 func LoadEnvironment(ctx context.Context, environment map[string]string, envFile string, d Discovery) (map[string]string, wireless.Record, error) {
 	o := NewOptions(Request{EnvFile: envFile, ExplicitEnv: envFile != ""}, d, nil)
 	if e := o.loadEnvironment(ctx, environment); e != nil {

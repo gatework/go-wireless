@@ -18,6 +18,7 @@ import (
 	"github.com/gatework/go-netops/assess"
 )
 
+// Options configures New.
 type Options struct {
 	Batch, Output string
 	// RulesPolicy is an optional YAML file tuning the schema 3 assessment.
@@ -30,16 +31,21 @@ type Options struct {
 	NewReport     func(string, report.Options) (*report.Report, error)
 	ReportOptions report.Options
 }
+
+// Result is one device's collection result in the batch summary.
 type Result struct {
 	Directory string
 	Devices   int
 }
+
+// Error reports the review stage that failed; it never carries device text.
 type Error struct{ Stage string }
 
 func (e *Error) Error() string { return "wireless review: " + e.Stage }
 
 var reviewUnsafe = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
 
+// Run runs one command line and returns its exit code.
 func Run(ctx context.Context, o Options) (Result, error) {
 	batch, e := filepath.Abs(o.Batch)
 	if e != nil {

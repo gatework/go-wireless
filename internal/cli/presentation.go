@@ -11,7 +11,9 @@ import (
 //go:embed templates/*.txt
 var templates embed.FS
 
-func in(s string, values ...string) bool        { return slices.Contains(values, s) }
+func in(s string, values ...string) bool { return slices.Contains(values, s) }
+
+// StringValue returns v when it is a string, otherwise "".
 func StringValue(v any) string                  { s, _ := v.(string); return s }
 func copyMap(m wireless.Record) wireless.Record { return wireless.CloneRecord(m) }
 func stringList(v any) ([]string, error) {

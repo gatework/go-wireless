@@ -16,20 +16,33 @@ import (
 // OpenSession owns controller connection lifecycle. Callback invocations are synchronous;
 // repeated or concurrently repeated invocations never replay collection.
 type OpenSession func(context.Context, func(Session) error) error
+
+// APCredentials are the AP login credentials; they are never formatted or
+// encoded.
 type APCredentials struct{ Username, Password string }
 
-func (APCredentials) String() string               { return "wireless.APCredentials" }
-func (c APCredentials) GoString() string           { return c.String() }
+func (APCredentials) String() string { return "wireless.APCredentials" }
+
+// GoString formats nothing secret.
+func (c APCredentials) GoString() string { return c.String() }
+
+// MarshalJSON encodes nothing: the credentials are secret.
 func (APCredentials) MarshalJSON() ([]byte, error) { return []byte(`{}`), nil }
 
+// APCredentialsSource resolves the AP credentials when they are first needed.
 type APCredentialsSource func(context.Context) (APCredentials, error)
+
+// APOutcome is the result of reading one AP: the capture, and failures of the
+// read, the AP cleanup and the session close.
 type APOutcome struct {
 	Result                          *wireless.Capture
 	Error, CleanupError, CloseError *wireless.FailureError
 	Skipped                         bool
 }
 
-func (APOutcome) String() string     { return "wireless.APOutcome" }
+func (APOutcome) String() string { return "wireless.APOutcome" }
+
+// GoString formats metadata only.
 func (o APOutcome) GoString() string { return o.String() }
 
 // APRequest associates the selected profile's query with one detached AP identity.
@@ -38,18 +51,23 @@ type APRequest struct {
 	Query       parser.APQuery
 }
 
+// APReader reads one query from one AP through the controller.
 type APReader interface {
 	Read(ctx context.Context, request APRequest) (APOutcome, error)
 }
+
+// APFactory opens the AP reader that borrows a controller session.
 type APFactory func(context.Context, Session, APCredentials) (APReader, error)
+
+// CollectorOptions configures NewCollector.
 type CollectorOptions struct {
 	Clock     Clock
 	APFactory APFactory
 }
 
-// CollectOptions selects a validated parser profile and independently identifies
+// Request selects a validated parser profile and independently identifies
 // the actual connector. Target and scope are copied before the opener is called.
-type CollectOptions struct {
+type Request struct {
 	Target            wireless.Record
 	Profile           *parser.Profile
 	ConnectorPlatform string
@@ -65,15 +83,22 @@ type Collector struct {
 	apFactory APFactory
 }
 
+// NewCollector returns a collector; a nil clock means time.Now.
 func NewCollector(o CollectorOptions) *Collector {
 	if o.Clock == nil {
 		o.Clock = time.Now
 	}
 	return &Collector{o.Clock, o.APFactory}
 }
-func (c *Collector) String() string   { return "wireless.Collector" }
+func (c *Collector) String() string { return "wireless.Collector" }
+
+// GoString formats metadata only.
 func (c *Collector) GoString() string { return c.String() }
-func (c *Collector) Collect(ctx context.Context, o CollectOptions) (wireless.Snapshot, error) {
+
+// Collect runs one controller collection through o.Open and returns the
+// snapshot; every requested dimension gets an observation, failed ones
+// included.
+func (c *Collector) Collect(ctx context.Context, o Request) (wireless.Snapshot, error) {
 	profile := o.Profile
 	if !profile.Valid() {
 		return wireless.Snapshot{}, errors.New("wireless: parser profile required")

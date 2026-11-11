@@ -9,7 +9,7 @@
 | 采集范围（CollectionScope） | Profile 一次决定的默认维度、依赖维度、去重查询和 AP 邻居采集范围；读取返回独立值。 | parser |
 | 采集批次执行（Collection execution） | 一批只读设备采集的结果、取消、报告最终发布与输出失败恢复；恢复不重放采集。 | internal/workflow/collect |
 | 运行配置快照（Runtime options） | 配置优先级及校验完成后独立持有的 typed 值；公开配置视图的后续修改不改变执行。 | internal/bootstrap |
-| 已验证计划（ChangePlan） | 一次验证后深度持有的 schema 1 变更值；绑定设备、完整配置指纹及重新渲染的命令。读取不能修改计划。 | change |
+| 已验证计划（change.Plan） | 一次验证后深度持有的 schema 1 变更值；绑定设备、完整配置指纹及重新渲染的命令。读取不能修改计划。 | change |
 | 变更执行（Apply execution） | 一次已确认计划的预检、intent、发送、acknowledgement、读回、清理和最终发布。 | internal/workflow/apply |
 | 持久意图（Intent） | 发送前确认写入执行日志的命令索引；一旦提交，后续失败按可能已发送处理。 | internal/workflow/apply；report |
 | 不确定结果（Uncertain） | intent 提交后，命令、取消、清理或日志发布任一环节无法确认。禁止自动重试、回滚、保存。 | internal/workflow/apply；report |

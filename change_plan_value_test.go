@@ -59,7 +59,7 @@ func TestChangePlanOwnsDocumentActionAndRenderedCommands(t *testing.T) {
 	}
 	wantCommands, _ := record.Strings(document["commands"])
 	wantRollback, _ := record.Strings(document["rollback"])
-	plan, err := change.NewChangePlan(document)
+	plan, err := change.NewPlan(document)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestChangePlanSchemaIsExactlyOneAndPreservesJSONNumber(t *testing.T) {
 		t.Run(number, func(t *testing.T) {
 			document := changePlanDocument(t)
 			document["schema_version"] = json.Number(number)
-			plan, err := change.NewChangePlan(document)
+			plan, err := change.NewPlan(document)
 			if err != nil {
 				t.Fatal("rejected exact one", err)
 			}
@@ -129,36 +129,36 @@ func TestChangePlanSchemaIsExactlyOneAndPreservesJSONNumber(t *testing.T) {
 	} {
 		document := changePlanDocument(t)
 		document["schema_version"] = value
-		if _, err := change.NewChangePlan(document); !errors.Is(err, change.ErrChangePlan) {
+		if _, err := change.NewPlan(document); !errors.Is(err, change.ErrInvalid) {
 			t.Fatalf("accepted invalid schema %v (%T)", value, value)
 		}
 	}
 }
 
 func TestChangePlanRejectsZeroAndUncopyableDocuments(t *testing.T) {
-	var zero change.ChangePlan
-	if err := zero.CheckBefore(wireless.Record{}); !errors.Is(err, change.ErrChangePlan) {
+	var zero change.Plan
+	if err := zero.CheckBefore(wireless.Record{}); !errors.Is(err, change.ErrInvalid) {
 		t.Fatal("zero plan passed precheck", err)
 	}
-	if _, err := zero.CheckAfter(wireless.Record{}); !errors.Is(err, change.ErrChangePlan) {
+	if _, err := zero.CheckAfter(wireless.Record{}); !errors.Is(err, change.ErrInvalid) {
 		t.Fatal("zero plan passed readback", err)
 	}
-	if _, err := json.Marshal(zero); !errors.Is(err, change.ErrChangePlan) {
+	if _, err := json.Marshal(zero); !errors.Is(err, change.ErrInvalid) {
 		t.Fatal("zero plan serialized", err)
 	}
-	if _, err := change.NewChangePlan(nil); !errors.Is(err, change.ErrChangePlan) {
+	if _, err := change.NewPlan(nil); !errors.Is(err, change.ErrInvalid) {
 		t.Fatal("nil plan accepted", err)
 	}
 	for _, uncopyable := range []any{func() {}, make(chan string)} {
 		document := changePlanDocument(t)
 		document["metadata"] = uncopyable
-		if _, err := change.NewChangePlan(document); !errors.Is(err, change.ErrChangePlan) {
+		if _, err := change.NewPlan(document); !errors.Is(err, change.ErrInvalid) {
 			t.Fatal("accepted unowned value", err)
 		}
 	}
 	document := changePlanDocument(t)
 	document["metadata"] = document
-	if _, err := change.NewChangePlan(document); !errors.Is(err, change.ErrChangePlan) {
+	if _, err := change.NewPlan(document); !errors.Is(err, change.ErrInvalid) {
 		t.Fatal("accepted cycle", err)
 	}
 }

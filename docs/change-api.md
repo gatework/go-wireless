@@ -14,14 +14,14 @@ type TemplateSecurity struct{ Name string; Enabled bool; CipherSuites, SecurityI
 func (TemplateSecurity) Eligible(*wlan.Configuration) error
 func (TemplateSecurity) Satisfied(*wlan.Configuration) error
 func DecodeTemplateSecurity(any) (TemplateSecurity, error)
-type ChangePlan struct { /* immutable, private state */ }
-func NewChangePlan(Record) (ChangePlan, error)
-func (ChangePlan) Device() Record
-func (ChangePlan) Commands() []string
-func (ChangePlan) Rollback() []string
-func (ChangePlan) ToMap() Record
-func (ChangePlan) CheckBefore(Record) error
-func (ChangePlan) CheckAfter(Record) (string, error)
+type Plan struct { /* immutable, private state */ }
+func NewPlan(Record) (Plan, error)
+func (Plan) Device() Record
+func (Plan) Commands() []string
+func (Plan) Rollback() []string
+func (Plan) ToMap() Record
+func (Plan) CheckBefore(Record) error
+func (Plan) CheckAfter(Record) (string, error)
 
 // package wireless
 func DecodeJSONDocument([]byte) (Record, error)
@@ -68,7 +68,7 @@ its original enabled state. `TemplateSecurity.Eligible` compares original ordere
 protocol arrays and enabled state on the strictly decoded typed configuration. Satisfaction compares exact arrays after removing
 TKIP/WPA and the original enabled state; CLI acknowledgement alone is insufficient.
 
-NewChangePlan validates once and deeply owns its document, device, action and
+NewPlan validates once and deeply owns its document, device, action and
 rendered commands. Accessors return detached copies; the zero value cannot execute.
 Schema is compared exactly: 1, 1.0 and 1e0 are valid; a near-one decimal such as
 1.0000000000000001 is rejected without float64 rounding. Huge exponents do not

@@ -46,9 +46,9 @@ under both ordinary Python and -O; path prefixes cannot bypass or broaden a rule
 | root runtime parser | `parser.NewRuntimeParser(registry, model)` |
 | root neighbor parser | `parser.NewNeighborParser(selectedProfile, model)` |
 | root Collector/Reader/Receipt/AP types | `collect` |
-| `CollectOptions.Platform/Model` | `CollectOptions.Profile` selected before admission |
+| `CollectOptions.Platform/Model` | `Request.Profile` selected before admission |
 | root review validation/recommendation functions | `review` |
-| root ChangePlan/rendering/checking/session functions | `change` |
+| root Plan/rendering/checking/session functions | `change` |
 | `adapter` | `adapter/netconnector` |
 | `netconnector.Borrow/Open(device)` | `netconnector.Borrow/Open(device, selectedProfile)` |
 | `APReader.Read(ctx, record)` | `APReader.Read(ctx, collect.APRequest{AccessPoint: record, Query: scope.APQuery()})` |
@@ -68,7 +68,7 @@ callbacks own their captured state and must be safe for concurrent reuse. Built-
 profiles capture private declarations, so caller mutations of a ProfileSpec do not
 change a registered parser. Nil/zero profiles cannot parse or open sessions.
 
-`collect.CollectOptions` explicitly pairs the selected profile with the actual
+`collect.Request` explicitly pairs the selected profile with the actual
 connector platform and borrowed opener. Grouped queries execute once. All reads,
 including custom AP LLDP parsing, use that profile. Invalid models/names or zero
 profiles fail admission; unsupported dimensions remain explicit evidence. Bootstrap

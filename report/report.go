@@ -20,11 +20,15 @@ import (
 	wireless "github.com/gatework/go-wireless"
 )
 
+// DimensionSummary is one dimension's status, record count and issue codes in
+// a device result.
 type DimensionSummary struct {
 	Status  wireless.Status `json:"status"`
 	Records int             `json:"records"`
 	Issues  []string        `json:"issues"`
 }
+
+// Result is one device's collection result in the batch summary.
 type Result struct {
 	Device      wireless.Record             `json:"device"`
 	Status      wireless.Status             `json:"status"`
@@ -34,6 +38,7 @@ type Result struct {
 	ReportSaved bool                        `json:"report_saved"`
 }
 
+// ToMap returns the result as a wire record.
 func (r Result) ToMap() wireless.Record {
 	d := map[string]any{}
 	for n, v := range r.Dimensions {
@@ -56,6 +61,8 @@ type Error struct {
 func (e *Error) Error() string {
 	return fmt.Sprintf("report: %s at %s (committed=%t durable=%t)", e.Relative, e.Phase, e.Committed, e.Durable)
 }
+
+// GoString formats the same metadata as Error.
 func (e *Error) GoString() string { return e.Error() }
 
 // PublicationCommitted reports whether publication crossed the commit boundary,
@@ -64,30 +71,42 @@ func (e *Error) PublicationCommitted() bool { return e != nil && e.Committed }
 
 // Is preserves cancellation identity without retaining arbitrary private causes.
 func (e *Error) Is(target error) bool { return e.cancelErr != nil && errors.Is(e.cancelErr, target) }
+
+// ToMap returns the error metadata as a diagnostic record.
 func (e *Error) ToMap() wireless.Record {
 	return wireless.Record{"relative": e.Relative, "phase": e.Phase, "committed": e.Committed, "durable": e.Durable}
 }
 
+// WriteFunc durably writes one file and returns its storage receipt.
 type WriteFunc func(context.Context, string, []byte) (storage.Receipt, error)
 
 // DeviceHook prepares recommendations before JSON publication and returns one
 // post-publication artifact callback. It is the recommendation enrichment boundary.
 type DeviceHook func(context.Context, wireless.Record) (Enrichment, error)
+
+// Enrichment is what a DeviceHook adds to a device report: the assessment
+// embedded in its JSON and the artifacts written after it.
 type Enrichment struct {
 	Assessment any
 	Artifacts  func(context.Context, *Report, PublishedDevice) error
 }
+
+// PublishedDevice identifies a published device report for its artifacts.
 type PublishedDevice struct {
 	Basename, Path string
 	SHA256         string
 	JSON           []byte
 	Document       wireless.Record
 }
+
+// Options configures New.
 type Options struct {
 	Now        func() time.Time
 	Write      WriteFunc
 	DeviceHook DeviceHook
 }
+
+// Report publishes one batch's artifacts atomically into a private directory.
 type Report struct {
 	directory      string
 	write          WriteFunc
@@ -96,6 +115,7 @@ type Report struct {
 	recoveryFailed bool
 }
 
+// New creates a private batch directory under root.
 func New(root string, o Options) (*Report, error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, errors.New("report: private root required")
@@ -137,7 +157,12 @@ func New(root string, o Options) (*Report, error) {
 	}
 	return &Report{directory: directory, write: write, hook: o.DeviceHook}, nil
 }
-func (r *Report) Directory() string    { return r.directory }
+
+// Directory returns the batch directory.
+func (r *Report) Directory() string { return r.directory }
+
+// RecoveryFailed reports whether restoring a checkpoint failed during the
+// last finish.
 func (r *Report) RecoveryFailed() bool { r.mu.Lock(); defer r.mu.Unlock(); return r.recoveryFailed }
 
 // Publish is the only artifact writer; relative paths are confined to this batch.
@@ -178,6 +203,8 @@ func (r *Report) Publish(ctx context.Context, relative string, body []byte) erro
 	return nil
 }
 
+// WriteDevice publishes one device's JSON report (with its assessment when a
+// hook is set) and text summary, then the hook's artifacts.
 func (r *Report) WriteDevice(ctx context.Context, result Result, snapshot *wireless.Snapshot) error {
 	document := result.ToMap()
 	delete(document, "report_saved")
@@ -249,6 +276,7 @@ func safeRelative(path string) bool {
 
 var unsafeName = regexp.MustCompile(`[^A-Za-z0-9_.-]`)
 
+// Basename returns the file-safe base name of a device's reports.
 func Basename(device wireless.Record) string {
 	name, _ := device["name"].(string)
 	name = unsafeName.ReplaceAllString(name, "_")
@@ -265,6 +293,9 @@ func jsonBody(value any) ([]byte, error) {
 	}
 	return append(b, '\n'), nil
 }
+
+// Finish publishes the batch summary; it may be called again to republish
+// after a later failure or cancellation.
 func (r *Report) Finish(ctx context.Context, results []Result, o FinishOptions) (wireless.Record, error) {
 	r.mu.Lock()
 	r.recoveryFailed = false
@@ -337,6 +368,7 @@ func (r *Report) Finish(ctx context.Context, results []Result, o FinishOptions) 
 	return summary, nil
 }
 
+// FinishOptions records the batch outcome Finish publishes.
 type FinishOptions struct {
 	Interrupted                              bool
 	Requested                                []wireless.Record
@@ -394,6 +426,7 @@ func (r *Report) Finalize(ctx context.Context, relative string, checkpoint, fina
 	return nil
 }
 
+// WriteExecution durably publishes the apply execution state.
 func (r *Report) WriteExecution(ctx context.Context, state wireless.Record) error {
 	b, e := jsonBody(state)
 	if e != nil {

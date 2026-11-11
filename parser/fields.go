@@ -17,15 +17,18 @@ func rx(s string) *regexp.Regexp { return regexp.MustCompile(s) }
 
 var missingValue = rx(`(?i)^(?:N/A|--|-|Not configured|Not supported)$`)
 
-// NewlinePolicy selects the Ruby Fields.text newline conversion.
+// NewlinePolicy selects how NormalizeTextWithPolicy converts line endings.
 type NewlinePolicy string
 
+// Newline policies: keep line endings, convert CRLF and CR to LF, or delete CR.
 const (
 	PreserveNewlines NewlinePolicy = "preserve"
 	LFNewlines       NewlinePolicy = "lf"
 	DeleteCRNewlines NewlinePolicy = "delete_cr"
 )
 
+// NormalizeText rejects invalid UTF-8 and NUL and either keeps line endings
+// or converts them to LF.
 func NormalizeText(content string, preserveNewlines bool) (string, error) {
 	policy := LFNewlines
 	if preserveNewlines {
@@ -33,6 +36,9 @@ func NormalizeText(content string, preserveNewlines bool) (string, error) {
 	}
 	return NormalizeTextWithPolicy(content, policy)
 }
+
+// NormalizeTextWithPolicy rejects invalid UTF-8 and NUL and converts line
+// endings according to policy.
 func NormalizeTextWithPolicy(content string, policy NewlinePolicy) (string, error) {
 	if !utf8.ValidString(content) || strings.ContainsRune(content, 0) {
 		return "", errors.New("invalid wireless encoding")
@@ -48,6 +54,9 @@ func NormalizeTextWithPolicy(content string, policy NewlinePolicy) (string, erro
 		return "", errors.New("invalid wireless newline policy")
 	}
 }
+
+// NormalizeValue trims a field value; empty and placeholder values (N/A, --,
+// Not configured, ...) are absent.
 func NormalizeValue(raw string) *string {
 	s := parsetext.Strip(raw)
 	if s == "" || missingValue.MatchString(s) {
@@ -58,6 +67,9 @@ func NormalizeValue(raw string) *string {
 
 var macPattern = rx(`(?i)^(?:[0-9a-f]{12}|[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}|[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}|(?:[0-9a-f]{2}:){5}[0-9a-f]{2})$`)
 
+// ParseMAC normalizes a MAC address in any common notation to lowercase colon
+// form.
+//
 //nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseMAC(raw *string) (*string, error) {
 	if raw == nil {
@@ -79,6 +91,8 @@ func ParseMAC(raw *string) (*string, error) {
 
 var ipv4CompatibleIPv6String = rx(`^::[0-9a-f]{1,4}:[0-9a-f]{1,4}$`)
 
+// ParseIP normalizes an IPv4 or IPv6 address; a zone is not allowed.
+//
 //nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseIP(raw *string) (*string, error) {
 	if raw == nil {
@@ -106,10 +120,12 @@ func ParseIP(raw *string) (*string, error) {
 	return &s, nil
 }
 
-func ParseInteger(raw *string, max *int64) (*int64, error) {
+// ParseInteger parses a non-negative decimal integer, at most limit when
+// limit is set.
+func ParseInteger(raw *string, limit *int64) (*int64, error) {
 	var maximum *big.Int
-	if max != nil {
-		maximum = big.NewInt(*max)
+	if limit != nil {
+		maximum = big.NewInt(*limit)
 	}
 	value, err := ParseIntegerExact(raw, maximum)
 	if err != nil || value == nil {
@@ -121,6 +137,8 @@ func ParseInteger(raw *string, max *int64) (*int64, error) {
 	result := value.Int64()
 	return &result, nil
 }
+
+// ParseVLAN parses a VLAN ID (1..4094).
 func ParseVLAN(raw *string) (*int64, error) {
 	limit := int64(4094)
 	v, err := ParseInteger(raw, &limit)
@@ -130,6 +148,8 @@ func ParseVLAN(raw *string) (*int64, error) {
 	return v, err
 }
 
+// ParseNumber parses a finite decimal number, optionally followed by unit.
+//
 //nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseNumber(raw *string, unit string) (*float64, error) {
 	if raw == nil {
@@ -149,6 +169,8 @@ func ParseNumber(raw *string, unit string) (*float64, error) {
 var durationColon = rx(`^\d+:\d{2}:\d{2}:\d{2}$`)
 var durationWords = rx(`(?i)(\d+)\s*(days?|hours?|minutes?|seconds?|[dhms])\b`)
 
+// ParseDuration parses a duration such as "1 day 2 hours 3 minutes" into
+// seconds.
 func ParseDuration(raw *string) (*int64, error) {
 	value, err := ParseDurationExact(raw)
 	if err != nil || value == nil {
@@ -163,6 +185,8 @@ func ParseDuration(raw *string) (*int64, error) {
 
 var ratesPattern = rx(`(?i)^(\d+(?:\.\d+)?)\s*/\s*(\d+(?:\.\d+)?)\s*([kmgt]?bps)?$`)
 
+// ParseRatesMbps parses an "rx/tx" rate pair, with an optional bps unit, into
+// Mbps.
 func ParseRatesMbps(raw *string) (*float64, *float64, error) {
 	if raw == nil {
 		return nil, nil, nil
@@ -190,6 +214,8 @@ func ParseRatesMbps(raw *string) (*float64, *float64, error) {
 
 var channelPattern = rx(`^(\d+)(?:\s*\([^\n]*\))?$`)
 
+// ParseChannel parses a channel number (1..233); auto and 0 are absent.
+//
 //nolint:nilnil // an absent or automatic channel parses to an absent value
 func ParseChannel(raw *string) (*int64, error) {
 	if raw == nil || strings.EqualFold(*raw, "auto") {
@@ -209,6 +235,7 @@ func ParseChannel(raw *string) (*int64, error) {
 
 var widthPattern = rx(`(?i)^(\d+)\s*(?:MHz)?$`)
 
+// ParseChannelWidth parses a positive channel width in MHz, or returns nil.
 func ParseChannelWidth(raw *string) *int64 {
 	if raw == nil {
 		return nil
@@ -228,6 +255,8 @@ var band6 = rx(`(?i)(?:^|[^\d.])6\s*g(?:hz)?\b`)
 var band5 = rx(`(?i)(?:^|[^\d.])5\s*g(?:hz)?\b`)
 var band24 = rx(`(?i)(?:^|[^\d.])2\.4\s*g(?:hz)?\b|802\.11[bg](?:\b|/)`)
 
+// FrequencyBand returns the one band (2.4GHz, 5GHz or 6GHz) hint names, or
+// nil when it names none or several.
 func FrequencyBand(hint string) *string {
 	bands := []string{}
 	for _, b := range []struct {
@@ -243,6 +272,9 @@ func FrequencyBand(hint string) *string {
 	}
 	return nil
 }
+
+// OnlineStatus normalizes vendor AP states to online or offline; other states
+// are returned unchanged.
 func OnlineStatus(raw string) string {
 	switch strings.ToLower(raw) {
 	case "run", "running", "online", "normal", "nor", "up":

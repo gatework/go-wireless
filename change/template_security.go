@@ -15,8 +15,8 @@ import (
 // KindTemplateSecurity removes legacy TKIP/WPA from one service template.
 const KindTemplateSecurity netchange.Kind = "wireless_security"
 
-// ErrChangePlan reports a change or plan that is invalid or no longer applies.
-var ErrChangePlan = errors.New("wireless: invalid change plan")
+// ErrInvalid reports a change or plan that is invalid or no longer applies.
+var ErrInvalid = errors.New("wireless: invalid change plan")
 
 // templateName is the set of H3C service template names a plan may target.
 var templateName = regexp.MustCompile(`\A[A-Za-z0-9_.-]{1,63}\z`)
@@ -32,13 +32,14 @@ type TemplateSecurity struct {
 
 var _ netchange.Change[*wlan.Configuration] = TemplateSecurity{}
 
+// Kind returns KindTemplateSecurity.
 func (TemplateSecurity) Kind() netchange.Kind { return KindTemplateSecurity }
 
 // Validate requires a legal name, CCMP and RSN to remain, and something to remove.
 func (t TemplateSecurity) Validate() error {
 	if !templateName.MatchString(t.Name) || !slices.Contains(t.CipherSuites, "ccmp") || !slices.Contains(t.SecurityIEs, "rsn") ||
 		(!slices.Contains(t.CipherSuites, "tkip") && !slices.Contains(t.SecurityIEs, "wpa")) {
-		return ErrChangePlan
+		return ErrInvalid
 	}
 	return nil
 }
@@ -126,20 +127,20 @@ func nonNil(s []string) []string {
 func DecodeTemplateSecurity(v any) (TemplateSecurity, error) {
 	body, err := wireless.MarshalJSON(v)
 	if err != nil {
-		return TemplateSecurity{}, ErrChangePlan
+		return TemplateSecurity{}, ErrInvalid
 	}
 	var raw map[string]json.RawMessage
 	if json.Unmarshal(body, &raw) != nil {
-		return TemplateSecurity{}, ErrChangePlan
+		return TemplateSecurity{}, ErrInvalid
 	}
 	var kind string
 	if json.Unmarshal(raw["kind"], &kind) != nil || netchange.Kind(kind) != KindTemplateSecurity {
-		return TemplateSecurity{}, ErrChangePlan
+		return TemplateSecurity{}, ErrInvalid
 	}
 	delete(raw, "kind")
 	for _, required := range []string{"name", "enabled", "cipher_suites", "security_ies"} {
 		if v, ok := raw[required]; !ok || string(bytes.TrimSpace(v)) == "null" {
-			return TemplateSecurity{}, ErrChangePlan // null would silently decode as false or empty
+			return TemplateSecurity{}, ErrInvalid // null would silently decode as false or empty
 		}
 	}
 	rest, _ := json.Marshal(raw)
@@ -147,7 +148,7 @@ func DecodeTemplateSecurity(v any) (TemplateSecurity, error) {
 	d.DisallowUnknownFields()
 	var t TemplateSecurity
 	if d.Decode(&t) != nil {
-		return TemplateSecurity{}, ErrChangePlan
+		return TemplateSecurity{}, ErrInvalid
 	}
 	if err := t.Validate(); err != nil {
 		return TemplateSecurity{}, err

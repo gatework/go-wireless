@@ -9,17 +9,22 @@ import (
 	"time"
 )
 
+// SnapshotOptions describes one controller collection for NewSnapshot.
 type SnapshotOptions struct {
 	Target     Record
 	Dimensions map[Dimension]Observation
 	ObservedAt time.Time
 }
+
+// Snapshot is one controller collection: the target and the observation of
+// every dimension. Accessors return copies.
 type Snapshot struct {
 	target     Record
 	dimensions map[Dimension]Observation
 	observedAt time.Time
 }
 
+// NewSnapshot validates and deep-copies a collection.
 func NewSnapshot(o SnapshotOptions) (Snapshot, error) {
 	if o.Target == nil || len(o.Dimensions) == 0 || o.ObservedAt.IsZero() {
 		return Snapshot{}, errors.New("invalid wireless snapshot")
@@ -38,13 +43,22 @@ func NewSnapshot(o SnapshotOptions) (Snapshot, error) {
 	identity, _ := v.(Record)
 	return Snapshot{identity, dims, o.ObservedAt}, nil
 }
+
+// Target returns a copy of the collected device identity.
 func (s Snapshot) Target() Record { return cloneRecord(s.target) }
+
+// Dimensions returns every observation by dimension.
 func (s Snapshot) Dimensions() map[Dimension]Observation {
 	d := map[Dimension]Observation{}
 	maps.Copy(d, s.dimensions)
 	return d
 }
+
+// ObservedAt returns when the collection was observed.
 func (s Snapshot) ObservedAt() time.Time { return s.observedAt }
+
+// Dimension returns one dimension's observation; an absent dimension reads as
+// not requested.
 func (s Snapshot) Dimension(n Dimension) Observation {
 	if o, ok := s.dimensions[n]; ok {
 		return o
@@ -52,7 +66,12 @@ func (s Snapshot) Dimension(n Dimension) Observation {
 	o, _ := NewObservation(ObservationOptions{Name: n, Status: NotRequested})
 	return o
 }
+
+// Records returns a copy of one dimension's fact records.
 func (s Snapshot) Records(n Dimension) []Record { return s.Dimension(n).Records() }
+
+// Complete reports whether every requested dimension is complete; it does not
+// mean the network is healthy.
 func (s Snapshot) Complete() bool {
 	selected := false
 	for _, o := range s.dimensions {
@@ -69,11 +88,19 @@ func (s Snapshot) Complete() bool {
 func (s Snapshot) String() string {
 	return fmt.Sprintf("<wireless.Snapshot complete=%t>", s.Complete())
 }
+
+// GoString formats metadata only, never facts.
 func (s Snapshot) GoString() string { return s.String() }
+
+// ToMap returns the snapshot as a wire record, facts included.
 func (s Snapshot) ToMap() Record {
 	return Record{"target": s.Target(), "dimensions": s.Dimensions(), "observed_at": formatTime(&s.observedAt)}
 }
+
+// MarshalJSON encodes the snapshot, facts included.
 func (s Snapshot) MarshalJSON() ([]byte, error) { return MarshalJSON(s.ToMap()) }
+
+// UnmarshalJSON decodes and validates an encoded snapshot.
 func (s *Snapshot) UnmarshalJSON(data []byte) error {
 	var wire struct {
 		Target     json.RawMessage           `json:"target"`

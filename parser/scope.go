@@ -16,10 +16,19 @@ type CollectionScope struct {
 	apQuery                 APQuery
 }
 
-func (s CollectionScope) Dimensions() []wireless.Dimension  { return slices.Clone(s.dimensions) }
+// Dimensions returns the dimensions the scope collects.
+func (s CollectionScope) Dimensions() []wireless.Dimension { return slices.Clone(s.dimensions) }
+
+// Unsupported returns requested dimensions the platform cannot collect.
 func (s CollectionScope) Unsupported() []wireless.Dimension { return slices.Clone(s.unsupported) }
-func (s CollectionScope) APNeighbors() bool                 { return s.apQuery.Valid() }
-func (s CollectionScope) APQuery() APQuery                  { return s.apQuery }
+
+// APNeighbors reports whether LLDP is collected from the APs.
+func (s CollectionScope) APNeighbors() bool { return s.apQuery.Valid() }
+
+// APQuery returns the AP LLDP query, valid only when APNeighbors is true.
+func (s CollectionScope) APQuery() APQuery { return s.apQuery }
+
+// Queries returns the controller queries to run, in order.
 func (s CollectionScope) Queries() []Query {
 	queries := slices.Clone(s.queries)
 	for i := range queries {
@@ -28,6 +37,8 @@ func (s CollectionScope) Queries() []Query {
 	return queries
 }
 
+// CollectionScope selects the queries for the requested dimensions; nil
+// requests the defaults.
 func (p *Profile) CollectionScope(requested []wireless.Dimension) (CollectionScope, error) {
 	if !p.Valid() {
 		return CollectionScope{}, errors.New("wireless parser: profile required")

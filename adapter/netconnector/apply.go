@@ -17,7 +17,7 @@ import (
 // and readback. Both operation and cleanup errors survive lease retirement.
 func Apply(ctx context.Context, device *connector.Device, run func(context.Context, change.ApplySession) error) (error, error) {
 	if device == nil || run == nil {
-		return change.ErrChangePlan, nil
+		return change.ErrInvalid, nil
 	}
 	if e := device.Connect(ctx); e != nil {
 		if errors.Is(e, connector.ErrBusy) {
@@ -76,7 +76,7 @@ func (s *applySession) execute(ctx context.Context, command string, query bool) 
 	if query {
 		prompt := strings.TrimSpace(s.op.RawPrompt())
 		if prompt == "" {
-			return connector.StepResult{}, change.ErrChangePlan
+			return connector.StepResult{}, change.ErrInvalid
 		}
 		cmd.Prompt = exactPrompt(prompt)
 	}

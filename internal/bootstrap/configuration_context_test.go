@@ -32,7 +32,7 @@ func TestConfigurationEntryPointsPreserveCancellation(t *testing.T) {
 			return err
 		},
 		"apply preparation": func() error {
-			_, err := PrepareApply(ctx, nil, "", discovery, nil, nil, change.ChangePlan{}, 22)
+			_, err := PrepareApply(ctx, nil, "", discovery, nil, nil, change.Plan{}, 22)
 			return err
 		},
 		"initialize publication": func() error {

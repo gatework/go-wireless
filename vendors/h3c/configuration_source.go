@@ -23,15 +23,28 @@ type SourceLine struct {
 	raw, text     string
 }
 
-func (l SourceLine) Index() int   { return l.index }
-func (l SourceLine) Number() int  { return l.index + 1 }
-func (l SourceLine) Raw() string  { return l.raw }
+// Index returns the 0-based line index.
+func (l SourceLine) Index() int { return l.index }
+
+// Number returns the 1-based line number.
+func (l SourceLine) Number() int { return l.index + 1 }
+
+// Raw returns the line with its terminator; it may be sensitive.
+func (l SourceLine) Raw() string { return l.raw }
+
+// Text returns the trimmed line; it may be sensitive.
 func (l SourceLine) Text() string { return l.text }
-func (l SourceLine) Indent() int  { return l.indent }
+
+// Indent returns the leading spaces and tabs.
+func (l SourceLine) Indent() int { return l.indent }
 func (l SourceLine) String() string {
 	return fmt.Sprintf("<wireless.SourceLine number=%d>", l.Number())
 }
+
+// GoString formats metadata only, never line text.
 func (l SourceLine) GoString() string { return l.String() }
+
+// MarshalJSON encodes the line, text included.
 func (l SourceLine) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireless.Record{"number": l.Number()})
 }
@@ -40,6 +53,9 @@ type sourceBlock struct {
 	index, last int
 	children    []*sourceBlock
 }
+
+// ConfigurationCapture is the parsed data of one configuration block, with
+// the source lines it came from.
 type ConfigurationCapture struct {
 	source      *ConfigurationSource
 	first, last int
@@ -47,17 +63,26 @@ type ConfigurationCapture struct {
 	path        []any
 }
 
+// Data returns a copy of the parsed data.
 func (c ConfigurationCapture) Data() any {
 	v, _ := wireless.CopyValue(c.data)
 	return v
 }
+
+// Path returns a copy of the data's location in the configuration record.
 func (c ConfigurationCapture) Path() []any {
 	v, _ := wireless.CopyValue(c.path)
 	list, _ := v.([]any)
 	return list
 }
+
+// FirstLine returns the block's first 1-based line number.
 func (c ConfigurationCapture) FirstLine() int { return c.first + 1 }
-func (c ConfigurationCapture) LastLine() int  { return c.last + 1 }
+
+// LastLine returns the block's last 1-based line number.
+func (c ConfigurationCapture) LastLine() int { return c.last + 1 }
+
+// Content returns the raw source of the block; it may be sensitive.
 func (c ConfigurationCapture) Content() string {
 	var b strings.Builder
 	for _, line := range c.source.lines[c.first : c.last+1] {
@@ -65,6 +90,9 @@ func (c ConfigurationCapture) Content() string {
 	}
 	return b.String()
 }
+
+// Complete reports whether every line of the block was parsed or deliberately
+// ignored.
 func (c ConfigurationCapture) Complete() bool {
 	for _, state := range c.source.states[c.first : c.last+1] {
 		if state != "parsed" && state != "ignored" {
@@ -76,11 +104,17 @@ func (c ConfigurationCapture) Complete() bool {
 func (c ConfigurationCapture) String() string {
 	return fmt.Sprintf("<wireless.ConfigurationCapture lines=%d..%d>", c.FirstLine(), c.LastLine())
 }
+
+// GoString formats metadata only.
 func (c ConfigurationCapture) GoString() string { return c.String() }
+
+// MarshalJSON encodes the capture, data and source included.
 func (c ConfigurationCapture) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireless.Record{"first_line": c.FirstLine(), "last_line": c.LastLine(), "complete": c.Complete()})
 }
 
+// ConfigurationSource is a parsed H3C configuration: the observation, every
+// source line with its parse state and the captured blocks.
 type ConfigurationSource struct {
 	content, checksum string
 	lines             []SourceLine
@@ -91,6 +125,8 @@ type ConfigurationSource struct {
 	issues            []wireless.Record
 }
 
+// ParseConfigurationSource parses one display current-configuration output;
+// complete declares that it was captured completely.
 func ParseConfigurationSource(content string, complete bool) (*ConfigurationSource, error) {
 	if _, err := parser.NormalizeText(content, true); err != nil {
 		s := &ConfigurationSource{}
@@ -109,14 +145,29 @@ func ParseConfigurationSource(content string, complete bool) (*ConfigurationSour
 	slices.SortStableFunc(s.captures, func(a, b ConfigurationCapture) int { return cmp.Compare(a.first, b.first) })
 	return s, nil
 }
+
+// Observation returns the configuration observation.
 func (s *ConfigurationSource) Observation() wireless.Observation { return s.observation }
-func (s *ConfigurationSource) Content() string                   { return s.content }
-func (s *ConfigurationSource) Checksum() string                  { return s.checksum }
-func (s *ConfigurationSource) Lines() []SourceLine               { return append([]SourceLine{}, s.lines...) }
-func (s *ConfigurationSource) States() []string                  { return append([]string{}, s.states...) }
+
+// Content returns the raw configuration; it may be sensitive.
+func (s *ConfigurationSource) Content() string { return s.content }
+
+// Checksum returns the SHA-256 of the raw configuration.
+func (s *ConfigurationSource) Checksum() string { return s.checksum }
+
+// Lines returns a copy of the source lines.
+func (s *ConfigurationSource) Lines() []SourceLine { return append([]SourceLine{}, s.lines...) }
+
+// States returns a copy of every line's parse state (pending, parsed, ignored
+// or invalid).
+func (s *ConfigurationSource) States() []string { return append([]string{}, s.states...) }
+
+// Captures returns a copy of the captured blocks.
 func (s *ConfigurationSource) Captures() []ConfigurationCapture {
 	return append([]ConfigurationCapture{}, s.captures...)
 }
+
+// CapturesFor returns the captures at one record path.
 func (s *ConfigurationSource) CapturesFor(path []any) []ConfigurationCapture {
 	out := []ConfigurationCapture{}
 	for _, c := range s.captures {
@@ -126,6 +177,8 @@ func (s *ConfigurationSource) CapturesFor(path []any) []ConfigurationCapture {
 	}
 	return out
 }
+
+// UnparsedContent returns the raw lines that were neither parsed nor ignored.
 func (s *ConfigurationSource) UnparsedContent() string {
 	var b strings.Builder
 	for i, line := range s.lines {
@@ -135,12 +188,16 @@ func (s *ConfigurationSource) UnparsedContent() string {
 	}
 	return b.String()
 }
+
+// State returns one line's parse state by 0-based index.
 func (s *ConfigurationSource) State(index int) (string, error) {
 	if index < 0 || index >= len(s.states) {
 		return "", errors.New("line index outside configuration document")
 	}
 	return s.states[index], nil
 }
+
+// Issues returns a copy of the parse issues.
 func (s *ConfigurationSource) Issues() []wireless.Record {
 	out, _ := wireless.CopyRecords(s.issues)
 	return out
@@ -148,7 +205,11 @@ func (s *ConfigurationSource) Issues() []wireless.Record {
 func (s *ConfigurationSource) String() string {
 	return fmt.Sprintf("<wireless.ConfigurationSource lines=%d captures=%d>", len(s.lines), len(s.captures))
 }
+
+// GoString formats metadata only.
 func (s *ConfigurationSource) GoString() string { return s.String() }
+
+// MarshalJSON encodes the source, content included.
 func (s *ConfigurationSource) MarshalJSON() ([]byte, error) {
 	counts := wireless.Record{}
 	for _, state := range s.states {

@@ -12,6 +12,7 @@ import (
 	"github.com/gatework/go-wireless/report"
 )
 
+// Executor runs one function per device with bounded concurrency.
 type Executor func(context.Context, int, []wireless.Record, func(context.Context, wireless.Record) error) error
 
 // Journal is the existing report publisher; no acquisition is replayed to repair it.
@@ -43,6 +44,7 @@ func (e Events) finalized(summary wireless.Record) {
 	}
 }
 
+// Options configures New.
 type Options struct {
 	Workers   int
 	Requested []wireless.Record
@@ -59,6 +61,7 @@ type Result struct {
 	Interrupted, Failed, FinalizationFailed, RecoveryFailed bool
 }
 
+// Run runs one command line and returns its exit code.
 func Run(ctx context.Context, o Options) Result {
 	if o.Execute == nil || o.Collect == nil || o.Journal == nil {
 		return Result{Failed: true, Interrupted: ctx.Err() != nil}
@@ -223,6 +226,8 @@ func (r *collectRun) settle(executionErr error) Result {
 	r.outcome.Failed = r.outcome.FinalizationFailed || r.outcome.Interrupted || r.firstReportError != nil || executionErr != nil
 	return r.outcome
 }
+
+// StringValue returns value when it is a string, otherwise "".
 func StringValue(value any) string { text, _ := value.(string); return text }
 func reportError(err error) any {
 	if publication, ok := errors.AsType[*report.Error](err); ok {

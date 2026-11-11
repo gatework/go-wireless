@@ -82,7 +82,7 @@ func (j *journal) FinalizeExecution(ctx context.Context, state wireless.Record) 
 	return j.WriteExecution(ctx, state)
 }
 
-func fixture(t *testing.T) (change.ChangePlan, *session) {
+func fixture(t *testing.T) (change.Plan, *session) {
 	t.Helper()
 	body, err := os.ReadFile("../../../testdata/ruby-interop/security.plan.json")
 	if err != nil {
@@ -92,7 +92,7 @@ func fixture(t *testing.T) (change.ChangePlan, *session) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := change.NewChangePlan(document)
+	plan, err := change.NewPlan(document)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestRunRejectsZeroPlanBeforeJournalOrOpener(t *testing.T) {
 		opens++
 		return nil, nil
 	}
-	if _, err := apply.Run(t.Context(), change.ChangePlan{}, "hash", open, j); !errors.Is(err, change.ErrChangePlan) {
+	if _, err := apply.Run(t.Context(), change.Plan{}, "hash", open, j); !errors.Is(err, change.ErrInvalid) {
 		t.Fatal("zero plan was admitted", err)
 	}
 	if opens != 0 || len(j.entries) != 0 || j.finalized {
@@ -214,7 +214,7 @@ func TestRunAdmissionRefusesRepeatedAndLateCallbacks(t *testing.T) {
 	open := func(ctx context.Context, run func(context.Context, change.ApplySession) error) (error, error) {
 		saved = run
 		first := run(ctx, s)
-		if err := run(ctx, s); !errors.Is(err, change.ErrChangePlan) {
+		if err := run(ctx, s); !errors.Is(err, change.ErrInvalid) {
 			t.Fatal("repeated callback was admitted", err)
 		}
 		return first, nil
@@ -222,7 +222,7 @@ func TestRunAdmissionRefusesRepeatedAndLateCallbacks(t *testing.T) {
 	if _, err := apply.Run(t.Context(), plan, "hash", open, j); err != nil {
 		t.Fatal(err)
 	}
-	if err := saved(t.Context(), s); !errors.Is(err, change.ErrChangePlan) {
+	if err := saved(t.Context(), s); !errors.Is(err, change.ErrInvalid) {
 		t.Fatal("late callback was admitted", err)
 	}
 	if len(s.commands) != 8 || s.read != 2 {

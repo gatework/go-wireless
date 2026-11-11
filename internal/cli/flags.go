@@ -11,6 +11,7 @@ import (
 	"github.com/gatework/go-wireless/internal/bootstrap"
 )
 
+// Flags are the parsed command-line switches.
 type Flags struct {
 	Help, HelpAll, Examples, Init, InventoryOnly, ShowConfig, JSON, Quiet, Scripts, Verbose bool
 	Interactive                                                                             *bool

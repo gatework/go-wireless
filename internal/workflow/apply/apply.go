@@ -44,9 +44,9 @@ func (e *runError) GoString() string { return e.Error() }
 
 // Run performs a confirmed plan once. It never retries, reconnects, rolls back,
 // or saves configuration. planSHA256 identifies the exact confirmed file bytes.
-func Run(ctx context.Context, plan change.ChangePlan, planSHA256 string, open Opener, journal Journal) (Result, error) {
+func Run(ctx context.Context, plan change.Plan, planSHA256 string, open Opener, journal Journal) (Result, error) {
 	if plan.Host() == "" || open == nil || journal == nil {
-		return Result{}, &runError{change.ErrChangePlan}
+		return Result{}, &runError{change.ErrInvalid}
 	}
 	r := &applyRun{ctx: ctx, plan: plan, journal: journal, state: newExecution(plan, planSHA256)}
 	if err := journal.WriteExecution(ctx, r.state.record()); err != nil {
@@ -69,7 +69,7 @@ func Run(ctx context.Context, plan change.ChangePlan, planSHA256 string, open Op
 // applyRun is one execution of Run.
 type applyRun struct {
 	ctx     context.Context //nolint:containedctx // the caller's context, scoped to one Run call
-	plan    change.ChangePlan
+	plan    change.Plan
 	journal Journal
 	state   *execution
 }
@@ -83,7 +83,7 @@ func (r *applyRun) interrupted(operationCtx context.Context) error {
 // once and verifies the readback.
 func (r *applyRun) operation(operationCtx context.Context, session change.ApplySession) error {
 	if operationCtx == nil || session == nil {
-		return change.ErrChangePlan
+		return change.ErrInvalid
 	}
 	if err := r.interrupted(operationCtx); err != nil {
 		return err
@@ -177,11 +177,11 @@ func ownedOpen(ctx context.Context, open Opener, run func(context.Context, chang
 		mu.Lock()
 		if !active || started {
 			mu.Unlock()
-			return change.ErrChangePlan
+			return change.ErrInvalid
 		}
 		started = true
 		mu.Unlock()
-		err := change.ErrChangePlan
+		err := change.ErrInvalid
 		defer func() {
 			mu.Lock()
 			callbackErr = err
@@ -197,7 +197,7 @@ func ownedOpen(ctx context.Context, open Opener, run func(context.Context, chang
 	mu.Unlock()
 	if !admitted {
 		if opErr == nil {
-			opErr = change.ErrChangePlan
+			opErr = change.ErrInvalid
 		}
 		return opErr, closeErr
 	}

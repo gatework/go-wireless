@@ -7,12 +7,16 @@ import (
 	"time"
 )
 
+// CoverageOptions configures NewCoverage.
 type CoverageOptions struct {
 	Observations, Projection Record
 	Dimensions               []Dimension
 	Now                      time.Time
 	StaleAfter               float64
 }
+
+// Coverage reports, per dimension, whether the latest evidence is current,
+// stale or unknown, from stored observations and a projection.
 type Coverage struct {
 	observations, projection Record
 	dimensions               []Dimension
@@ -20,6 +24,7 @@ type Coverage struct {
 	staleAfter               float64
 }
 
+// NewCoverage validates the options; StaleAfter is in seconds.
 func NewCoverage(o CoverageOptions) (Coverage, error) {
 	if o.Now.IsZero() || math.IsNaN(o.StaleAfter) || math.IsInf(o.StaleAfter, 0) || o.StaleAfter < 0 {
 		return Coverage{}, errors.New("coverage requires a clock time and finite nonnegative freshness window")
@@ -41,6 +46,8 @@ func NewCoverage(o CoverageOptions) (Coverage, error) {
 	}
 	return Coverage{obs, proj, append([]Dimension{}, o.Dimensions...), o.Now, o.StaleAfter}, nil
 }
+
+// ToMap returns the state of every dimension.
 func (c Coverage) ToMap() Record {
 	if c.observations == nil {
 		return Record{"state": "untracked", "source": "inventory", "dimensions": Record{}}
@@ -61,9 +68,13 @@ func (c Coverage) ToMap() Record {
 	}
 	return cloneRecord(Record{"state": state, "source": "cli", "dimensions": dims})
 }
+
+// MarshalJSON encodes the coverage states.
 func (c Coverage) MarshalJSON() ([]byte, error) { return MarshalJSON(c.ToMap()) }
 func (c Coverage) String() string               { return "<wireless.Coverage>" }
-func (c Coverage) GoString() string             { return c.String() }
+
+// GoString formats metadata only.
+func (c Coverage) GoString() string { return c.String() }
 func (c Coverage) dimension(n string) Record {
 	stored := asRecord(c.observations[n])
 	latest := asRecord(stored["latest"])

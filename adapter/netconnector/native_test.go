@@ -361,7 +361,7 @@ func TestNativeAPRejectedReadRestoresConfirmedController(t *testing.T) {
 }
 func TestNativeOpenCloseErrorKeepsControllerFacts(t *testing.T) {
 	d, _ := fixture(t, []exchange{{"screen-length disable\n", "<WLC>"}, {"display wlan client verbose\n", "Total number of clients : 0\r\n<WLC>"}}, true, nil)
-	snapshot, e := collect.NewCollector(collect.CollectorOptions{}).Collect(t.Context(), collect.CollectOptions{Target: wireless.Record{"host": "fixture"}, Profile: selectedProfile(), ConnectorPlatform: "h3c_wireless", Dimensions: []wireless.Dimension{wireless.Clients}, Open: Open(d, selectedProfile())})
+	snapshot, e := collect.NewCollector(collect.CollectorOptions{}).Collect(t.Context(), collect.Request{Target: wireless.Record{"host": "fixture"}, Profile: selectedProfile(), ConnectorPlatform: "h3c_wireless", Dimensions: []wireless.Dimension{wireless.Clients}, Open: Open(d, selectedProfile())})
 	if e != nil || !snapshot.Dimension(wireless.Clients).Complete() || snapshot.Dimension(wireless.Collection).Issues()[0]["code"] != "session_close_failed" {
 		t.Fatal(snapshot, e)
 	}
@@ -527,7 +527,7 @@ func TestReviewNativeOpenPreservesCancellationAndCloseIndependently(t *testing.T
 	open := func(ctx context.Context, run func(collect.Session) error) error {
 		return nativeOpen(ctx, func(s collect.Session) error { err := run(s); cancel(); return err })
 	}
-	snapshot, e := collect.NewCollector(collect.CollectorOptions{}).Collect(ctx, collect.CollectOptions{Target: wireless.Record{"host": "fixture"}, Profile: selectedProfile(), ConnectorPlatform: "h3c_wireless", Dimensions: []wireless.Dimension{wireless.Clients}, Open: open})
+	snapshot, e := collect.NewCollector(collect.CollectorOptions{}).Collect(ctx, collect.Request{Target: wireless.Record{"host": "fixture"}, Profile: selectedProfile(), ConnectorPlatform: "h3c_wireless", Dimensions: []wireless.Dimension{wireless.Clients}, Open: open})
 	if e != nil || !snapshot.Dimension(wireless.Clients).Complete() {
 		t.Fatal(snapshot, e)
 	}

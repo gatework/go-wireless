@@ -48,27 +48,27 @@ func applyCommand(ctx context.Context, o *documentFlags, r *Runner) int {
 }
 
 // loadPlan reads and validates the plan file; hash identifies its exact bytes.
-func (r *Runner) loadPlan(ctx context.Context, path string) (plan change.ChangePlan, hash string, code int, ok bool) {
+func (r *Runner) loadPlan(ctx context.Context, path string) (plan change.Plan, hash string, code int, ok bool) {
 	body, e := input.Document(ctx, path)
 	if ctx.Err() != nil {
-		return change.ChangePlan{}, "", 130, false
+		return change.Plan{}, "", 130, false
 	}
 	if e != nil {
-		return change.ChangePlan{}, "", r.failure("计划读取失败"), false
+		return change.Plan{}, "", r.failure("计划读取失败"), false
 	}
 	document, e := wireless.DecodeJSONDocument(body)
 	if e != nil {
-		return change.ChangePlan{}, "", r.failure("计划结构、目标、指纹或命令无效"), false
+		return change.Plan{}, "", r.failure("计划结构、目标、指纹或命令无效"), false
 	}
-	if plan, e = change.NewChangePlan(document); e != nil {
-		return change.ChangePlan{}, "", r.failure("计划结构、目标、指纹或命令无效"), false
+	if plan, e = change.NewPlan(document); e != nil {
+		return change.Plan{}, "", r.failure("计划结构、目标、指纹或命令无效"), false
 	}
 	return plan, fmt.Sprintf("%x", sha256.Sum256(body)), 0, true
 }
 
 // confirmApply shows the plan and requires the operator to type the exact
 // confirmation token; any other input cancels without connecting.
-func (r *Runner) confirmApply(ctx context.Context, plan change.ChangePlan, hash string) (code int, confirmed bool) {
+func (r *Runner) confirmApply(ctx context.Context, plan change.Plan, hash string) (code int, confirmed bool) {
 	device, host, document := plan.Device(), plan.Host(), plan.ToMap()
 	var display strings.Builder
 	fmt.Fprintf(&display, "目标：%s（%s）；%s；%s\n影响：%s\n", safe(StringValue(device["name"])), host, safe(StringValue(document["scope"])), safe(StringValue(document["title"])), safe(StringValue(document["impact"])))
@@ -105,7 +105,7 @@ func (r *Runner) confirmApply(ctx context.Context, plan change.ChangePlan, hash 
 }
 
 // executeApply opens the device session and runs the confirmed plan once.
-func (r *Runner) executeApply(ctx context.Context, flags map[string]string, plan change.ChangePlan, hash string, port int) int {
+func (r *Runner) executeApply(ctx context.Context, flags map[string]string, plan change.Plan, hash string, port int) int {
 	open, e := bootstrap.PrepareApply(ctx, r.Environment, flags["--env-file"], r.Discovery, r.Registry, r.ApplyFactory, plan, port)
 	if e != nil {
 		if ctx.Err() != nil {

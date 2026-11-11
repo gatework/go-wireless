@@ -48,10 +48,10 @@ func (s *testSession) Execute(_ context.Context, command string) (collect.Receip
 func controllerFixture() *testSession {
 	return &testSession{connected: true, output: map[string]string{"screen-length disable": "", "display wlan ap all verbose": "Total number of APs : 0\n", "display wlan client verbose": "Total number of clients : 0\n"}, failures: map[string]*wireless.FailureError{}}
 }
-func options(s collect.Session, dims ...wireless.Dimension) collect.CollectOptions {
-	return collect.CollectOptions{Target: wireless.Record{"host": "192.0.2.10"}, Profile: selectedProfile("h3c"), ConnectorPlatform: "h3c_wireless", Dimensions: dims, Open: func(ctx context.Context, run func(collect.Session) error) error { return run(s) }}
+func options(s collect.Session, dims ...wireless.Dimension) collect.Request {
+	return collect.Request{Target: wireless.Record{"host": "192.0.2.10"}, Profile: selectedProfile("h3c"), ConnectorPlatform: "h3c_wireless", Dimensions: dims, Open: func(ctx context.Context, run func(collect.Session) error) error { return run(s) }}
 }
-func mustCollect(t *testing.T, c *collect.Collector, o collect.CollectOptions) wireless.Snapshot {
+func mustCollect(t *testing.T, c *collect.Collector, o collect.Request) wireless.Snapshot {
 	t.Helper()
 	s, e := c.Collect(t.Context(), o)
 	if e != nil {
@@ -98,9 +98,9 @@ func TestCollectorSharedQueriesFirstFactsAndNoSession(t *testing.T) {
 	}
 }
 func TestCollectorPreflightAndOwnership(t *testing.T) {
-	for _, change := range []func(*collect.CollectOptions){func(o *collect.CollectOptions) { o.Target = nil }, func(o *collect.CollectOptions) { o.Dimensions = []wireless.Dimension{} }, func(o *collect.CollectOptions) {
+	for _, change := range []func(*collect.Request){func(o *collect.Request) { o.Target = nil }, func(o *collect.Request) { o.Dimensions = []wireless.Dimension{} }, func(o *collect.Request) {
 		o.Dimensions = []wireless.Dimension{wireless.Clients, wireless.Clients}
-	}, func(o *collect.CollectOptions) { o.Dimensions = []wireless.Dimension{"unknown"} }, func(o *collect.CollectOptions) { o.Dimensions = []wireless.Dimension{wireless.Collection} }, func(o *collect.CollectOptions) { o.APNames = []string{"bad\nname"} }, func(o *collect.CollectOptions) { o.ConnectorPlatform = "huawei" }, func(o *collect.CollectOptions) { o.Profile = nil }} {
+	}, func(o *collect.Request) { o.Dimensions = []wireless.Dimension{"unknown"} }, func(o *collect.Request) { o.Dimensions = []wireless.Dimension{wireless.Collection} }, func(o *collect.Request) { o.APNames = []string{"bad\nname"} }, func(o *collect.Request) { o.ConnectorPlatform = "huawei" }, func(o *collect.Request) { o.Profile = nil }} {
 		o := options(controllerFixture(), wireless.Clients)
 		o.Open = func(context.Context, func(collect.Session) error) error {
 			t.Fatal("preflight opened device")

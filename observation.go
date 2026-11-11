@@ -11,10 +11,17 @@ import (
 	"time"
 )
 
+// Record is one generic fact or issue as parsers emit it.
 type Record = map[string]any
+
+// Dimension names one kind of collected evidence.
 type Dimension string
+
+// Status is the completeness of one observed dimension.
 type Status string
 
+// Dimensions a controller collection can observe; Collection summarizes the
+// whole collection.
 const (
 	AccessPoints      Dimension = "access_points"
 	Radios            Dimension = "radios"
@@ -30,13 +37,18 @@ const (
 	APModels          Dimension = "ap_models"
 	LLDP              Dimension = "lldp"
 	Collection        Dimension = "collection"
-	Complete          Status    = "complete"
-	Partial           Status    = "partial"
-	Failed            Status    = "failed"
-	Unsupported       Status    = "unsupported"
-	NotRequested      Status    = "not_requested"
 )
 
+// Evidence statuses.
+const (
+	Complete     Status = "complete"
+	Partial      Status = "partial"
+	Failed       Status = "failed"
+	Unsupported  Status = "unsupported"
+	NotRequested Status = "not_requested"
+)
+
+// ObservationOptions describes one dimension's evidence for NewObservation.
 type ObservationOptions struct {
 	Name                   Dimension
 	Status                 Status
@@ -45,6 +57,9 @@ type ObservationOptions struct {
 	Evidence               []Record
 	StartedAt, CompletedAt *time.Time
 }
+
+// Observation is the evidence of one dimension: its status, owned fact
+// records, issues and output evidence. Accessors return copies.
 type Observation struct {
 	name                      Dimension
 	status                    Status
@@ -52,6 +67,7 @@ type Observation struct {
 	startedAt, completedAt    *time.Time
 }
 
+// NewObservation validates and deep-copies one dimension's evidence.
 func NewObservation(o ObservationOptions) (Observation, error) {
 	if o.Name == "" {
 		return Observation{}, errors.New("wireless observation requires a name")
@@ -78,24 +94,53 @@ func NewObservation(o ObservationOptions) (Observation, error) {
 	}
 	return Observation{o.Name, o.Status, r, i, e, copyTime(o.StartedAt), copyTime(o.CompletedAt)}, nil
 }
-func (o Observation) Name() Dimension         { return o.name }
-func (o Observation) Status() Status          { return o.status }
-func (o Observation) Records() []Record       { v, _ := copyRecords(o.records); return v }
-func (o Observation) Issues() []Record        { v, _ := copyRecords(o.issues); return v }
-func (o Observation) Evidence() []Record      { v, _ := copyRecords(o.evidence); return v }
-func (o Observation) StartedAt() *time.Time   { return copyTime(o.startedAt) }
+
+// Name returns the dimension.
+func (o Observation) Name() Dimension { return o.name }
+
+// Status returns the evidence status.
+func (o Observation) Status() Status { return o.status }
+
+// Records returns a copy of the fact records.
+func (o Observation) Records() []Record { v, _ := copyRecords(o.records); return v }
+
+// Issues returns a copy of the issue records.
+func (o Observation) Issues() []Record { v, _ := copyRecords(o.issues); return v }
+
+// Evidence returns a copy of the output evidence records.
+func (o Observation) Evidence() []Record { v, _ := copyRecords(o.evidence); return v }
+
+// StartedAt returns when collection started, if known.
+func (o Observation) StartedAt() *time.Time { return copyTime(o.startedAt) }
+
+// CompletedAt returns when collection completed, if known.
 func (o Observation) CompletedAt() *time.Time { return copyTime(o.completedAt) }
-func (o Observation) Complete() bool          { return o.status == Complete }
-func (o Observation) Partial() bool           { return o.status == Partial }
-func (o Observation) Available() bool         { return o.Complete() || o.Partial() }
+
+// Complete reports complete evidence; it does not mean the network is
+// healthy.
+func (o Observation) Complete() bool { return o.status == Complete }
+
+// Partial reports evidence with some facts missing.
+func (o Observation) Partial() bool { return o.status == Partial }
+
+// Available reports whether any facts were obtained.
+func (o Observation) Available() bool { return o.Complete() || o.Partial() }
 func (o Observation) String() string {
 	return fmt.Sprintf("<wireless.Observation name=%s status=%s records=%d>", safeName(string(o.name)), safeName(string(o.status)), len(o.records))
 }
-func (o Observation) GoString() string             { return o.String() }
+
+// GoString formats metadata only, never facts.
+func (o Observation) GoString() string { return o.String() }
+
+// MarshalJSON encodes the observation, facts included.
 func (o Observation) MarshalJSON() ([]byte, error) { return MarshalJSON(o.ToMap()) }
+
+// ToMap returns the observation as a wire record, facts included.
 func (o Observation) ToMap() Record {
 	return Record{"name": o.name, "status": o.status, "records": o.Records(), "issues": o.Issues(), "evidence": o.Evidence(), "started_at": formatTime(o.startedAt), "completed_at": formatTime(o.completedAt)}
 }
+
+// UnmarshalJSON decodes and validates an encoded observation.
 func (o *Observation) UnmarshalJSON(data []byte) error {
 	var wire struct {
 		Name        Dimension       `json:"name"`

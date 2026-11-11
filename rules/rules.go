@@ -232,6 +232,7 @@ var ipConflictHistory = assess.NewRule(assess.RuleMeta{
 // APState is an AP's normalized operational state.
 type APState string
 
+// AP states.
 const (
 	APRunning APState = "running"
 	APDown    APState = "down"

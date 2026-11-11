@@ -15,7 +15,7 @@ type Session interface {
 type OpenSession func(context.Context, func(Session) error) error
 type CollectorOptions struct { Clock Clock; APFactory APFactory }
 func NewCollector(CollectorOptions) *Collector
-type CollectOptions struct {
+type Request struct {
     Target Record
     Profile *parser.Profile
     ConnectorPlatform string
@@ -24,7 +24,7 @@ type CollectOptions struct {
     APCredentials APCredentialsSource
     Open OpenSession
 }
-func (*Collector) Collect(context.Context, CollectOptions) (Snapshot, error)
+func (*Collector) Collect(context.Context, Request) (Snapshot, error)
 ```
 
 Open owns connect/callback/close. Sessions are borrowed: Execute must never
@@ -121,7 +121,7 @@ successful captured neighbor facts survive cleanup errors.
 ```go
 // package netconnector
 func Borrow(*connector.Device, *parser.Profile) (*Session, error)
-func (*Session) CloseFailure() *wireless.Failure
+func (*Session) CloseFailure() *wireless.FailureError
 func Open(*connector.Device, *parser.Profile) collect.OpenSession
 func APFactory(collect.Clock) collect.APFactory
 func NewAPSession(*connector.Device, *parser.Profile, collect.APCredentials, collect.Clock) (*APSession, error)

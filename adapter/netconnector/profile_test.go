@@ -56,7 +56,7 @@ func TestNativeSelectedProfileDrivesControllerAndAPQueries(t *testing.T) {
 			device, transport := fixture(t, steps, false, nil)
 			open := Open(device, profile)
 			dimensions := []wireless.Dimension{wireless.Clients, wireless.LLDP}
-			options := collect.CollectOptions{
+			options := collect.Request{
 				Target: wireless.Record{"host": "fixture"}, Profile: profile,
 				ConnectorPlatform: device.ProfileName(), Dimensions: dimensions,
 				APCredentials: func(context.Context) (collect.APCredentials, error) {

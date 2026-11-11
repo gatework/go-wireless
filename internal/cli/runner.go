@@ -21,10 +21,17 @@ import (
 	"github.com/gatework/go-wireless/report"
 )
 
+// Version is the release version of the wireless command.
 const Version = "0.4.0"
 
+// Executor runs one function per device with bounded concurrency.
 type Executor func(context.Context, int, []wireless.Record, func(context.Context, wireless.Record) error) error
+
+// Command replaces a built-in command, for embedding and tests.
 type Command func(context.Context, []string, *Runner) int
+
+// Dependencies are the injectable collaborators of the command line; zero
+// fields use production defaults.
 type Dependencies struct {
 	Environment      map[string]string
 	Input            io.Reader
@@ -46,8 +53,11 @@ type Dependencies struct {
 	// Terminal can be injected for stream tests; the default checks OS descriptors.
 	Terminal func(any) bool
 }
+
+// Runner runs wireless commands with its dependencies.
 type Runner struct{ Dependencies }
 
+// New creates a private batch directory under root.
 func New(d Dependencies) *Runner {
 	if d.Input == nil {
 		d.Input = os.Stdin
@@ -77,6 +87,8 @@ func New(d Dependencies) *Runner {
 	}
 	return &Runner{d}
 }
+
+// Run runs one command line and returns its exit code.
 func Run(ctx context.Context, argv []string, d Dependencies) int { return New(d).Run(ctx, argv) }
 func isTerminal(v any) bool {
 	if f, ok := v.(interface{ Fd() uintptr }); ok {
