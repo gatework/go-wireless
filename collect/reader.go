@@ -98,44 +98,8 @@ func (r *Reader) Read(ctx context.Context, command string) (wireless.Capture, er
 		return wireless.NewCapture(wireless.CaptureOptions{Command: command, StartedAt: start, CompletedAt: r.clock(), Failure: f, Skipped: true})
 	}
 	receipt, e := r.session.Execute(ctx, command)
-	failure := wireless.FailureFrom(e, "command_execution_failed", "execute")
-	var evidence []wireless.Record
-	var body *string
-	if receipt.valid {
-		if receipt.attempted {
-			sum := sha256.Sum256([]byte(receipt.raw))
-			evidence = []wireless.Record{{"command": command, "sha256": hex.EncodeToString(sum[:]), "bytes": len(receipt.raw)}}
-		}
-		if receipt.command != command || receipt.success && (!receipt.attempted || receipt.steps != 1 || receipt.failure != nil) {
-			if failure == nil {
-				failure = wireless.NewFailure("invalid_command_result", "response")
-			}
-		}
-		if failure == nil {
-			if receipt.success {
-				value := receipt.body
-				body = &value
-			} else {
-				failure = wireless.CloneFailure(receipt.failure)
-				if failure == nil {
-					failure = wireless.NewFailure("command_failed", "execute")
-				}
-			}
-		}
-	} else if failure == nil {
-		failure = wireless.NewFailure("invalid_command_result", "response")
-	}
-	if len(evidence) > 0 {
-		observed := r.clock()
-		if observed.IsZero() {
-			evidence = nil
-			if failure == nil {
-				failure = wireless.NewFailure("invalid_command_result", "response")
-			}
-		} else {
-			evidence[0]["observed_at"] = observed.UTC().Format("2006-01-02T15:04:05.000000Z")
-		}
-	}
+	evidence, body, failure := interpretReceipt(command, receipt, wireless.FailureFrom(e, "command_execution_failed", "execute"))
+	evidence, failure = r.stampEvidence(evidence, failure)
 	stateFailure := r.state(ctx)
 	if stateFailure != nil {
 		first := failure
@@ -168,4 +132,52 @@ func (r *Reader) failureCheck(ctx context.Context) *wireless.FailureError {
 		r.failure.CompareAndSwap(nil, f)
 	}
 	return wireless.CloneFailure(r.failure.Load())
+}
+
+// interpretReceipt checks a command receipt against the command it answers.
+// It returns the output evidence, the body of a successful command and the
+// failure, keeping an execution failure in preference to a receipt defect.
+func interpretReceipt(command string, receipt Receipt, failure *wireless.FailureError) (evidence []wireless.Record, body *string, _ *wireless.FailureError) {
+	if !receipt.valid {
+		if failure == nil {
+			failure = wireless.NewFailure("invalid_command_result", "response")
+		}
+		return nil, nil, failure
+	}
+	if receipt.attempted {
+		sum := sha256.Sum256([]byte(receipt.raw))
+		evidence = []wireless.Record{{"command": command, "sha256": hex.EncodeToString(sum[:]), "bytes": len(receipt.raw)}}
+	}
+	if failure == nil && (receipt.command != command || receipt.success && (!receipt.attempted || receipt.steps != 1 || receipt.failure != nil)) {
+		failure = wireless.NewFailure("invalid_command_result", "response")
+	}
+	if failure != nil {
+		return evidence, nil, failure
+	}
+	if receipt.success {
+		value := receipt.body
+		return evidence, &value, nil
+	}
+	failure = wireless.CloneFailure(receipt.failure)
+	if failure == nil {
+		failure = wireless.NewFailure("command_failed", "execute")
+	}
+	return evidence, nil, failure
+}
+
+// stampEvidence records when the output was observed; without a valid clock
+// the evidence is dropped and the result is invalid.
+func (r *Reader) stampEvidence(evidence []wireless.Record, failure *wireless.FailureError) ([]wireless.Record, *wireless.FailureError) {
+	if len(evidence) == 0 {
+		return evidence, failure
+	}
+	observed := r.clock()
+	if observed.IsZero() {
+		if failure == nil {
+			failure = wireless.NewFailure("invalid_command_result", "response")
+		}
+		return nil, failure
+	}
+	evidence[0]["observed_at"] = observed.UTC().Format("2006-01-02T15:04:05.000000Z")
+	return evidence, failure
 }
