@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 	"regexp"
+	"slices"
 	"strings"
 
 	parsetext "github.com/gatework/go-wireless/internal/parsetext"
@@ -13,302 +14,345 @@ import (
 	"github.com/gatework/go-wireless/parser"
 )
 
-func (p *configurationParser) applySetting(scope *configurationScope, block *sourceBlock) (bool, error) {
-	line := p.source.lines[block.index].text
-	owner, kind, record := scope.record, scope.kind, scope.settings()
-	words := parsetext.SplitWords(line)
-	enabled := !strings.HasPrefix(line, "undo ")
-	var capture []string
-	matches := func(pattern string) bool {
-		capture = regexp.MustCompile(pattern).FindStringSubmatch(line)
-		return capture != nil
+// settingLine is one configuration line inside a scope, with what the
+// setting rules need to record it.
+type settingLine struct {
+	parser  *configurationParser
+	block   *sourceBlock
+	line    string
+	words   []string
+	last    string
+	capture []string
+	enabled bool // false for an `undo` line
+	kind    string
+	owner   wireless.Record // the scope's own record
+	record  wireless.Record // where the scope keeps its settings
+}
+
+func (l *settingLine) assign(key string, value any) { l.parser.assign(l.record, key, value, l.block) }
+
+func (l *settingLine) assignTo(record wireless.Record, key string, value any) {
+	l.parser.assign(record, key, value, l.block)
+}
+
+// setting recognizes one configuration line form. A line matching pattern in
+// a scope outside kinds (when kinds is set) is not a setting. apply reports
+// whether the line was recorded.
+type setting struct {
+	pattern *regexp.Regexp
+	kinds   []string
+	apply   func(l *settingLine) (bool, error)
+}
+
+func rule(pattern string, kinds []string, apply func(l *settingLine) (bool, error)) setting {
+	return setting{pattern: regexp.MustCompile(pattern), kinds: kinds, apply: apply}
+}
+
+// exact recognizes one literal line.
+func exact(line string, apply func(l *settingLine) (bool, error)) setting {
+	return rule(`^`+regexp.QuoteMeta(line)+`$`, nil, apply)
+}
+
+// recorded adapts a setting that always records its line.
+func recorded(fn func(l *settingLine)) func(*settingLine) (bool, error) {
+	return func(l *settingLine) (bool, error) { fn(l); return true, nil }
+}
+
+// parsed adapts a setting whose value parsing can fail.
+func parsed(fn func(l *settingLine) error) func(*settingLine) (bool, error) {
+	return func(l *settingLine) (bool, error) {
+		if err := fn(l); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
-	assign := func(key string, value any) { p.assign(record, key, value, block) }
-	last := words[len(words)-1]
-	switch {
-	case matches(`^(?:undo )?region-code-lock enable$`):
-		if kind != "global_configuration" {
-			return false, nil
-		}
-		assign("region_code_lock", enabled)
-	case matches(`^nas-id (\S+)$`):
-		if kind != "global_configuration" {
-			return false, nil
-		}
-		assign("nas_id", capture[1])
-	case matches(`^(?:undo )?rrop anti-bmc network (ipv4-and-ipv6-simple) enable$`):
-		if kind != "ap_groups" {
-			return false, nil
-		}
-		p.assign(ensureMap(record, "rrop_anti_bmc"), "network", wireless.Record{"mode": capture[1], "enabled": enabled}, block)
-	case matches(`^rrop anti-bmc default-action (deny|permit)$`):
-		if kind != "ap_groups" {
-			return false, nil
-		}
-		p.assign(ensureMap(record, "rrop_anti_bmc"), "default_action", capture[1], block)
-	case matches(`^serial-id (\S+)$`):
-		if kind != "access_points" && kind != "ap_groups" {
-			return false, nil
-		}
-		if kind == "ap_groups" {
-			appendValue(owner, "serial_ids", last)
+}
+
+// optional returns s, or nil when s is empty.
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+var (
+	global          = []string{"global_configuration"}
+	apGroups        = []string{"ap_groups"}
+	serviceTemplate = []string{"service_templates"}
+	radios          = []string{"radio"}
+)
+
+var clientAuthenticationModes = []string{"dot1x", "mac", "mac-and-dot1x", "dot1x-then-mac", "mac-then-dot1x", "oui-then-dot1x"}
+
+// settings are tried in order; the first matching pattern decides.
+var settings = []setting{
+	rule(`^(?:undo )?region-code-lock enable$`, global, recorded(func(l *settingLine) { l.assign("region_code_lock", l.enabled) })),
+	rule(`^nas-id (\S+)$`, global, recorded(func(l *settingLine) { l.assign("nas_id", l.capture[1]) })),
+	rule(`^(?:undo )?rrop anti-bmc network (ipv4-and-ipv6-simple) enable$`, apGroups, recorded(func(l *settingLine) {
+		l.assignTo(ensureMap(l.record, "rrop_anti_bmc"), "network", wireless.Record{"mode": l.capture[1], "enabled": l.enabled})
+	})),
+	rule(`^rrop anti-bmc default-action (deny|permit)$`, apGroups, recorded(func(l *settingLine) {
+		l.assignTo(ensureMap(l.record, "rrop_anti_bmc"), "default_action", l.capture[1])
+	})),
+	rule(`^serial-id (\S+)$`, []string{"access_points", "ap_groups"}, recorded(func(l *settingLine) {
+		if l.kind == "ap_groups" {
+			appendValue(l.owner, "serial_ids", l.last)
 		} else {
-			assign("serial_id", last)
+			l.assign("serial_id", l.last)
 		}
-	case matches(`^ap (\S+)$`):
-		if kind != "ap_groups" {
-			return false, nil
+	})),
+	rule(`^ap (\S+)$`, apGroups, recorded(func(l *settingLine) { appendValue(l.owner, "ap_names", l.last) })),
+	rule(`^vlan (\d+)$`, nil, parsed(func(l *settingLine) error {
+		v, err := parser.ParseVLAN(&l.last)
+		if err != nil {
+			return err
 		}
-		appendValue(owner, "ap_names", last)
-	case matches(`^vlan (\d+)$`):
-		v, e := parser.ParseVLAN(&last)
-		if e != nil {
-			return false, e
-		}
-		if kind == "ap_groups" {
-			appendValue(owner, "vlan_ids", recordvalue.Scalar(v))
+		if l.kind == "ap_groups" {
+			appendValue(l.owner, "vlan_ids", recordvalue.Scalar(v))
 		} else {
-			p.assign(owner, "vlan_id", recordvalue.Scalar(v), block)
+			l.assignTo(l.owner, "vlan_id", recordvalue.Scalar(v))
 		}
-	case matches(`^ssid (.+)$`):
-		if kind != "service_templates" {
-			return false, nil
+		return nil
+	})),
+	rule(`^ssid (.+)$`, serviceTemplate, recorded(func(l *settingLine) { l.assignTo(l.owner, "ssid", l.capture[1]) })),
+	rule(`^(?:undo )?service-template enable$`, serviceTemplate, recorded(func(l *settingLine) { l.assignTo(l.owner, "enabled", l.enabled) })),
+	rule(`^service-template (\S+)(?: vlan (\d+))?$`, radios, parsed(func(l *settingLine) error {
+		v, err := parser.ParseVLAN(optional(l.capture[2]))
+		if err != nil {
+			return err
 		}
-		p.assign(owner, "ssid", capture[1], block)
-	case matches(`^(?:undo )?service-template enable$`):
-		if kind != "service_templates" {
-			return false, nil
-		}
-		p.assign(owner, "enabled", enabled, block)
-	case matches(`^service-template (\S+)(?: vlan (\d+))?$`):
-		if kind != "radio" {
-			return false, nil
-		}
-		var raw *string
-		if capture[2] != "" {
-			raw = &capture[2]
-		}
-		v, e := parser.ParseVLAN(raw)
-		if e != nil {
-			return false, e
-		}
-		if e = p.bindTemplate(record, capture[1], recordvalue.Scalar(v)); e != nil {
-			return false, e
-		}
-	case matches(`(?i)^preshared-key\s+.+$`):
-		if kind != "service_templates" {
-			return false, nil
-		}
-		assign("has_preshared_key", true)
-	case matches(`^akm mode (.+)$`):
-		if kind != "service_templates" {
-			return false, nil
-		}
-		values := parsetext.SplitWords(strings.ReplaceAll(strings.ToLower(capture[1]), "802.1x", "dot1x"))
-		assign("akm_modes", values)
-	case matches(`^(cipher-suite|security-ie) (.+)$`):
-		if kind != "service_templates" {
-			return false, nil
-		}
+		return l.parser.bindTemplate(l.record, l.capture[1], recordvalue.Scalar(v))
+	})),
+	rule(`(?i)^preshared-key\s+.+$`, serviceTemplate, recorded(func(l *settingLine) { l.assign("has_preshared_key", true) })),
+	rule(`^akm mode (.+)$`, serviceTemplate, recorded(func(l *settingLine) {
+		l.assign("akm_modes", parsetext.SplitWords(strings.ReplaceAll(strings.ToLower(l.capture[1]), "802.1x", "dot1x")))
+	})),
+	rule(`^(cipher-suite|security-ie) (.+)$`, serviceTemplate, recorded(func(l *settingLine) {
 		key := "security_ies"
-		if words[0] == "cipher-suite" {
+		if l.words[0] == "cipher-suite" {
 			key = "cipher_suites"
 		}
-		for _, word := range words[1:] {
+		for _, word := range l.words[1:] {
 			word = strings.ToLower(word)
-			if !arrayIncludes(record[key], word) {
-				appendValue(record, key, word)
+			if !arrayIncludes(l.record[key], word) {
+				appendValue(l.record, key, word)
 			}
 		}
-	case matches(`^client-security authentication-mode (.+)$`):
-		mode := strings.ToLower(capture[1])
-		valid := false
-		for _, value := range []string{"dot1x", "mac", "mac-and-dot1x", "dot1x-then-mac", "mac-then-dot1x", "oui-then-dot1x"} {
-			if mode == value {
-				valid = true
-			}
+	})),
+	rule(`^client-security authentication-mode (.+)$`, nil, parsed(func(l *settingLine) error {
+		mode := strings.ToLower(l.capture[1])
+		if !slices.Contains(clientAuthenticationModes, mode) {
+			return errors.New("invalid client authentication mode")
 		}
-		if !valid {
-			return false, errors.New("invalid client authentication mode")
+		l.assign("client_security_authentication_mode", mode)
+		return nil
+	})),
+	rule(`^client-security (ignore-authentication|ignore-authorization)$`, nil, recorded(func(l *settingLine) { l.assign(keyName(l.last), true) })),
+	rule(`^(dot1x|mac-authentication) domain (\S+)$`, nil, recorded(func(l *settingLine) { l.assign(keyName(l.words[0])+"_domain", l.last) })),
+	rule(`^portal (enable method|domain|bas-ip|apply web-server|apply mac-trigger-server) (\S+)$`, nil, recorded(func(l *settingLine) {
+		var value any = l.capture[2]
+		if strings.Contains(l.capture[2], "://") {
+			value = true // a server URL may carry credentials; record only its presence
 		}
-		assign("client_security_authentication_mode", mode)
-	case matches(`^client-security (ignore-authentication|ignore-authorization)$`):
-		assign(keyName(last), true)
-	case matches(`^(dot1x|mac-authentication) domain (\S+)$`):
-		assign(keyName(words[0])+"_domain", last)
-	case matches(`^portal (enable method|domain|bas-ip|apply web-server|apply mac-trigger-server) (\S+)$`):
-		var value any = capture[2]
-		if strings.Contains(capture[2], "://") {
-			value = true
+		l.assignTo(ensureMap(l.record, "portal"), keyName(l.capture[1]), value)
+	})),
+	rule(`^(?:undo )?(dot1x|mac-authentication)$`, nil, recorded(func(l *settingLine) { l.assign(keyName(l.capture[1])+"_enabled", l.enabled) })),
+	rule(`^dot1x authentication-method (chap|eap|pap)$`, nil, recorded(func(l *settingLine) { l.assign("dot1x_authentication_method", l.capture[1]) })),
+	rule(`^mac-authentication user-name-format fixed(?: account \S+)?(?: password (simple|cipher) \S+)?$`, nil, recorded(func(l *settingLine) {
+		l.parser.assignMany(l.record, "mac_username_setting", wireless.Record{"mac_authentication_user_name_format": "fixed", "mac_authentication_has_password": l.capture[1] != ""}, l.block)
+	})),
+	rule(`^mac-authentication user-name-format (mac-address(?: (?:with-hyphen|without-hyphen))?(?: (?:lowercase|uppercase))?)$`, nil, recorded(func(l *settingLine) {
+		l.parser.assignMany(l.record, "mac_username_setting", wireless.Record{"mac_authentication_user_name_format": l.capture[1]}, l.block)
+	})),
+	rule(`^dot1x timer (supp-timeout|tx-period) (\d+)$`, nil, parsed(func(l *settingLine) error {
+		v, err := parser.ParseIntegerExact(&l.last, nil)
+		if err != nil {
+			return err
 		}
-		p.assign(ensureMap(record, "portal"), keyName(capture[1]), value, block)
-	case matches(`^(?:undo )?(dot1x|mac-authentication)$`):
-		assign(keyName(capture[1])+"_enabled", enabled)
-	case matches(`^dot1x authentication-method (chap|eap|pap)$`):
-		assign("dot1x_authentication_method", capture[1])
-	case matches(`^mac-authentication user-name-format fixed(?: account \S+)?(?: password (simple|cipher) \S+)?$`):
-		p.assignMany(record, "mac_username_setting", wireless.Record{"mac_authentication_user_name_format": "fixed", "mac_authentication_has_password": capture[1] != ""}, block)
-	case matches(`^mac-authentication user-name-format (mac-address(?: (?:with-hyphen|without-hyphen))?(?: (?:lowercase|uppercase))?)$`):
-		p.assignMany(record, "mac_username_setting", wireless.Record{"mac_authentication_user_name_format": capture[1]}, block)
-	case matches(`^dot1x timer (supp-timeout|tx-period) (\d+)$`):
-		v, e := parser.ParseIntegerExact(&last, nil)
-		if e != nil {
-			return false, e
-		}
-		p.assign(ensureMap(record, "dot1x_timers"), keyName(words[2]), recordvalue.IntegerJSON(v), block)
-	case matches(`^wlan (?:client-security )?static-(black|white)list mac-address (\S+)(?: (.+))?$`):
-		mac, e := parser.ParseMAC(&capture[2])
-		if e != nil {
-			return false, e
-		}
-		key := "whitelist"
-		if capture[1] == "black" {
-			key = "blacklist"
-		}
-		var reason any
-		if capture[3] != "" {
-			reason = capture[3]
-		}
-		rows, _ := p.data[key].([]wireless.Record)
-		p.data[key] = append(rows, wireless.Record{"mac_address": recordvalue.Scalar(mac), "reason": reason})
-	case matches(`^(?:undo )?(?:wlan )?(auto-ap|auto-persistent|band-navigation|client inspect|radio-load-balance band-navigation) enable$`):
-		assign(keyName(capture[1]), enabled)
-	case matches(`^(?:undo )?(beacon ssid-hide|bss transition-management enable)$`):
+		l.assignTo(ensureMap(l.record, "dot1x_timers"), keyName(l.words[2]), recordvalue.IntegerJSON(v))
+		return nil
+	})),
+	rule(`^wlan (?:client-security )?static-(black|white)list mac-address (\S+)(?: (.+))?$`, nil, parsed(staticMACList)),
+	rule(`^(?:undo )?(?:wlan )?(auto-ap|auto-persistent|band-navigation|client inspect|radio-load-balance band-navigation) enable$`, nil, recorded(func(l *settingLine) {
+		l.assign(keyName(l.capture[1]), l.enabled)
+	})),
+	rule(`^(?:undo )?(beacon ssid-hide|bss transition-management enable)$`, nil, recorded(func(l *settingLine) {
 		key := "btm_enabled"
-		if strings.Contains(line, "ssid-hide") {
+		if strings.Contains(l.line, "ssid-hide") {
 			key = "ssid_hidden"
 		}
-		assign(key, enabled)
-	case matches(`^(client keep-alive|client-rate-limit|firmware-upgrade|radio) (enable|disable)$`):
-		if words[0] == "radio" && kind != "radio" {
+		l.assign(key, l.enabled)
+	})),
+	rule(`^(client keep-alive|client-rate-limit|firmware-upgrade|radio) (enable|disable)$`, nil, func(l *settingLine) (bool, error) {
+		if l.words[0] == "radio" && l.kind != "radio" {
 			return false, nil
 		}
-		key := map[string]string{"client keep-alive": "client_keep_alive", "client-rate-limit": "client_rate_limit_enabled", "firmware-upgrade": "firmware_upgrade", "radio": "enabled"}[capture[1]]
-		assign(key, last == "enable")
-	case matches(`^(client keep-alive interval|client max-count|client cache aging-time|bss transition-management disassociation forced timer|statistics-interval|priority|dot1x retry|wlan tcp mss) (\d+)$`):
-		key := map[string]string{"client keep-alive interval": "client_keep_alive_interval", "client max-count": "client_max_count", "client cache aging-time": "client_cache_aging_time", "bss transition-management disassociation forced timer": "btm_disassociation_timer", "statistics-interval": "statistics_interval", "priority": "priority", "dot1x retry": "dot1x_retry", "wlan tcp mss": "tcp_mss"}[capture[1]]
-		v, e := parser.ParseIntegerExact(&last, nil)
-		if e != nil {
-			return false, e
+		key := map[string]string{"client keep-alive": "client_keep_alive", "client-rate-limit": "client_rate_limit_enabled", "firmware-upgrade": "firmware_upgrade", "radio": "enabled"}[l.capture[1]]
+		l.assign(key, l.last == "enable")
+		return true, nil
+	}),
+	rule(`^(client keep-alive interval|client max-count|client cache aging-time|bss transition-management disassociation forced timer|statistics-interval|priority|dot1x retry|wlan tcp mss) (\d+)$`, nil, parsed(func(l *settingLine) error {
+		key := map[string]string{"client keep-alive interval": "client_keep_alive_interval", "client max-count": "client_max_count", "client cache aging-time": "client_cache_aging_time", "bss transition-management disassociation forced timer": "btm_disassociation_timer", "statistics-interval": "statistics_interval", "priority": "priority", "dot1x retry": "dot1x_retry", "wlan tcp mss": "tcp_mss"}[l.capture[1]]
+		v, err := parser.ParseIntegerExact(&l.last, nil)
+		if err != nil {
+			return err
 		}
-		assign(key, recordvalue.IntegerJSON(v))
-	case matches(`^(?:description|map-configuration) (.+)$`):
-		assign(keyName(words[0]), strings.Join(words[1:], " "))
-	case matches(`^backup-ac ip (\S+)$`):
-		v, e := parser.ParseIP(&last)
-		if e != nil {
-			return false, e
+		l.assign(key, recordvalue.IntegerJSON(v))
+		return nil
+	})),
+	rule(`^(?:description|map-configuration) (.+)$`, nil, recorded(func(l *settingLine) { l.assign(keyName(l.words[0]), strings.Join(l.words[1:], " ")) })),
+	rule(`^backup-ac ip (\S+)$`, nil, parsed(func(l *settingLine) error {
+		v, err := parser.ParseIP(&l.last)
+		if err != nil {
+			return err
 		}
-		assign("backup_ac_ip", recordvalue.Scalar(v))
-	case matches(`^channel band-width (.+)$`):
-		if kind != "radio" {
-			return false, nil
+		l.assign("backup_ac_ip", recordvalue.Scalar(v))
+		return nil
+	})),
+	rule(`^channel band-width (.+)$`, radios, recorded(func(l *settingLine) { l.assign("channel_bandwidth", l.capture[1]) })),
+	rule(`^channel auto unlock$`, radios, recorded(func(l *settingLine) {
+		l.parser.assignMany(l.record, "channel_setting", wireless.Record{"channel": "auto", "channel_number": nil, "channel_unlocked": true}, l.block)
+	})),
+	rule(`^channel (.+)$`, radios, parsed(func(l *settingLine) error {
+		v, err := parser.ParseChannel(&l.capture[1])
+		if err != nil {
+			return err
 		}
-		assign("channel_bandwidth", capture[1])
-	case matches(`^channel auto unlock$`):
-		if kind != "radio" {
-			return false, nil
+		l.parser.assignMany(l.record, "channel_setting", wireless.Record{"channel": l.capture[1], "channel_number": recordvalue.Scalar(v)}, l.block)
+		return nil
+	})),
+	rule(`^max-power (\d+(?:\.\d+)?)$`, radios, parsed(func(l *settingLine) error {
+		v, err := parser.ParseNumber(&l.last, "")
+		if err != nil {
+			return err
 		}
-		p.assignMany(record, "channel_setting", wireless.Record{"channel": "auto", "channel_number": nil, "channel_unlocked": true}, block)
-	case matches(`^channel (.+)$`):
-		if kind != "radio" {
-			return false, nil
+		l.assign("max_power", recordvalue.Scalar(v))
+		return nil
+	})),
+	rule(`^client-rate-limit (inbound|outbound) mode (\S+) cir (\d+)$`, nil, parsed(func(l *settingLine) error {
+		v, err := parser.ParseIntegerExact(&l.last, nil)
+		if err != nil {
+			return err
 		}
-		v, e := parser.ParseChannel(&capture[1])
-		if e != nil {
-			return false, e
+		l.assignTo(ensureMap(l.record, "client_rate_limit"), l.words[1], wireless.Record{"mode": l.words[3], "cir_bps": recordvalue.IntegerJSON(new(big.Int).Mul(v, big.NewInt(1000)))})
+		return nil
+	})),
+	rule(`^rate (mandatory|supported|disabled|multicast) (.+)$`, nil, parsed(rateSetting)),
+	rule(`^option client (reject|reconnect) enable rssi (-?\d+(?:\.\d+)?)$`, nil, parsed(func(l *settingLine) error {
+		v, err := parser.ParseNumber(&l.last, "")
+		if err != nil {
+			return err
 		}
-		p.assignMany(record, "channel_setting", wireless.Record{"channel": capture[1], "channel_number": recordvalue.Scalar(v)}, block)
-	case matches(`^max-power (\d+(?:\.\d+)?)$`):
-		if kind != "radio" {
-			return false, nil
+		l.assignTo(ensureMap(l.record, "client_options"), l.words[2], recordvalue.Scalar(v))
+		return nil
+	})),
+	rule(`^sacp anti-sticky enable(?: rssi (-?\d+(?:\.\d+)?))? interval (\d+)$`, nil, parsed(func(l *settingLine) error {
+		signal, err := parser.ParseNumber(optional(l.capture[1]), "")
+		if err != nil {
+			return err
 		}
-		v, e := parser.ParseNumber(&last, "")
-		if e != nil {
-			return false, e
+		interval, err := parser.ParseIntegerExact(&l.capture[2], nil)
+		if err != nil {
+			return err
 		}
-		assign("max_power", recordvalue.Scalar(v))
-	case matches(`^client-rate-limit (inbound|outbound) mode (\S+) cir (\d+)$`):
-		v, e := parser.ParseIntegerExact(&last, nil)
-		if e != nil {
-			return false, e
+		l.assign("anti_sticky", wireless.Record{"enabled": true, "rssi": recordvalue.Scalar(signal), "interval": recordvalue.IntegerJSON(interval)})
+		return nil
+	})),
+	rule(`^packet-filter name (\S+) (inbound|outbound)$`, nil, recorded(func(l *settingLine) {
+		l.assignTo(ensureMap(l.record, "packet_filters"), l.last, l.words[2])
+	})),
+	rule(`^(?:client forwarding-location|wlan image-load filepath|wlan fast-forwarding mode|led-mode) (\S+)$`, nil, recorded(func(l *settingLine) {
+		name := l.words[0]
+		if name == "wlan" {
+			name = strings.Join(l.words[:2], " ")
 		}
-		p.assign(ensureMap(record, "client_rate_limit"), words[1], wireless.Record{"mode": words[3], "cir_bps": recordvalue.IntegerJSON(new(big.Int).Mul(v, big.NewInt(1000)))}, block)
-	case matches(`^rate (mandatory|supported|disabled|multicast) (.+)$`):
-		var value any
-		if words[1] == "multicast" {
-			value = strings.Join(words[2:], " ")
+		key := map[string]string{"client": "forwarding_location", "wlan image-load": "image_load_filepath", "wlan fast-forwarding": "fast_forwarding_mode", "led-mode": "led_mode"}[name]
+		l.assign(key, l.last)
+	})),
+	rule(`^(local|member) ip (\S+)$`, nil, parsed(func(l *settingLine) error {
+		v, err := parser.ParseIP(&l.last)
+		if err != nil {
+			return err
+		}
+		if l.words[0] == "local" {
+			l.assign("local_ip", recordvalue.Scalar(v))
 		} else {
-			values := []any{}
-			for _, word := range words[2:] {
-				v, e := parser.ParseNumber(&word, "")
-				if e != nil {
-					return false, e
-				}
-				values = append(values, recordvalue.Scalar(v))
-			}
-			value = values
+			appendValue(l.record, "member_ips", recordvalue.Scalar(v))
 		}
-		p.assign(ensureMap(record, "rates"), words[1], value, block)
-	case matches(`^option client (reject|reconnect) enable rssi (-?\d+(?:\.\d+)?)$`):
-		v, e := parser.ParseNumber(&last, "")
-		if e != nil {
-			return false, e
+		return nil
+	})),
+	rule(`^client-mac (\S+)$`, nil, parsed(func(l *settingLine) error {
+		v, err := parser.ParseMAC(&l.last)
+		if err != nil {
+			return err
 		}
-		p.assign(ensureMap(record, "client_options"), words[2], recordvalue.Scalar(v), block)
-	case matches(`^sacp anti-sticky enable(?: rssi (-?\d+(?:\.\d+)?))? interval (\d+)$`):
-		var raw *string
-		if capture[1] != "" {
-			raw = &capture[1]
-		}
-		signal, e := parser.ParseNumber(raw, "")
-		if e != nil {
-			return false, e
-		}
-		interval, e := parser.ParseIntegerExact(&capture[2], nil)
-		if e != nil {
-			return false, e
-		}
-		assign("anti_sticky", wireless.Record{"enabled": true, "rssi": recordvalue.Scalar(signal), "interval": recordvalue.IntegerJSON(interval)})
-	case matches(`^packet-filter name (\S+) (inbound|outbound)$`):
-		p.assign(ensureMap(record, "packet_filters"), last, words[2], block)
-	case matches(`^(?:client forwarding-location|wlan image-load filepath|wlan fast-forwarding mode|led-mode) (\S+)$`):
-		keyName := words[0]
-		if words[0] == "wlan" {
-			keyName = strings.Join(words[:2], " ")
-		}
-		key := map[string]string{"client": "forwarding_location", "wlan image-load": "image_load_filepath", "wlan fast-forwarding": "fast_forwarding_mode", "led-mode": "led_mode"}[keyName]
-		assign(key, last)
-	case matches(`^(local|member) ip (\S+)$`):
-		v, e := parser.ParseIP(&last)
-		if e != nil {
-			return false, e
-		}
-		if words[0] == "local" {
-			assign("local_ip", recordvalue.Scalar(v))
-		} else {
-			appendValue(record, "member_ips", recordvalue.Scalar(v))
-		}
-	case matches(`^client-mac (\S+)$`):
-		v, e := parser.ParseMAC(&last)
-		if e != nil {
-			return false, e
-		}
-		appendValue(record, "mac_addresses", recordvalue.Scalar(v))
-	case line == "wlan tunnel-preempt enable":
-		assign("tunnel_preempt", true)
-	case line == "broadcast-probe reply disable":
-		assign("broadcast_probe_reply", false)
-	case line == "radar-detect disable":
-		assign("radar_detect_disabled", true)
-	case line == "calibrate-channel self-decisive enable all":
-		assign("calibrate_channel", true)
-	case line == "calibrate-power self-decisive enable all":
-		assign("calibrate_power", true)
-	case line == "ap-license-synchronization enable":
-		assign("license_synchronization", true)
-	default:
-		return false, nil
+		appendValue(l.record, "mac_addresses", recordvalue.Scalar(v))
+		return nil
+	})),
+	exact("wlan tunnel-preempt enable", recorded(func(l *settingLine) { l.assign("tunnel_preempt", true) })),
+	exact("broadcast-probe reply disable", recorded(func(l *settingLine) { l.assign("broadcast_probe_reply", false) })),
+	exact("radar-detect disable", recorded(func(l *settingLine) { l.assign("radar_detect_disabled", true) })),
+	exact("calibrate-channel self-decisive enable all", recorded(func(l *settingLine) { l.assign("calibrate_channel", true) })),
+	exact("calibrate-power self-decisive enable all", recorded(func(l *settingLine) { l.assign("calibrate_power", true) })),
+	exact("ap-license-synchronization enable", recorded(func(l *settingLine) { l.assign("license_synchronization", true) })),
+}
+
+// staticMACList records a static black- or whitelist entry.
+func staticMACList(l *settingLine) error {
+	mac, err := parser.ParseMAC(&l.capture[2])
+	if err != nil {
+		return err
 	}
-	return true, nil
+	key := "whitelist"
+	if l.capture[1] == "black" {
+		key = "blacklist"
+	}
+	var reason any
+	if l.capture[3] != "" {
+		reason = l.capture[3]
+	}
+	rows, _ := l.parser.data[key].([]wireless.Record)
+	l.parser.data[key] = append(rows, wireless.Record{"mac_address": recordvalue.Scalar(mac), "reason": reason})
+	return nil
+}
+
+// rateSetting records a rate set: multicast as text, the others as numbers.
+func rateSetting(l *settingLine) error {
+	var value any
+	if l.words[1] == "multicast" {
+		value = strings.Join(l.words[2:], " ")
+	} else {
+		values := []any{}
+		for _, word := range l.words[2:] {
+			v, err := parser.ParseNumber(&word, "")
+			if err != nil {
+				return err
+			}
+			values = append(values, recordvalue.Scalar(v))
+		}
+		value = values
+	}
+	l.assignTo(ensureMap(l.record, "rates"), l.words[1], value)
+	return nil
+}
+
+// applySetting records one configuration line of scope; it reports false for
+// a line that is not a known setting of the scope.
+func (p *configurationParser) applySetting(scope *configurationScope, block *sourceBlock) (bool, error) {
+	line := p.source.lines[block.index].text
+	record := scope.settings()
+	words := parsetext.SplitWords(line)
+	for _, s := range settings {
+		capture := s.pattern.FindStringSubmatch(line)
+		if capture == nil {
+			continue
+		}
+		if len(s.kinds) > 0 && !slices.Contains(s.kinds, scope.kind) {
+			return false, nil
+		}
+		return s.apply(&settingLine{parser: p, block: block, line: line, words: words, last: words[len(words)-1], capture: capture,
+			enabled: !strings.HasPrefix(line, "undo "), kind: scope.kind, owner: scope.record, record: record})
+	}
+	return false, nil
 }
