@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -166,10 +167,30 @@ func fixtureInventoryFetcher(source netdisco.Source, identity string) bootstrap.
 			rows, err := source.Devices(ctx)
 			return netdisco.CacheResult{Rows: rows, Status: netdisco.CacheStatusDisabled}, err
 		}
-		cache, err := netdisco.NewCache(source, netdisco.CacheOptions{Directory: policy.Cache.Directory, Identity: identity, TTL: policy.Cache.TTL, Limits: settings.HTTP().Limits})
-		if err != nil {
-			return netdisco.CacheResult{}, err
-		}
-		return cache.Fetch(ctx, policy.Mode)
+		options := settings.HTTP()
+		options.URL, options.Username, options.Password, options.APIKey = "https://fixture.invalid", "fixture", "", "fixture-key"
+		policy.Cache.Namespace = identity
+		options.Client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Query().Get("offset") != "0" {
+				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("[]"))}, nil
+			}
+			if source == nil {
+				return nil, errors.New("cache-only unexpectedly reached source")
+			}
+			rows, err := source.Devices(r.Context())
+			if err != nil {
+				return nil, err
+			}
+			wire := make([]map[string]string, len(rows))
+			for i, row := range rows {
+				wire[i] = map[string]string{"ip": row.IP, "name": row.Name, "dns": row.DNS, "vendor": row.Vendor, "os": row.OS, "model": row.Model, "os_ver": row.OSVersion, "serial": row.Serial}
+			}
+			data, err := json.Marshal(wire)
+			if err != nil {
+				return nil, err
+			}
+			return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(data))}, nil
+		})}
+		return netdisco.FetchHTTP(ctx, options, policy)
 	}
 }

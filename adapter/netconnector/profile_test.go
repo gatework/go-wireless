@@ -58,7 +58,7 @@ func TestNativeSelectedProfileDrivesControllerAndAPQueries(t *testing.T) {
 			dimensions := []wireless.Dimension{wireless.Clients, wireless.LLDP}
 			options := collect.Request{
 				Target: wireless.Record{"host": "fixture"}, Profile: profile,
-				ConnectorPlatform: device.ProfileName(), Dimensions: dimensions,
+				ConnectorPlatform: device.PlatformName(), Dimensions: dimensions,
 				APCredentials: func(context.Context) (collect.APCredentials, error) {
 					return collect.APCredentials{Username: "ap-user", Password: "ap-secret"}, nil
 				},
@@ -101,7 +101,7 @@ func TestNativeSelectedProfileDrivesControllerAndAPQueries(t *testing.T) {
 
 func TestNativeProfilesRejectedBeforeConnection(t *testing.T) {
 	driver, _ := ncvendors.NewBuiltinRegistry().Lookup("h3c_wireless")
-	device, err := connector.New(driver.Profile(), connector.ConnectionConfig{Host: "fixture.invalid"}, connector.WithTransportFactory(func(context.Context, connector.ConnectionConfig) (io.ReadWriteCloser, error) {
+	device, err := connector.New(driver, connector.ConnectionConfig{Host: "fixture.invalid"}, connector.WithTransportFactory(func(context.Context, connector.ConnectionConfig) (io.ReadWriteCloser, error) {
 		t.Fatal("invalid profile opened a transport")
 		return nil, nil
 	}))
@@ -179,7 +179,7 @@ func TestNativeAPRequestAndProfileOwnedDuringOperation(t *testing.T) {
 
 func TestNativeHuaweiCannotAcquireAPDialogue(t *testing.T) {
 	driver, _ := ncvendors.NewBuiltinRegistry().Lookup("huawei")
-	device, err := connector.New(driver.Profile(), connector.ConnectionConfig{Host: "fixture.invalid"})
+	device, err := connector.New(driver, connector.ConnectionConfig{Host: "fixture.invalid"})
 	if err != nil {
 		t.Fatal(err)
 	}

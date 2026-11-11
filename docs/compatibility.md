@@ -16,7 +16,7 @@
 
 配置指纹不再与 Ruby 字节兼容：它是 go-netops 规范 JSON（键排序、数字保持原文、不转义 HTML）对 `MarshalJSON` 线上编码的 SHA-256，因此实时回读与存储的 JSON 指纹一致；无效 UTF-8 被拒绝而不是替换。唯一受控写动作是原 Ruby 已有的 wireless_security；其他诊断保持复核建议，不能生成自动写动作。
 
-运行依赖使用正式 `go-net-connector v0.6.0` / `go-expect v0.5.0`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
+运行依赖使用正式 `go-net-connector v0.7.0` / `go-expect v0.5.0`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
 
 ## 全部 Ruby lib 文件
 

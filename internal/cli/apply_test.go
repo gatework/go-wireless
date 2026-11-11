@@ -305,7 +305,7 @@ func TestApplyCredentialDiscoveryAndExplicitLastProcessFirst(t *testing.T) {
 	seen := false
 	code := Run(context.Background(), []string{"apply", "--plan", path, "--env-file", explicit, "--directory", filepath.Join(root, "logs")}, Dependencies{Input: strings.NewReader("APPLY 192.0.2.10 " + sha[:12] + "\n"), Output: &out, Error: &errs, Environment: map[string]string{"NC_DEVICE_USERNAME": "process", "NC_HOST_KEY_POLICY": "accept_new"}, Discovery: bootstrap.Discovery{CWD: root, Directories: []string{root}}, Terminal: func(any) bool { return true }, ApplyFactory: func(ctx context.Context, _ wireless.Record, cfg connector.ConnectionConfig, run func(context.Context, change.ApplySession) error) (error, error) {
 		seen = true
-		if cfg.Username != "process" || cfg.Password != "explicit-password" || cfg.KnownHosts != filepath.Join(root, "known-hosts") || cfg.HostKeyPolicy != "strict" || cfg.AllowTelnetFallback || cfg.AllowLegacySSH {
+		if cfg.Username != "process" || cfg.Password != "explicit-password" || cfg.KnownHosts != filepath.Join(root, "known-hosts") || cfg.HostKeyPolicy != "strict" || cfg.AllowTelnetFallback || cfg.AllowLegacyCrypto {
 			t.Fatal("credential precedence/trust boundary", cfg)
 		}
 		return run(ctx, session), nil

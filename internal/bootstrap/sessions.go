@@ -97,7 +97,7 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 		if err != nil {
 			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrPlatform, err)
 		}
-		native, err := connector.New(driver.Profile(), cfg)
+		native, err := connector.New(driver, cfg)
 		if err != nil {
 			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrConnection, err)
 		}
@@ -110,7 +110,7 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 			apFactory = netconnector.APFactory(nil)
 		}
 		callbacks[StringValue(device["host"])] = func(taskCtx context.Context) (wireless.Snapshot, error) {
-			connection := Connection{Open: netconnector.Open(native, profile), Platform: native.ProfileName()}
+			connection := Connection{Open: netconnector.Open(native, profile), Platform: native.PlatformName()}
 			if d.SessionFactory != nil {
 				var err error
 				connection, err = d.SessionFactory(taskCtx, copyMap(device), cfg)
@@ -160,7 +160,7 @@ func PrepareApply(ctx context.Context, environment map[string]string, envFile st
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrPlatform, err)
 	}
-	native, err := connector.New(platform.Profile(), cfg)
+	native, err := connector.New(platform, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrConnection, err)
 	}

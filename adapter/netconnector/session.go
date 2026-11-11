@@ -28,7 +28,7 @@ func Borrow(device *connector.Device, profile *parser.Profile) (*Session, error)
 	if device == nil {
 		return nil, errors.New("wireless: device required")
 	}
-	if !profile.Valid() || !profile.MatchesConnector(device.ProfileName()) {
+	if !profile.Valid() || !profile.MatchesConnector(device.PlatformName()) {
 		return nil, errors.New("wireless: connector profile mismatch")
 	}
 	scope, err := profile.CollectionScope(profile.Dimensions())

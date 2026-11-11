@@ -499,7 +499,7 @@ func (o *Options) sharedConfiguration(ctx context.Context, data wireless.Record,
 	if has(data, "common") || has(data, "wireless") {
 		return nil, ErrLegacyConfiguration
 	}
-	validated, err := ncconfig.LoadContext(ctx, ncconfig.Options{
+	validated, err := ncconfig.Load(ctx, ncconfig.Options{
 		Name: "backup", CWD: directory, Home: o.discovery.Home,
 		Directories: []string{}, Environment: map[string]string{},
 		Defaults: wireless.Record{}, Overrides: data,

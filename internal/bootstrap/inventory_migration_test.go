@@ -2,14 +2,17 @@ package bootstrap
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gatework/go-net-connector/inventory"
 	"github.com/gatework/go-net-connector/netdisco"
@@ -95,13 +98,16 @@ func TestHTTPIdentitySeparatesAccountsAndQueryWithoutKeyDerivatives(t *testing.T
 func TestLegacyInventoryCacheRequiresNewFetchAndRetainsMetadata(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "cache")
 	legacy, _ := json.Marshal(wireless.Record{"source": "http", "url": "https://inventory.invalid", "username": "reader", "authentication": "api_key", "namespace": "", "query": wireless.Record{"endpoint": "api/v1/search/device", "fields": "ip,name,dns,vendor,os,model,os_ver,serial", "page_size": 500, "fallback_q": "%", "fallback_seeallcolumns": true}})
-	cache, err := netdisco.NewCache(netdisco.SourceFunc(func(context.Context) ([]inventory.Device, error) {
-		return []inventory.Device{{IP: "192.0.2.99", Vendor: "H3C", Model: "WX3540"}}, nil
-	}), netdisco.CacheOptions{Directory: directory, Identity: string(legacy)})
+	// Freeze the pre-migration cache format without depending on a removed constructor.
+	identity := fmt.Sprintf("%x", sha256.Sum256(legacy))
+	data, err := json.Marshal(map[string]any{"schema": 1, "identity": identity, "fetched_at": float64(time.Now().UnixNano()) / 1e9, "rows": []inventory.Device{{IP: "192.0.2.99", Vendor: "H3C", Model: "WX3540"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cache.Fetch(t.Context(), "refresh"); err != nil {
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, identity+".json"), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 	load := func(mode string) *Options {

@@ -41,7 +41,7 @@ func NewAPSession(controller *connector.Device, profile *parser.Profile, credent
 	if controller == nil || !valid(credentials.Password) || credentials.Username != "" && !valid(credentials.Username) {
 		return nil, wireless.NewFailure("invalid_ap_credentials", "ap_setup")
 	}
-	if !profile.Valid() || !profile.MatchesConnector(controller.ProfileName()) || !profile.APQuery().Valid() || controller.ProfileName() != "h3c_wireless" {
+	if !profile.Valid() || !profile.MatchesConnector(controller.PlatformName()) || !profile.APQuery().Valid() || controller.PlatformName() != "h3c_wireless" {
 		return nil, wireless.NewFailure("invalid_ap_profile", "ap_setup")
 	}
 	if clock == nil {

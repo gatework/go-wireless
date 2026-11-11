@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-Follow [the gatework Go engineering standard](../go-standards/STANDARD.md) (go-standards/STANDARD.md); this file adds only what is specific to go-wireless. Run `make check` before every commit.
+Follow [the gatework Go engineering standard](https://github.com/gatework/go-standards/blob/v1.0.2/STANDARD.md) (go-standards/STANDARD.md); this file adds only what is specific to go-wireless. Run `make check` before every commit.
 
 ## Project Structure & Module Organization
 
@@ -11,7 +11,7 @@ Follow [the gatework Go engineering standard](../go-standards/STANDARD.md) (go-s
 - `cmd/wireless/` is the CLI entrypoint; `internal/` contains CLI, bootstrap, and workflows.
 - Tests use `*_test.go`; fixtures live in `testdata/`, examples in `examples/`, and documentation in `docs/`.
 
-Before changing package dependencies, read `docs/architecture.md`; the boundaries are declared in `architecture.yaml`.
+Before changing public APIs, read `docs/core-api.md`. Before changing package dependencies, read `docs/architecture.md`; the boundaries are declared in `architecture.yaml`.
 
 ## Build, Test, and Development Commands
 

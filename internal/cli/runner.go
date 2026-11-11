@@ -22,7 +22,7 @@ import (
 )
 
 // Version is the release version of the wireless command.
-const Version = "0.4.0"
+const Version = "0.5.0"
 
 // Executor runs one function per device with bounded concurrency.
 type Executor func(context.Context, int, []wireless.Record, func(context.Context, wireless.Record) error) error

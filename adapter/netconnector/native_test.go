@@ -105,7 +105,7 @@ func fixtureObserver(t *testing.T, steps []exchange, closeFail bool, event func(
 	if e != nil {
 		t.Fatal(e)
 	}
-	d, e := connector.New(platform.Profile(), connector.ConnectionConfig{Host: "fixture.invalid", CommandTimeout: 150 * time.Millisecond, WriteTimeout: time.Second, OnSessionEvent: event}, connector.WithTransportFactory(func(context.Context, connector.ConnectionConfig) (io.ReadWriteCloser, error) { return transport, nil }))
+	d, e := connector.New(platform, connector.ConnectionConfig{Host: "fixture.invalid", CommandTimeout: 150 * time.Millisecond, WriteTimeout: time.Second, OnSessionEvent: event}, connector.WithTransportFactory(func(context.Context, connector.ConnectionConfig) (io.ReadWriteCloser, error) { return transport, nil }))
 	if e != nil {
 		t.Fatal(e)
 	}

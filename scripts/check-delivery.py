@@ -81,7 +81,7 @@ def check_modules(root, env):
 def export_source(root, exported):
     allowed_dirs = {"adapter", "parser", "vendors", "collect", "review", "change", "wlan", "rules", "cmd", "internal", "docs", "examples",
                     "report", "scripts", "testdata", ".github"}
-    allowed_root = {"go.mod", "go.sum", "LICENSE", "README.md", "GLOSSARY.md", "VERSION", ".gitignore", ".golangci.yml"}
+    allowed_root = {"go.mod", "go.sum", "LICENSE", "README.md", "GLOSSARY.md", "VERSION", "Makefile", "standard.mk", "architecture.yaml", "AGENTS.md", "CHANGELOG.md", ".gitignore", ".golangci.yml"}
     forbidden = {".env", ".git", ".work", ".superpowers", "wireless-reports", "wireless-executions"}
     selected = []
     for path in sorted(root.rglob("*")):
