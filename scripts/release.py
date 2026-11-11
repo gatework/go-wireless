@@ -60,7 +60,7 @@ def check_modules(root):
     mod = json.loads(go(root, 'mod', 'edit', '-json'))
     if mod.get('Replace'):
         raise ValueError('release rejects all replace directives')
-    if any(m['Version'] == 'v0.0.0' for m in mod.get('Require', [])):
+    if any(m['Version'] == 'v0.0.0' for m in mod.get('Require') or []):
         raise ValueError('release rejects unpublished v0.0.0 dependencies')
     if tuple(map(int, mod['Go'].split('.')[:2])) < (1, 26):
         raise ValueError('module must declare the Go 1.26 floor or newer')
