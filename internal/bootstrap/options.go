@@ -222,18 +222,7 @@ func (o *Options) Initialize(ctx context.Context, out io.Writer) error {
 	if e = o.loadInventoryPolicy(ctx); e != nil {
 		return e
 	}
-	// NC_PARALLEL is inherited, unless this tool explicitly overrides it.
-	source := o.process
-	if _, a := source["WIRELESS_PARALLEL"]; !a {
-		if _, b := source["NC_PARALLEL"]; !b {
-			source = o.fileEnvironment
-		}
-	}
-	if !has(o.overrides, "parallel") {
-		if _, ok := source["WIRELESS_PARALLEL"]; !ok {
-			delete(o.Values, "parallel")
-		}
-	}
+	o.dropInheritedParallel()
 	document := o.Values
 	path := o.selectedConfig
 	if path == "" {
@@ -252,18 +241,7 @@ func (o *Options) Initialize(ctx context.Context, out io.Writer) error {
 		path string
 		body []byte
 	}{{path, body}, {envPath, envBody}} {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		created, e := initializeFile(item.path, item.body)
-		if e != nil {
-			return e
-		}
-		verb := "已保留"
-		if created {
-			verb = "已创建"
-		}
-		if _, e = fmt.Fprintf(out, "%s：%s\n", verb, item.path); e != nil {
+		if e := writeInitialFile(ctx, out, item.path, item.body); e != nil {
 			return e
 		}
 	}
@@ -271,6 +249,42 @@ func (o *Options) Initialize(ctx context.Context, out io.Writer) error {
 	return e
 }
 
+// dropInheritedParallel keeps an inherited NC_PARALLEL out of the written
+// configuration unless this tool's own setting or override chose it.
+func (o *Options) dropInheritedParallel() {
+	source := o.process
+	if _, a := source["WIRELESS_PARALLEL"]; !a {
+		if _, b := source["NC_PARALLEL"]; !b {
+			source = o.fileEnvironment
+		}
+	}
+	if !has(o.overrides, "parallel") {
+		if _, ok := source["WIRELESS_PARALLEL"]; !ok {
+			delete(o.Values, "parallel")
+		}
+	}
+}
+
+// writeInitialFile creates path with body unless it exists, and reports
+// which happened.
+func writeInitialFile(ctx context.Context, out io.Writer, path string, body []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	created, e := initializeFile(path, body)
+	if e != nil {
+		return e
+	}
+	verb := "已保留"
+	if created {
+		verb = "已创建"
+	}
+	_, e = fmt.Fprintf(out, "%s：%s\n", verb, path)
+	return e
+}
+
+// loadEnvironment resolves the discovery directories, reads the .env files
+// and selects the configuration file.
 func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -278,6 +292,25 @@ func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) er
 	if o.explicitConfig && strings.TrimSpace(o.selectedConfig) == "" || o.explicitEnv && strings.TrimSpace(o.selectedEnv) == "" {
 		return ErrOptions
 	}
+	if err := o.resolveDiscovery(env); err != nil {
+		return err
+	}
+	envFiles, err := o.readEnvironmentFiles(ctx)
+	if err != nil {
+		return err
+	}
+	o.Environment = map[string]string{}
+	for _, m := range []map[string]string{o.fileEnvironment, o.process} {
+		maps.Copy(o.Environment, m)
+	}
+	o.selectConfiguration()
+	o.Sources = wireless.Record{"configuration_files": []string{}, "environment_files": envFiles, "fields": map[string]string{}}
+	return ctx.Err()
+}
+
+// resolveDiscovery makes the working and home directories absolute, copies
+// the process environment and settles the configuration search directories.
+func (o *Options) resolveDiscovery(env map[string]string) error {
 	d := &o.discovery
 	actual, e := os.Getwd()
 	if e != nil {
@@ -287,8 +320,7 @@ func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) er
 		d.CWD = actual
 	}
 	if d.Home == "" {
-		d.Home, e = os.UserHomeDir()
-		if e != nil {
+		if d.Home, e = os.UserHomeDir(); e != nil {
 			return ErrOptions
 		}
 	}
@@ -317,6 +349,13 @@ func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) er
 	if strings.TrimSpace(o.selectedEnv) != "" {
 		o.selectedEnv = absolute(o.selectedEnv, d.CWD, d.Home)
 	}
+	return nil
+}
+
+// readEnvironmentFiles reads the .env file of every search directory (the
+// selected one last) and returns the files that existed.
+func (o *Options) readEnvironmentFiles(ctx context.Context) ([]string, error) {
+	d := &o.discovery
 	o.fileEnvironment = map[string]string{}
 	envFiles := []string{}
 	candidates := []string{}
@@ -326,23 +365,27 @@ func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) er
 	for _, p := range uniqueLast(candidates, o.selectedEnv) {
 		b, ok, e := readConfigurationFile(ctx, p, p != o.selectedEnv || o.initializing)
 		if e != nil {
-			return e
+			return nil, e
 		}
 		if !ok {
 			continue
 		}
 		values, e := ncconfig.ParseEnvironment(string(b), o.fileEnvironment, o.process)
 		if e != nil {
-			return ErrOptions
+			return nil, ErrOptions
 		}
 		resolveEnvironment(values, filepath.Dir(p), d.Home)
 		maps.Copy(o.fileEnvironment, values)
 		envFiles = append(envFiles, p)
 	}
-	o.Environment = map[string]string{}
-	for _, m := range []map[string]string{o.fileEnvironment, o.process} {
-		maps.Copy(o.Environment, m)
-	}
+	return envFiles, nil
+}
+
+// selectConfiguration picks the configuration file: the explicit one, then
+// WIRELESS_CONFIG from the process, then from the .env files, then the
+// user default.
+func (o *Options) selectConfiguration() {
+	d := &o.discovery
 	selected := o.selectedConfig
 	if strings.TrimSpace(selected) == "" {
 		selected = o.process["WIRELESS_CONFIG"]
@@ -363,8 +406,6 @@ func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) er
 	if o.EnvFile == "" {
 		o.EnvFile = filepath.Join(o.userDirectory, ".env")
 	}
-	o.Sources = wireless.Record{"configuration_files": []string{}, "environment_files": envFiles, "fields": map[string]string{}}
-	return ctx.Err()
 }
 func in(s string, values ...string) bool     { return slices.Contains(values, s) }
 func boolValue(v any) bool                   { b, _ := v.(bool); return b }
@@ -542,12 +583,27 @@ func (o *Options) publicEnvironment(env map[string]string, dynamic bool, higher 
 	return result, nil
 }
 
+// validate checks and normalizes the merged options, in a fixed order.
 func (o *Options) validate() error {
+	for _, check := range []func() error{o.validateKeys, o.validateParallel, o.validateTarget, o.validateDimensions, o.validateSources, o.validateSelectors, o.validateSSH} {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o *Options) validateKeys() error {
 	for k := range o.Values {
 		if !in(k, "platform", "ap_names", "devices", "netdisco", "inventory", "netdisco_config", "parallel", "directory", "dimensions", "ssh", "hosts", "exclude_hosts", "names", "exclude_names") {
 			return ErrOptions
 		}
 	}
+	return nil
+}
+
+// validateParallel accepts 1..500 workers, given as an integer or digits.
+func (o *Options) validateParallel() error {
 	if s, ok := o.Values["parallel"].(string); ok {
 		n, e := strconv.Atoi(s)
 		if e != nil || s == "" || strings.Trim(s, "0123456789") != "" {
@@ -558,26 +614,42 @@ func (o *Options) validate() error {
 	if n, ok := o.Values["parallel"].(int); !ok || n < 1 || n > 500 {
 		return ErrOptions
 	}
-	if !in(StringValue(o.Values["platform"]), vendors.NewBuiltinRegistry().Platforms()...) || strings.TrimSpace(StringValue(o.Values["directory"])) == "" || strings.ContainsRune(StringValue(o.Values["directory"]), 0) {
+	return nil
+}
+
+// validateTarget requires a known platform and a usable output directory.
+func (o *Options) validateTarget() error {
+	directory := StringValue(o.Values["directory"])
+	if !in(StringValue(o.Values["platform"]), vendors.NewBuiltinRegistry().Platforms()...) || strings.TrimSpace(directory) == "" || strings.ContainsRune(directory, 0) {
 		return ErrOptions
 	}
-	if o.Values["dimensions"] != nil {
-		a, e := stringList(o.Values["dimensions"])
-		if e != nil || len(a) == 0 {
+	return nil
+}
+
+// validateDimensions accepts a non-empty list of distinct known dimensions.
+func (o *Options) validateDimensions() error {
+	if o.Values["dimensions"] == nil {
+		return nil
+	}
+	a, e := stringList(o.Values["dimensions"])
+	if e != nil || len(a) == 0 {
+		return ErrOptions
+	}
+	known := vendors.NewBuiltinRegistry().Dimensions()
+	seen := map[string]bool{}
+	for _, s := range a {
+		if !slices.Contains(known, wireless.Dimension(s)) || seen[s] {
 			return ErrOptions
 		}
-		seen := map[string]bool{}
-		for _, s := range a {
-			valid := false
-			for _, d := range vendors.NewBuiltinRegistry().Dimensions() {
-				valid = valid || s == string(d)
-			}
-			if !valid || seen[s] {
-				return ErrOptions
-			}
-			seen[s] = true
-		}
+		seen[s] = true
 	}
+	return nil
+}
+
+// validateSources normalizes the static devices and requires exactly one
+// inventory source: static devices, inline netdisco/inventory settings or a
+// netdisco configuration file. Inventory overrides need a dynamic source.
+func (o *Options) validateSources() error {
 	rows, ok := o.Values["devices"].([]any)
 	if !ok {
 		return ErrOptions
@@ -614,6 +686,12 @@ func (o *Options) validate() error {
 			o.Values["netdisco"] = merge(m, o.inventoryOverrides)
 		}
 	}
+	return nil
+}
+
+// validateSelectors defaults and checks the host, name and AP selectors;
+// host selectors must be addresses or prefixes, not ranges.
+func (o *Options) validateSelectors() error {
 	for _, k := range []string{"hosts", "exclude_hosts", "names", "exclude_names", "ap_names"} {
 		v, ok := o.Values[k]
 		if !ok {
@@ -624,17 +702,24 @@ func (o *Options) validate() error {
 		if e != nil {
 			return e
 		}
-		if in(k, "hosts", "exclude_hosts") {
-			for _, s := range a {
-				if strings.Contains(s, "-") {
-					return ErrOptions
-				}
-			}
-			if _, e = inventory.NewAddressSet(a); e != nil {
+		if !in(k, "hosts", "exclude_hosts") {
+			continue
+		}
+		for _, s := range a {
+			if strings.Contains(s, "-") {
 				return ErrOptions
 			}
 		}
+		if _, e = inventory.NewAddressSet(a); e != nil {
+			return ErrOptions
+		}
 	}
+	return nil
+}
+
+// validateSSH checks the SSH settings: known keys, host key policy, positive
+// timeouts, port range and known_hosts path.
+func (o *Options) validateSSH() error {
 	ssh, ok := o.Values["ssh"].(map[string]any)
 	if !ok {
 		return ErrOptions
@@ -654,8 +739,7 @@ func (o *Options) validate() error {
 		}
 	}
 	if v, ok := ssh["port"]; ok {
-		n, ok := v.(int)
-		if !ok || n < 1 || n > 65535 {
+		if n, ok := v.(int); !ok || n < 1 || n > 65535 {
 			return ErrOptions
 		}
 	}
