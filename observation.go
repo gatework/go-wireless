@@ -180,6 +180,9 @@ type visit struct {
 
 var jsonNumberPattern = regexp.MustCompile(`^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$`)
 
+// copyJSON deep-copies a JSON-compatible value, rejecting invalid numbers,
+// cycles, non-text keys and other types.
+//
 //nolint:nilnil // nil is JSON null
 func copyJSON(v any, seen map[visit]bool) (any, error) {
 	if v == nil {
@@ -218,45 +221,52 @@ func copyJSON(v any, seen map[visit]bool) (any, error) {
 		seen[key] = true
 		defer delete(seen, key)
 		if r.Kind() == reflect.Map {
-			if r.Type().Key().Kind() != reflect.String {
-				return nil, errors.New("wireless object keys must be text")
-			}
-			out := make(Record, r.Len())
-			// Evidence already uses Record. Native iteration avoids allocating
-			// reflected keys and values for every field; named maps retain the
-			// general path below, under the same cycle and value validation.
-			if record, ok := v.(Record); ok {
-				for key, child := range record {
-					value, err := copyJSON(child, seen)
-					if err != nil {
-						return nil, err
-					}
-					out[key] = value
-				}
-				return out, nil
-			}
-			it := r.MapRange()
-			for it.Next() {
-				value, err := copyJSON(it.Value().Interface(), seen)
-				if err != nil {
-					return nil, err
-				}
-				out[it.Key().String()] = value
-			}
-			return out, nil
+			return copyMap(v, r, seen)
 		}
-		out := make([]any, r.Len())
-		for i := range out {
-			value, err := copyJSON(r.Index(i).Interface(), seen)
-			if err != nil {
-				return nil, err
-			}
-			out[i] = value
-		}
-		return out, nil
+		return copySlice(r, seen)
 	default:
 		return nil, errors.New("wireless data must be JSON compatible")
 	}
+}
+
+func copyMap(v any, r reflect.Value, seen map[visit]bool) (any, error) {
+	if r.Type().Key().Kind() != reflect.String {
+		return nil, errors.New("wireless object keys must be text")
+	}
+	out := make(Record, r.Len())
+	// Evidence already uses Record. Native iteration avoids allocating
+	// reflected keys and values for every field; named maps retain the
+	// general path below, under the same cycle and value validation.
+	if record, ok := v.(Record); ok {
+		for key, child := range record {
+			value, err := copyJSON(child, seen)
+			if err != nil {
+				return nil, err
+			}
+			out[key] = value
+		}
+		return out, nil
+	}
+	for it := r.MapRange(); it.Next(); {
+		value, err := copyJSON(it.Value().Interface(), seen)
+		if err != nil {
+			return nil, err
+		}
+		out[it.Key().String()] = value
+	}
+	return out, nil
+}
+
+func copySlice(r reflect.Value, seen map[visit]bool) (any, error) {
+	out := make([]any, r.Len())
+	for i := range out {
+		value, err := copyJSON(r.Index(i).Interface(), seen)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = value
+	}
+	return out, nil
 }
 func cloneRecord(r Record) Record {
 	if r == nil {
