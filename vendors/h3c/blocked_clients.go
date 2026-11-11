@@ -13,6 +13,9 @@ import (
 var blockedSkip = regexp.MustCompile(`(?i)^(?:No blocked clients|MAC address\b.*|(?:Client )?block list|Blocked clients|Total.*:\s*\d+)$`)
 var blockedRow = regexp.MustCompile(`(?i)^((?:[0-9a-f]{4}-){2}[0-9a-f]{4}|(?:[0-9a-f]{2}:){5}[0-9a-f]{2})\s*(.*?)$`)
 
+// noBlockedClients is the output for an empty block list.
+var noBlockedClients = regexp.MustCompile(`(?i)^No blocked clients\s*$`)
+
 func (p *parseState) parseBlocked(text string, complete bool) parser.Result {
 	records, issues := []wireless.Record{}, []wireless.Record{}
 	for index, line := range parser.SourceLines(text) {
@@ -28,7 +31,7 @@ func (p *parseState) parseBlocked(text string, complete bool) parser.Result {
 		}
 	}
 	total := reportedTotal(text, "(?:blocked clients|clients|entries)", &issues, nil, "")
-	if regexp.MustCompile(`(?i)^No blocked clients\s*$`).MatchString(parsetext.Strip(text)) {
+	if noBlockedClients.MatchString(parsetext.Strip(text)) {
 		total = big.NewInt(0)
 	}
 	return parser.FieldsResult(records, issues, complete, total, []string{"mac_address"})

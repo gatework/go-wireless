@@ -218,6 +218,7 @@ func convertField(field string, raw *string, label string) (any, error) {
 		return recordvalue.Scalar(raw), nil
 	}
 }
+
 // recordSchema is how one record-per-entity dimension maps its labels.
 type recordSchema struct {
 	mapping  map[string]string
