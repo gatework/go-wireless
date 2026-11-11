@@ -2,7 +2,7 @@
 
 独立的 Go 无线控制器证据采集、离线解析、报告复核与受控变更库/CLI。移植基线为 Wireless Ruby `b328e1f`（2026-10-26）；运行和普通测试不需要 Ruby、Rails 或数据库。证据完整不代表网络健康。
 
-需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.7.0**、go-expect **v0.5.0**。当前版本 **v0.5.0**；Python 3 仅用于源码交付与发布验证。
+需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.7.1**、go-expect **v0.6.0**。当前版本 **v0.5.0**；Python 3 仅用于源码交付与发布验证。
 
 本版本引入类型化 WLAN 模型、go-netops 规则与变更计划，并接入 go-standards v1.0.2。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.5.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
 

@@ -3,8 +3,8 @@ module github.com/gatework/go-wireless
 go 1.26.0
 
 require (
-	github.com/gatework/go-expect v0.5.0
-	github.com/gatework/go-net-connector v0.7.0
+	github.com/gatework/go-expect v0.6.0
+	github.com/gatework/go-net-connector v0.7.1
 	github.com/gatework/go-netops v0.3.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.1.0
