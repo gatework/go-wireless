@@ -15,10 +15,12 @@ type Result struct {
 	Records, Issues []wireless.Record
 }
 
+// FailedResult is a failed result with one issue.
 func FailedResult(code string) Result {
 	return Result{Status: wireless.Failed, Records: []wireless.Record{}, Issues: []wireless.Record{{"code": code}}}
 }
 
+// UniqueIssues removes repeated issues, keeping the first of each.
 func UniqueIssues(issues []wireless.Record) []wireless.Record {
 	seen := map[string]bool{}
 	out := []wireless.Record{}
@@ -67,6 +69,8 @@ func FieldsResult(records []wireless.Record, issues []wireless.Record, complete 
 	}
 	return Result{status, unique, issues}
 }
+
+// HasDuplicates reports whether two records share the same identity fields.
 func HasDuplicates(records []wireless.Record, identity []string) bool {
 	seen := map[string]bool{}
 	for _, r := range records {

@@ -37,56 +37,81 @@ var huaweiClientHeader = regexp.MustCompile(`(?i)^STA MAC\s+AP ID\s+Ap name\s+Rf
 var huaweiSkip = regexp.MustCompile(`(?i)^Total AP information:|^(?:nor|fault|idle|stdby)\s*:`)
 
 func parseHuawei(dim wireless.Dimension, text string, complete bool) parser.Result {
-	records, issues := []wireless.Record{}, []wireless.Record{}
-	header := false
-	var total *big.Int
+	t := &huaweiTable{dim: dim, records: []wireless.Record{}, issues: []wireless.Record{}}
 	for index, line := range parser.SourceLines(text) {
-		row := parsetext.Strip(line)
-		if row == "" || parsetext.IsSeparator(row) {
-			continue
-		}
-		if m := huaweiTotal.FindStringSubmatch(row); m != nil {
-			v, e := parser.ParseIntegerExact(&m[1], nil)
-			if e != nil {
-				issues = append(issues, wireless.Record{"code": "invalid_row", "line": index + 1})
-				continue
-			}
-			if total != nil && total.Cmp(v) != 0 {
-				issues = append(issues, wireless.Record{"code": "conflicting_total", "line": index + 1})
-			}
-			if total == nil {
-				total = v
-			}
-		} else if (dim == wireless.AccessPoints && huaweiAPHeader.MatchString(row)) || (dim == wireless.Clients && huaweiClientHeader.MatchString(row)) {
-			header = true
-		} else if huaweiSkip.MatchString(row) {
-			continue
-		} else if !header {
-			issues = append(issues, wireless.Record{"code": "missing_header", "line": index + 1})
-		} else {
-			var record wireless.Record
-			var err error
-			if dim == wireless.AccessPoints {
-				record, err = parseHuaweiAP(parsetext.SplitWords(row))
-			} else {
-				record, err = parseHuaweiClient(parsetext.SplitWords(row))
-			}
-			if err != nil {
-				issues = append(issues, wireless.Record{"code": "invalid_row", "line": index + 1})
-			} else {
-				records = append(records, record)
-			}
-		}
+		t.line(index, parsetext.Strip(line))
 	}
-	if !header {
-		issues = append(issues, wireless.Record{"code": "missing_header"})
+	if !t.header {
+		t.issues = append(t.issues, wireless.Record{"code": "missing_header"})
 	}
-	if total == nil {
-		issues = append(issues, wireless.Record{"code": "missing_total"})
+	if t.total == nil {
+		t.issues = append(t.issues, wireless.Record{"code": "missing_total"})
 	}
 	identity := []string{"name"}
 	if dim == wireless.Clients {
 		identity = []string{"client_mac"}
 	}
-	return parser.FieldsResult(records, issues, complete, total, identity)
+	return parser.FieldsResult(t.records, t.issues, complete, t.total, identity)
+}
+
+// huaweiTable is the state of one Huawei AP or station table parse.
+type huaweiTable struct {
+	dim             wireless.Dimension
+	records, issues []wireless.Record
+	header          bool
+	total           *big.Int
+}
+
+func (t *huaweiTable) issue(code string, index int) {
+	t.issues = append(t.issues, wireless.Record{"code": code, "line": index + 1})
+}
+
+// line consumes one stripped table line (index is 0-based).
+func (t *huaweiTable) line(index int, row string) {
+	if row == "" || parsetext.IsSeparator(row) {
+		return
+	}
+	if m := huaweiTotal.FindStringSubmatch(row); m != nil {
+		t.reportedTotal(index, m[1])
+		return
+	}
+	switch {
+	case (t.dim == wireless.AccessPoints && huaweiAPHeader.MatchString(row)) || (t.dim == wireless.Clients && huaweiClientHeader.MatchString(row)):
+		t.header = true
+	case huaweiSkip.MatchString(row):
+	case !t.header:
+		t.issue("missing_header", index)
+	default:
+		t.row(index, row)
+	}
+}
+
+// reportedTotal records the table's total; a second, different total
+// conflicts.
+func (t *huaweiTable) reportedTotal(index int, raw string) {
+	v, e := parser.ParseIntegerExact(&raw, nil)
+	if e != nil {
+		t.issue("invalid_row", index)
+		return
+	}
+	if t.total != nil && t.total.Cmp(v) != 0 {
+		t.issue("conflicting_total", index)
+	}
+	if t.total == nil {
+		t.total = v
+	}
+}
+
+// row parses one data row.
+func (t *huaweiTable) row(index int, row string) {
+	parse := parseHuaweiClient
+	if t.dim == wireless.AccessPoints {
+		parse = parseHuaweiAP
+	}
+	record, err := parse(parsetext.SplitWords(row))
+	if err != nil {
+		t.issue("invalid_row", index)
+		return
+	}
+	t.records = append(t.records, record)
 }

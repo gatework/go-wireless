@@ -97,8 +97,8 @@ func TestSnapshotProjectionAndCoverageOwnership(t *testing.T) {
 	}
 	delete(dims, wireless.Clients)
 	target["nested"].(wireless.Record)["x"] = 2
-	copy := s.Target()
-	copy["nested"].(wireless.Record)["x"] = 3
+	duplicate := s.Target()
+	duplicate["nested"].(wireless.Record)["x"] = 3
 	if !s.Complete() || s.Target()["nested"].(wireless.Record)["x"] != 1 {
 		t.Fatal("snapshot ownership")
 	}

@@ -14,9 +14,9 @@
 
 版本号属于各实现自身的包元数据：Ruby `Wireless::VERSION` 为 `0.3.1`，当前 Go 版本由根目录 `VERSION` 与 `internal/cli.Version` 定义（v0.2.0）。核心 `wireless` 包不导入 CLI，导入库不会运行 CLI。
 
-配置指纹完全遵循 Ruby JSON 3.1.0 fpconv，不是 RFC 8785。普通 wire JSON 和 canonical fingerprint 编码是两条边界。唯一受控写动作是原 Ruby 已有的 wireless_security；其他诊断保持复核建议，不能生成自动写动作。
+配置指纹不再与 Ruby 字节兼容：它是 go-netops 规范 JSON（键排序、数字保持原文、不转义 HTML）对 `MarshalJSON` 线上编码的 SHA-256，因此实时回读与存储的 JSON 指纹一致；无效 UTF-8 被拒绝而不是替换。唯一受控写动作是原 Ruby 已有的 wireless_security；其他诊断保持复核建议，不能生成自动写动作。
 
-运行依赖使用正式 `go-net-connector v0.6.0` / `go-expect v0.5.0`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
+运行依赖使用正式 `go-net-connector v0.7.1` / `go-expect v0.6.0`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
 
 ## 全部 Ruby lib 文件
 
@@ -26,7 +26,7 @@
 |---|---|---|
 | `lib/wireless.rb` | observation.go; parser/registry.go; collect/collect.go | core_test.go:TestObservationOwnershipAndSafeFormatting |
 | `lib/wireless/ap_session.rb` | adapter/netconnector/ap.go | adapter/netconnector/native_test.go:TestNativeAPDialoguePaginationAndExactReturn |
-| `lib/wireless/change_plan.rb` | fingerprint.go; document.go; change/h3c.go; fpconv.go; change/apply.go | change_plan_test.go:TestTypedSecurityChange; change_plan_test.go:TestRubyFPConvCorpus |
+| `lib/wireless/change_plan.rb` | fingerprint.go; document.go; change/template_security.go; change/apply.go | change_plan_test.go:TestTypedSecurityChange; change_plan_test.go:TestFingerprintMatchesStoredDocument |
 | `lib/wireless/cli.rb` | internal/cli/runner.go; cmd/wireless/main.go | internal/cli/subprocess_test.go:TestSubprocessCLI |
 | `lib/wireless/cli/apply.rb` | internal/cli/apply.go; internal/workflow/apply/diagnostics.go | internal/cli/apply_test.go:TestApplyDurableIntentReadbackAndNoReplay; internal/cli/apply_diagnostics_test.go:TestApplyRetainsIndependentSafeDiagnostics |
 | `lib/wireless/cli/collect.rb` | internal/cli/runner.go | internal/cli/runner_test.go:TestCollectBothPlatformsPrivateReportsAndReuse |
@@ -35,7 +35,7 @@
 | `lib/wireless/cli/parse.rb` | internal/cli/parse.go; internal/cli/input.go | internal/cli/runner_test.go:TestParseOfflineAndNumericIntent; internal/cli/cancellation_review_test.go:TestReviewParseCancellationDuringBorrowedReadDiscardsFacts |
 | `lib/wireless/cli/report.rb` | report/report.go | report/report_test.go:TestFinalizePhaseFailuresNeverLeaveCompleteSummary |
 | `lib/wireless/cli/review.rb` | internal/cli/review.go | internal/cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput |
-| `lib/wireless/cli/review/report.rb` | report/recommendations.go | report/recommendations_test.go:TestReviewRubyFullConfiguration |
+| `lib/wireless/cli/review/report.rb` | report/assessment.go | report/plan_parity_test.go:TestTypedPlansMatchFrozenLegacyPlans; report/assessment_test.go:TestWriteAssessmentPlansOnlyEligibleCandidates |
 | `lib/wireless/collector.rb` | collect/collect.go; collect/neighbors.go; capture.go | collector_test.go:TestCollectorSharedQueriesFirstFactsAndNoSession |
 | `lib/wireless/config.rb` | parser/registry.go; vendors/h3c/configuration.go | parser_api_test.go:TestConfigViewsAndNeighborAPI |
 | `lib/wireless/coverage.rb` | coverage.go | parser_api_test.go:TestCoverageAllReasonBranches |
@@ -65,7 +65,7 @@
 | `lib/wireless/observation.rb` | observation.go | core_test.go:TestObservationOwnershipAndSafeFormatting |
 | `lib/wireless/parser_registry.rb` | parser/registry.go | parser_api_test.go:TestProfileQueriesAliasesAndCopies |
 | `lib/wireless/projection.rb` | projection.go | domain_boundaries_test.go:TestSnapshotProjectionAndCoverageOwnership |
-| `lib/wireless/recommendations.rb` | review/recommendations.go | recommendations_test.go:TestRubyRecommendations |
+| `lib/wireless/recommendations.rb` | rules/rules.go | rules/parity_test.go:TestRulesMatchLegacyRecommendations |
 | `lib/wireless/runtime_parser.rb` | parser/runtime.go | core_test.go:TestRuntimeInvalidRequestsAndIndependentViews |
 | `lib/wireless/snapshot.rb` | snapshot.go | domain_boundaries_test.go:TestSnapshotProjectionAndCoverageOwnership |
 | `lib/wireless/terminal.rb` | parser/terminal.go; internal/parsetext/values.go | fields_test.go:TestAllTextNewlinePolicies |
@@ -87,7 +87,7 @@
 | `spec/cli/options_spec.rb` | 21 | internal/bootstrap/options.go | internal/cli/options_test.go:TestLayeredConfigurationPathsAndSecrets; internal/cli/options_test.go:TestSourceFieldsMatchRubyDotPathsAndEmptyOverlayKeepsOrigin; internal/cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance; internal/cli/options_test.go:TestInventoryEnvironmentMasking |
 | `spec/cli/parse_spec.rb` | 4 | internal/cli/parse.go | internal/cli/runner_test.go:TestParseOfflineAndNumericIntent; internal/cli/cancellation_review_test.go:TestReviewParseCancellationDuringBorrowedReadDiscardsFacts |
 | `spec/cli/report_spec.rb` | 12 | report/report.go | report/report_test.go:TestFinalizePhaseFailuresNeverLeaveCompleteSummary; report/report_test.go:TestPrivateRootAndUTCCollisionSuffix; report/report_test.go:TestCancellationAfterFinalRenameSurvivesFailedRecovery |
-| `spec/cli/review_spec.rb` | 8 | internal/cli/review.go; report/recommendations.go | internal/cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput; report/recommendations_test.go:TestReviewRubyFullConfiguration; report/report_test.go:TestFinalizeReviewUsesSameRecoveryAndConfinesPath |
+| `spec/cli/review_spec.rb` | 8 | internal/cli/review.go; report/assessment.go | internal/cli/review_test.go:TestDefaultOfflineReviewAndNoOutputOnInvalidInput; report/plan_parity_test.go:TestTypedPlansMatchFrozenLegacyPlans; report/report_test.go:TestFinalizeReviewUsesSameRecoveryAndConfinesPath |
 | `spec/cli_spec.rb` | 9 | internal/cli/runner.go; cmd/wireless/main.go | internal/cli/subprocess_test.go:TestSubprocessCLI; internal/cli/options_test.go:TestInformationalAndMissingConfigurationDoNotConsumeInput; internal/cli/options_test.go:TestInitializePrivateNoOverwriteAndInheritance |
 | `spec/collector_spec.rb` | 28 | collect/collect.go; collect/neighbors.go; capture.go | collector_test.go:TestCollectorSharedQueriesFirstFactsAndNoSession; collector_test.go:TestCollectorLateAndConcurrentCallbacksNeverReplay; collector_test.go:TestCollectorAPLazyDependenciesSelectionAndBinding; collector_test.go:TestCollectorAPFailuresDoNotLoseFactsOrOtherAPs; collector_test.go:TestCollectorAPInvalidCapturesSetupAndMissingNames |
 | `spec/compound_settings_spec.rb` | 3 | vendors/h3c/configuration_settings.go | core_test.go:TestRubyParserCorpus |
@@ -106,7 +106,7 @@
 | `spec/neighbor_parser_spec.rb` | 7 | parser/neighbors.go; vendors/h3c/neighbors.go | core_test.go:TestRubyParserCorpus; parser_api_test.go:TestConfigViewsAndNeighborAPI |
 | `spec/parser_integrity_spec.rb` | 17 | vendors/h3c/record.go; vendors/h3c/configuration.go; vendors/h3c/neighbors.go; vendors/huawei/clients.go | core_test.go:TestRubyParserCorpus; domain_boundaries_test.go:TestIPBracketFamily; exact_numbers_test.go:TestExactControllerIntegers |
 | `spec/platform_contract_spec.rb` | 5 | parser/registry.go; parser/runtime.go; collect/collect.go | parser_api_test.go:TestProfileQueriesAliasesAndCopies; core_test.go:TestRuntimeInvalidRequestsAndIndependentViews; collector_test.go:TestCollectorOrderingDependenciesUnsupportedAndParserCompleteness |
-| `spec/recommendations_spec.rb` | 7 | review/recommendations.go; fingerprint.go; document.go; change/h3c.go | recommendations_test.go:TestRubyRecommendations; change_plan_test.go:TestTypedSecurityChange; report/recommendations_test.go:TestHistoricalExponentNameRemainsAdvisoryOnly |
+| `spec/recommendations_spec.rb` | 7 | rules/rules.go; fingerprint.go; document.go; change/template_security.go | rules/parity_test.go:TestRulesMatchLegacyRecommendations; change/typed_parity_test.go:TestTemplateSecurityMatchesFrozenLegacyVerdicts; report/plan_parity_test.go:TestTypedPlansMatchFrozenLegacyPlans |
 | `spec/record_separator_spec.rb` | 2 | parser/terminal.go; internal/parsetext/values.go; vendors/h3c/configuration_source.go | fields_test.go:TestAllTextNewlinePolicies; core_test.go:TestRubyParserCorpus |
 | `spec/replay_evidence_spec.rb` | 1 | parser/terminal.go; internal/parsetext/values.go; parser/runtime.go | core_test.go:TestRubyParserCorpus |
 | `spec/runtime_parser_spec.rb` | 14 | parser/runtime.go; vendors/h3c/access_points.go; vendors/h3c/fields.go; vendors/huawei/access_points.go | core_test.go:TestRubyParserCorpus; core_review_test.go:TestReviewLargePositiveRSSIMatchesRubyFloatRound |

@@ -1,3 +1,6 @@
+// Command wireless collects evidence from H3C and Huawei wireless
+// controllers, reviews it into a risk assessment with review-only
+// remediation, and applies one confirmed plan at a time.
 package main
 
 import (

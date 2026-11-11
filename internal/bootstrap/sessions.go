@@ -19,7 +19,9 @@ import (
 	"github.com/gatework/go-wireless/vendors"
 )
 
+// Setup errors; their messages never include credentials or device text.
 var (
+	// ErrCredentials reports that device credentials are unavailable.
 	ErrCredentials = errors.New("wireless: credentials unavailable")
 	ErrPlatform    = errors.New("wireless: unavailable platform")
 	ErrConnection  = errors.New("wireless: invalid connection settings")
@@ -28,14 +30,21 @@ var (
 	ErrEnvironment = errors.New("wireless: environment unavailable")
 )
 
+// Connection is an opened collection session and the connector platform it
+// uses.
 type Connection struct {
 	Open     collect.OpenSession
 	Platform string
 }
+
+// SessionFactory opens a collection session to one device.
 type SessionFactory func(context.Context, wireless.Record, connector.ConnectionConfig) (Connection, error)
 
 // ApplyFactory lends one synchronous session and returns operation and cleanup errors separately.
 type ApplyFactory func(context.Context, wireless.Record, connector.ConnectionConfig, func(context.Context, change.ApplySession) error) (error, error)
+
+// CollectionDependencies are the injectable collaborators of a collection
+// run.
 type CollectionDependencies struct {
 	Registry           dialect.Registry
 	SessionFactory     SessionFactory
@@ -64,7 +73,7 @@ func CollectionDefaults(d CollectionDependencies) CollectionDependencies {
 		d.NewReport = report.New
 	}
 	if d.RecommendationHook == nil && d.ReportOptions.DeviceHook == nil {
-		d.RecommendationHook = report.RecommendationHook
+		d.RecommendationHook = report.AssessmentHook
 	}
 	return d
 }
@@ -88,7 +97,7 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 		if err != nil {
 			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrPlatform, err)
 		}
-		native, err := connector.New(driver.Profile(), cfg)
+		native, err := connector.New(driver, cfg)
 		if err != nil {
 			return collectrun.Options{}, fmt.Errorf("%w: %w", ErrConnection, err)
 		}
@@ -101,7 +110,7 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 			apFactory = netconnector.APFactory(nil)
 		}
 		callbacks[StringValue(device["host"])] = func(taskCtx context.Context) (wireless.Snapshot, error) {
-			connection := Connection{Open: netconnector.Open(native, profile), Platform: native.ProfileName()}
+			connection := Connection{Open: netconnector.Open(native, profile), Platform: native.PlatformName()}
 			if d.SessionFactory != nil {
 				var err error
 				connection, err = d.SessionFactory(taskCtx, copyMap(device), cfg)
@@ -109,7 +118,7 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 					return wireless.Snapshot{}, err
 				}
 			}
-			return collect.NewCollector(collect.CollectorOptions{APFactory: apFactory}).Collect(taskCtx, collect.CollectOptions{Target: device, Profile: profile, ConnectorPlatform: connection.Platform, Dimensions: o.runtime.dimensions, APNames: o.runtime.apNames, Open: connection.Open, APCredentials: func(context.Context) (collect.APCredentials, error) { return o.runtime.apCredentials, nil }})
+			return collect.NewCollector(collect.CollectorOptions{APFactory: apFactory}).Collect(taskCtx, collect.Request{Target: device, Profile: profile, ConnectorPlatform: connection.Platform, Dimensions: o.runtime.dimensions, APNames: o.runtime.apNames, Open: connection.Open, APCredentials: func(context.Context) (collect.APCredentials, error) { return o.runtime.apCredentials, nil }})
 		}
 	}
 	if err := d.PrepareResources(ctx, min(o.Workers(), len(devices))); err != nil {
@@ -134,7 +143,10 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 		return run(ctx)
 	}}, nil
 }
-func PrepareApply(ctx context.Context, environment map[string]string, envFile string, discovery Discovery, registry dialect.Registry, factory ApplyFactory, plan change.ChangePlan, port int) (apply.Opener, error) {
+
+// PrepareApply resolves credentials and connection settings for the plan's
+// device and returns the opener apply uses.
+func PrepareApply(ctx context.Context, environment map[string]string, envFile string, discovery Discovery, registry dialect.Registry, factory ApplyFactory, plan change.Plan, port int) (apply.Opener, error) {
 	env, _, err := LoadEnvironment(ctx, environment, envFile, discovery)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrEnvironment, err)
@@ -148,7 +160,7 @@ func PrepareApply(ctx context.Context, environment map[string]string, envFile st
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrPlatform, err)
 	}
-	native, err := connector.New(platform.Profile(), cfg)
+	native, err := connector.New(platform, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrConnection, err)
 	}

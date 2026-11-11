@@ -17,7 +17,7 @@ import (
 // and readback. Both operation and cleanup errors survive lease retirement.
 func Apply(ctx context.Context, device *connector.Device, run func(context.Context, change.ApplySession) error) (error, error) {
 	if device == nil || run == nil {
-		return change.ErrChangePlan, nil
+		return change.ErrInvalid, nil
 	}
 	if e := device.Connect(ctx); e != nil {
 		if errors.Is(e, connector.ErrBusy) {
@@ -42,28 +42,6 @@ func Apply(ctx context.Context, device *connector.Device, run func(context.Conte
 
 type applySession struct{ op *connector.Operation }
 
-func (s *applySession) execute(ctx context.Context, command string, query bool) (connector.StepResult, error) {
-	if !s.op.Connected() {
-		return connector.StepResult{}, wireless.NewFailure("session_closed", "execute")
-	}
-	cmd := connector.Command{Text: strings.TrimSpace(command), OutputSensitive: true}
-	if query {
-		prompt := strings.TrimSpace(s.op.RawPrompt())
-		if prompt == "" {
-			return connector.StepResult{}, change.ErrChangePlan
-		}
-		cmd.Prompt = exactPrompt(prompt)
-	}
-	result, e := s.op.ExecuteCommand(ctx, cmd, connector.ExecuteOptions{SkipPrivilege: true})
-	if e != nil {
-		return connector.StepResult{}, e
-	}
-	step, err := result.SingleAccepted(cmd.Text)
-	if err != nil {
-		return connector.StepResult{}, wireless.NewFailure("invalid_command_result", "response")
-	}
-	return step, nil
-}
 func (s *applySession) Write(ctx context.Context, command string) error {
 	_, e := s.execute(ctx, command, false)
 	return e
@@ -89,4 +67,26 @@ func (s *applySession) ReadConfiguration(ctx context.Context) (wireless.Record, 
 		return nil, wireless.NewFailure("invalid_command_result", "response")
 	}
 	return observation.Records()[0], nil
+}
+func (s *applySession) execute(ctx context.Context, command string, query bool) (connector.StepResult, error) {
+	if !s.op.Connected() {
+		return connector.StepResult{}, wireless.NewFailure("session_closed", "execute")
+	}
+	cmd := connector.Command{Text: strings.TrimSpace(command), OutputSensitive: true}
+	if query {
+		prompt := strings.TrimSpace(s.op.RawPrompt())
+		if prompt == "" {
+			return connector.StepResult{}, change.ErrInvalid
+		}
+		cmd.Prompt = exactPrompt(prompt)
+	}
+	result, e := s.op.ExecuteCommand(ctx, cmd, connector.ExecuteOptions{SkipPrivilege: true})
+	if e != nil {
+		return connector.StepResult{}, e
+	}
+	step, err := result.SingleAccepted(cmd.Text)
+	if err != nil {
+		return connector.StepResult{}, wireless.NewFailure("invalid_command_result", "response")
+	}
+	return step, nil
 }

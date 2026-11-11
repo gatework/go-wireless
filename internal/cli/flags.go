@@ -5,11 +5,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/pflag"
+
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/bootstrap"
-	"github.com/spf13/pflag"
 )
 
+// Flags are the parsed command-line switches.
 type Flags struct {
 	Help, HelpAll, Examples, Init, InventoryOnly, ShowConfig, JSON, Quiet, Scripts, Verbose bool
 	Interactive                                                                             *bool
@@ -174,7 +176,7 @@ func bindDocument(fs *pflag.FlagSet, kind string) *documentFlags {
 		switchFlag(fs, "json", "", setTrue(&o.JSON))
 		switchFlag(fs, "examples", "", setTrue(&o.Examples))
 	case "review":
-		names = []string{"batch", "output"}
+		names = []string{"batch", "output", "rules-policy", "baseline", "previous"}
 		for _, name := range []string{"scripts", "no-scripts"} {
 			switchFlag(fs, name, "", func() error { o.Scripts = name == "scripts"; return nil })
 		}

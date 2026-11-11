@@ -8,15 +8,19 @@ import (
 	wireless "github.com/gatework/go-wireless"
 )
 
+// ParseOptions selects the platform and declares complete capture.
 type ParseOptions struct {
 	Platform string
 	Complete bool
 }
+
+// RuntimeParser parses controller command output for any registered platform.
 type RuntimeParser struct {
 	registry *Registry
 	model    string
 }
 
+// NewRuntimeParser returns a parser over registry for a device model.
 func NewRuntimeParser(registry *Registry, model string) (*RuntimeParser, error) {
 	if registry == nil {
 		return nil, errors.New("wireless parser: registry required")
@@ -26,10 +30,15 @@ func NewRuntimeParser(registry *Registry, model string) (*RuntimeParser, error) 
 	}
 	return &RuntimeParser{registry: registry, model: model}, nil
 }
+
+// Parse parses content as the output for one dimension.
 func (p *RuntimeParser) Parse(name wireless.Dimension, content string, o ParseOptions) (wireless.Observation, error) {
 	out, err := p.ParseMany([]wireless.Dimension{name}, content, o)
 	return out[name], err
 }
+
+// ParseMany parses content as the output of one query that yields several
+// dimensions.
 func (p *RuntimeParser) ParseMany(names []wireless.Dimension, content string, o ParseOptions) (map[wireless.Dimension]wireless.Observation, error) {
 	if p == nil || p.registry == nil {
 		return nil, errors.New("wireless parser: registry required")
@@ -76,5 +85,7 @@ func (p *RuntimeParser) ParseMany(names []wireless.Dimension, content string, o 
 	maps.Copy(out, parsed)
 	return out, nil
 }
-func (p *RuntimeParser) String() string   { return "<wireless.RuntimeParser>" }
+func (p *RuntimeParser) String() string { return "<wireless.RuntimeParser>" }
+
+// GoString formats metadata only.
 func (p *RuntimeParser) GoString() string { return p.String() }

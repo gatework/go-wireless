@@ -157,8 +157,8 @@ marshalers use this boundary. Arbitrary unrelated structs retain encoding/json's
 normal semantics. Use the shared helper when explicitly exporting ToMap/facts.
 When reading JSON into generic maps, always use Decoder.UseNumber: normal
 Unmarshal into map[string]any rounds large integers and loses numeric kinds.
-The core CanonicalJSON/Fingerprint APIs implement Ruby JSON 3.1 canonical float
-fingerprint spelling separately; see docs/change-api.md.
+`Fingerprint` hashes exactly this wire encoding through the go-netops
+canonical form; see docs/change-api.md.
 
 ## Report publisher and recommendation hook
 
@@ -208,7 +208,7 @@ JSON and a report-error receipt in batch summary.
 ```go
 type report.DeviceHook func(context.Context,wireless.Record)(report.Enrichment,error)
 type report.Enrichment struct {
-    Recommendations any
+    Assessment any
     Artifacts func(context.Context,*report.Report,report.PublishedDevice)error
 }
 type report.PublishedDevice struct {
@@ -222,10 +222,10 @@ CLI selects `Dependencies.RecommendationHook(effectiveScriptsFlag)` per run;
 otherwise it uses ReportOptions.DeviceHook. The runner installs its actual selector by default
 (diagnostic-only, --scripts explicit candidates), with real review/apply commands. WriteDevice first materializes an owned generic wire
 Record using the shared numeric encoder plus Decoder.UseNumber. The hook's input
-is exactly the device envelope WITHOUT report_saved/recommendations and WITH
+is exactly the device envelope WITHOUT report_saved/assessment and WITH
 snapshot. All numeric values are json.Number, including decimal/exponent floats
-and negative zero. The hook computes recommendations without publishing files.
-Its returned Recommendations is inserted in device JSON before its final bytes
+and negative zero. The hook computes the controller assessment without publishing files.
+Its returned Assessment is inserted (key `assessment`) in device JSON before its final bytes
 are encoded. JSON then TXT publish; only then Artifacts runs. PublishedDevice.Path
 is the absolute final device JSON path, JSON is its exact bytes including trailing
 newline, SHA256 is the lowercase hex digest of those exact bytes, Document is the
@@ -233,7 +233,7 @@ matching enriched wire document, Basename matches devices/<basename>.json.
 Artifacts writes recommendations/*.json/.txt/.verify.cli and optional scripts/
 plans through this Report.Publish, binding source path/hash to the exact source.
 Returning an artifact error keeps report_saved=false; committed source JSON stays.
-RecommendationHook now generates the actual advice, scripts and typed plans.
+The default selector, `report.AssessmentHook`, generates the assessment, scripts and typed plans.
 
 FinishOptions has Interrupted bool, Requested []Record,
 ReportError/ExecutionError/OutputError any. Summary fields are status, total,

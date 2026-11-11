@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -48,7 +49,7 @@ func TestSubprocessCLI(t *testing.T) {
 		code := 0
 		if e != nil {
 			var ok bool
-			if ee, yes := e.(*exec.ExitError); yes {
+			if ee, yes := errors.AsType[*exec.ExitError](e); yes {
 				code = ee.ExitCode()
 				ok = true
 			}

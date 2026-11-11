@@ -16,6 +16,8 @@ Go 1.26 remains the minimum.
 | `change` | validated immutable plans, concrete H3C command rendering, eligibility and before/after verification |
 | `report` | private durable artifacts, checkpoints, recovery and report text |
 | `adapter/netconnector` | Connector session/receipt/cleanup adaptation |
+| `wlan` | typed controller model: configuration (service templates, AP groups, AP/radio `Settings`) and runtime tables, strictly decoded from parser output; unknown fields downgrade a dimension to partial (`unmodeled_fact`) |
+| `rules` | schema 3 risk catalog over `wlan.Controller` on the go-netops `assess` engine; `assessment.json` with severity, category, subject path and remediation |
 | `internal/bootstrap` | configuration, immutable settings and lazy concrete dependency assembly |
 | `internal/workflow/*` | collect/review/apply application state machines |
 | `internal/cli` | Cobra commands, flags, confirmation, progress and exit/output presentation |
@@ -26,9 +28,9 @@ this includes AP LLDP. Huawei does not import H3C. Change does not import review
 Workflow never imports bootstrap, CLI, Cobra, concrete connector, adapter or vendor
 packages. Apply consumes publication state through narrow interfaces and native
 diagnostics through internal/nativeerr; collect/review retain their report value
-contracts. Apply does not import the concrete report implementation. `scripts/check-architecture.py`
-checks these boundaries for entire package subtrees from the compiled package
-graph in the normal CI pipeline. Domain infrastructure and ownership rules inspect
+contracts. Apply does not import the concrete report implementation. `architecture.yaml`,
+enforced by the shared archcheck in `make check`, declares these boundaries for
+entire package subtrees against the compiled package graph. Domain infrastructure and ownership rules inspect
 transitive dependencies too, so an internal helper cannot hide an inverted import.
 Standard-library I/O restrictions and workflow adapter boundaries stay direct; the
 workflow intentionally consumes nativeerr. Its negative and permitted-boundary controls run
@@ -44,9 +46,9 @@ under both ordinary Python and -O; path prefixes cannot bypass or broaden a rule
 | root runtime parser | `parser.NewRuntimeParser(registry, model)` |
 | root neighbor parser | `parser.NewNeighborParser(selectedProfile, model)` |
 | root Collector/Reader/Receipt/AP types | `collect` |
-| `CollectOptions.Platform/Model` | `CollectOptions.Profile` selected before admission |
+| `CollectOptions.Platform/Model` | `Request.Profile` selected before admission |
 | root review validation/recommendation functions | `review` |
-| root ChangePlan/rendering/checking/session functions | `change` |
+| root Plan/rendering/checking/session functions | `change` |
 | `adapter` | `adapter/netconnector` |
 | `netconnector.Borrow/Open(device)` | `netconnector.Borrow/Open(device, selectedProfile)` |
 | `APReader.Read(ctx, record)` | `APReader.Read(ctx, collect.APRequest{AccessPoint: record, Query: scope.APQuery()})` |
@@ -66,7 +68,7 @@ callbacks own their captured state and must be safe for concurrent reuse. Built-
 profiles capture private declarations, so caller mutations of a ProfileSpec do not
 change a registered parser. Nil/zero profiles cannot parse or open sessions.
 
-`collect.CollectOptions` explicitly pairs the selected profile with the actual
+`collect.Request` explicitly pairs the selected profile with the actual
 connector platform and borrowed opener. Grouped queries execute once. All reads,
 including custom AP LLDP parsing, use that profile. Invalid models/names or zero
 profiles fail admission; unsupported dimensions remain explicit evidence. Bootstrap
@@ -105,7 +107,7 @@ Rollback remains plan data; no retry, reconnect, rollback or save is automatic.
 
 ## Delivery boundary
 
-`go.mod` pins published Connector v0.6.0 and Expect v0.5.0, including the shared
+`go.mod` pins published Connector v0.7.1 and Expect v0.6.0, including the shared
 inventory and SingleAccepted/Body/ReadFile/LoadContext APIs. Formal build and
 delivery checks use GOWORK=off and no replacements. Earlier workspace and frozen
 local-proxy results describe the unpublished candidate stage; release verification
@@ -118,3 +120,36 @@ The repository carries no dependency source snapshots or workspace restoration
 tooling. Module versions and checksums belong to `go.mod` and `go.sum`; old source
 and implementation records remain available in Git history. Current checks and
 release evidence are described in [verification](verification.md).
+
+## Schema 3 assessment
+
+`review` additionally publishes `assessment.json` and links `assessment`,
+`risk_counts`, `risk_highest` and `assessment_incomplete` from `review.json`.
+`--rules-policy FILE` enables or disables rules and overrides severity and
+thresholds; unknown rules or mistyped parameters are rejected.
+
+Rules that need a dimension declare it, and the engine skips them when the
+evidence is incomplete. Configuration rules and remediations stay limited to
+`h3c_wireless`; AP state is normalized (H3C `R/M`, `Run`, `R`; Huawei
+`normal`, `online`) so runtime rules apply to both vendors. The TKIP/WPA fix
+is the typed `change.TemplateSecurity`, the only source of applicable commands.
+Review output and plans come from the typed assessment;
+`rules/parity_test.go` compares the ported checks with the legacy fixtures,
+and legacy fixtures in shapes the parser never emits must be reported as
+incomplete evidence.
+
+## Baseline and changes
+
+Every review publishes `baseline-draft.yaml`: per controller, each service
+template's SSID, VLAN, enable state and security (AKM, ciphers, IEs), the
+majority AP firmware per model and the backup AC. The draft describes the
+current state, not the correct one; operators review and trim it before
+passing it back with `review --baseline FILE`, which reports drift
+(`wireless.baseline_*`) from the declared intent. `defaults` apply to every
+controller; `controllers.<host>` entries override per template and model.
+
+`review --previous DIR` compares with an earlier batch (`wireless.change_*`):
+running APs that disappeared or went down, LLDP uplink switch/port changes,
+AP firmware changes, and service templates added, removed or changed. A
+dimension incomplete in either batch infers no change; controllers present
+in only one batch are listed as `appeared` / `disappeared`.

@@ -10,6 +10,8 @@ import (
 
 // ParseIntegerExact preserves Ruby's unbounded decimal integer semantics.
 // Nil means unknown; a nonnil maximum must be nonnegative.
+//
+//nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseIntegerExact(raw *string, maximum *big.Int) (*big.Int, error) {
 	if maximum != nil && maximum.Sign() < 0 {
 		return nil, errors.New("invalid wireless integer limits")
@@ -31,6 +33,8 @@ func ParseIntegerExact(raw *string, maximum *big.Int) (*big.Int, error) {
 }
 
 // ParseDurationExact returns a fresh arbitrary-precision duration in seconds.
+//
+//nolint:nilnil // an absent field (nil) parses to an absent value
 func ParseDurationExact(raw *string) (*big.Int, error) {
 	if raw == nil {
 		return nil, nil

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,9 +22,7 @@ func TestLayeredConfigurationPathsAndSecrets(t *testing.T) {
 	write(t, filepath.Join(high, ".env"), "WIRELESS_PARALLEL=6\nNC_DEVICE_USERNAME=dotenv\nNC_DEVICE_PASSWORD='private#value$literal'\nNC_KNOWN_HOSTS=dotenv-keys\n")
 	env := map[string]string{"NC_DEVICE_USERNAME": "process", "NC_PARALLEL": "8"}
 	before := map[string]string{}
-	for k, v := range env {
-		before[k] = v
-	}
+	maps.Copy(before, env)
 	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{Overrides: map[string]any{"parallel": 3}}, env, bootstrap.Discovery{CWD: d, Home: d, Directories: []string{low, high}}, nil)
 	if e != nil {
 		t.Fatal(e)

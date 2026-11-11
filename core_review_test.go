@@ -71,15 +71,13 @@ func TestReviewCoverageCompositeStatusesAreOwned(t *testing.T) {
 		}
 		// Previously exported results may be mutated independently of concurrent reads.
 		var wg sync.WaitGroup
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for i := 0; i < 100; i++ {
+		wg.Go(func() {
+			for range 100 {
 				mutateReviewStatus(entry["status"])
 				mutateReviewStatus(entry["projection_status"])
 			}
-		}()
-		for i := 0; i < 100; i++ {
+		})
+		for range 100 {
 			if !reflect.DeepEqual(coverage.ToMap(), baseline) {
 				t.Error("concurrent coverage output mutation changed retained state")
 				break

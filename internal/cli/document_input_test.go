@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,7 +61,7 @@ func TestDocumentInputRetainsLargeExactBytesAndCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if got, err = input.Document(ctx, path); err != context.Canceled || got != nil {
+	if got, err = input.Document(ctx, path); !errors.Is(err, context.Canceled) || got != nil {
 		t.Fatal("cancelled read", err)
 	}
 	for _, args := range [][]string{{"apply", "--plan", path}, {"review", "--batch", root}} {

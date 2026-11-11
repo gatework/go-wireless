@@ -9,7 +9,9 @@ import (
 // ApplySession is borrowed for one owned operation. Implementations must not
 // reconnect, retry, save configuration or automatically roll back. Reads must
 // return exactly one complete parsed configuration, never partial observations.
+//
+//nolint:iface // shared contract between bootstrap, which opens sessions, and the apply workflow
 type ApplySession interface {
-	ReadConfiguration(context.Context) (wireless.Record, error)
-	Write(context.Context, string) error
+	ReadConfiguration(ctx context.Context) (wireless.Record, error)
+	Write(ctx context.Context, command string) error
 }

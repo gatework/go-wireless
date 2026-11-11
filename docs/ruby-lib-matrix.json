@@ -24,13 +24,12 @@
     "implementation": [
       "fingerprint.go",
       "document.go",
-      "change/h3c.go",
-      "fpconv.go",
+      "change/template_security.go",
       "change/apply.go"
     ],
     "tests": [
       "change_plan_test.go:TestTypedSecurityChange",
-      "change_plan_test.go:TestRubyFPConvCorpus"
+      "change_plan_test.go:TestFingerprintMatchesStoredDocument"
     ]
   },
   {
@@ -78,7 +77,6 @@
     "source": "lib/wireless/cli/options.rb",
     "implementation": [
       "internal/bootstrap/options.go",
-      "internal/bootstrap/inventory.go",
       "internal/bootstrap/inventory.go"
     ],
     "tests": [
@@ -118,10 +116,10 @@
   {
     "source": "lib/wireless/cli/review/report.rb",
     "implementation": [
-      "report/recommendations.go"
+      "report/assessment.go"
     ],
     "tests": [
-      "report/recommendations_test.go:TestReviewRubyFullConfiguration"
+      "report/plan_parity_test.go:TestTypedPlansMatchFrozenLegacyPlans"
     ]
   },
   {
@@ -397,10 +395,10 @@
   {
     "source": "lib/wireless/recommendations.rb",
     "implementation": [
-      "review/recommendations.go"
+      "rules/rules.go"
     ],
     "tests": [
-      "recommendations_test.go:TestRubyRecommendations"
+      "rules/parity_test.go:TestRulesMatchLegacyRecommendations"
     ]
   },
   {

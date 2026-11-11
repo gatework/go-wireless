@@ -15,6 +15,8 @@ var errInsufficientResources = errors.New("wireless: insufficient file descripto
 // callers run independent Runner instances.
 var resourceLimitMu sync.Mutex
 
+// PrepareResources raises the open file limit enough for active concurrent
+// devices.
 func PrepareResources(ctx context.Context, active int) error {
 	return prepareFileLimit(ctx, active, unix.Getrlimit, unix.Setrlimit)
 }

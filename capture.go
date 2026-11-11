@@ -9,12 +9,14 @@ import (
 	"time"
 )
 
-// Failure contains only validated diagnostic vocabulary, never an external error.
-type Failure struct{ code, stage string }
+// FailureError contains only validated diagnostic vocabulary, never an external error.
+type FailureError struct{ code, stage string }
 
 var failureCodes = strings.Fields(`invalid_command_result command_failed command_execution_failed command_processing_failed command_aborted session_closed session_state_failed session_busy session_scope_ended connection_failed connection_closed authentication_error transport_error prompt_error login_timeout command_timeout write_timeout output_limit_exceeded script_output_limit_exceeded device_error log_error receipt_callback_failed step_callback_failed prepare_failed after_command_failed invalid_output_encoding cleanup_failed session_observer_failed cancelled deadline_exceeded controller_session_lost controller_prompt_mismatch ap_address_unavailable ap_not_online ap_authentication_failed ap_connection_failed ap_login_not_confirmed ap_session_lost ap_response_missing ap_exit_failed session_close_failed ap_collection_failed ap_session_setup_failed invalid_ap_credentials invalid_ap_connection invalid_ap_session invalid_ap_profile invalid_ap_query`)
 
-func NewFailure(code, stage string) *Failure {
+// NewFailure returns a failure with a known code and stage; an unknown code
+// becomes invalid_command_result and an unknown stage is dropped.
+func NewFailure(code, stage string) *FailureError {
 	if !slices.Contains(failureCodes, code) {
 		code = "invalid_command_result"
 	}
@@ -23,23 +25,31 @@ func NewFailure(code, stage string) *Failure {
 	default:
 		stage = ""
 	}
-	return &Failure{code, stage}
+	return &FailureError{code, stage}
 }
-func (f *Failure) Code() string {
+
+// Code returns the failure code, or "" for a nil failure.
+func (f *FailureError) Code() string {
 	if f == nil {
 		return ""
 	}
 	return f.code
 }
-func (f *Failure) Stage() string {
+
+// Stage returns the stage the failure happened in, or "".
+func (f *FailureError) Stage() string {
 	if f == nil {
 		return ""
 	}
 	return f.stage
 }
-func (f *Failure) Error() string    { return "wireless: " + f.Code() }
-func (f *Failure) GoString() string { return f.Error() }
-func (f *Failure) ToMap() Record {
+func (f *FailureError) Error() string { return "wireless: " + f.Code() }
+
+// GoString formats only the code.
+func (f *FailureError) GoString() string { return f.Error() }
+
+// ToMap returns the failure as a diagnostic record.
+func (f *FailureError) ToMap() Record {
 	if f == nil {
 		return nil
 	}
@@ -49,11 +59,11 @@ func (f *Failure) ToMap() Record {
 	}
 	return r
 }
-func safeFailure(err error, fallback, stage string) *Failure {
+func safeFailure(err error, fallback, stage string) *FailureError {
 	if err == nil {
 		return nil
 	}
-	if f, ok := errors.AsType[*Failure](err); ok {
+	if f, ok := errors.AsType[*FailureError](err); ok {
 		return NewFailure(f.Code(), stage)
 	}
 	if errors.Is(err, context.Canceled) {
@@ -65,19 +75,20 @@ func safeFailure(err error, fallback, stage string) *Failure {
 	return NewFailure(fallback, stage)
 }
 
-func cloneFailure(f *Failure) *Failure {
+func cloneFailure(f *FailureError) *FailureError {
 	if f == nil {
 		return nil
 	}
 	return NewFailure(f.code, f.stage)
 }
 
+// CaptureOptions describes one command result for NewCapture.
 type CaptureOptions struct {
 	Command                string
 	Body                   *string
 	StartedAt, CompletedAt time.Time
 	Evidence               []Record
-	Failure                *Failure
+	Failure                *FailureError
 	Skipped                bool
 }
 
@@ -88,10 +99,13 @@ type Capture struct {
 	command, body      string
 	started, completed time.Time
 	evidence           []Record
-	failure            *Failure
+	failure            *FailureError
 	skipped, valid     bool
 }
 
+// NewCapture validates a command result: a successful capture has a body and
+// no failure, a failed one a failure and no body, and a skipped one a failure
+// and no evidence.
 func NewCapture(o CaptureOptions) (Capture, error) {
 	if !ValidCommand(o.Command) || o.StartedAt.IsZero() || o.CompletedAt.IsZero() || (o.Failure == nil) != (o.Body != nil) || o.Skipped && (o.Failure == nil || len(o.Evidence) > 0) {
 		return Capture{}, errors.New("wireless: invalid capture")
@@ -106,22 +120,44 @@ func NewCapture(o CaptureOptions) (Capture, error) {
 	}
 	return Capture{o.Command, body, o.StartedAt, o.CompletedAt, evidence, cloneFailure(o.Failure), o.Skipped, true}, nil
 }
-func (c Capture) Command() string        { return c.command }
-func (c Capture) Body() string           { return c.body }
-func (c Capture) StartedAt() time.Time   { return c.started }
+
+// Command returns the command that was run.
+func (c Capture) Command() string { return c.command }
+
+// Body returns the response text of a successful command.
+func (c Capture) Body() string { return c.body }
+
+// StartedAt returns when the command started.
+func (c Capture) StartedAt() time.Time { return c.started }
+
+// CompletedAt returns when the command completed.
 func (c Capture) CompletedAt() time.Time { return c.completed }
-func (c Capture) Evidence() []Record     { r, _ := copyRecords(c.evidence); return r }
-func (c Capture) Failure() *Failure      { return cloneFailure(c.failure) }
+
+// Evidence returns a copy of the output evidence (digest, size, time).
+func (c Capture) Evidence() []Record { r, _ := copyRecords(c.evidence); return r }
+
+// Failure returns a copy of the failure, or nil on success.
+func (c Capture) Failure() *FailureError { return cloneFailure(c.failure) }
 
 // Valid reports whether the capture was constructed with checked evidence.
-func (c Capture) Valid() bool   { return c.valid }
+func (c Capture) Valid() bool { return c.valid }
+
+// Success reports whether the command ran and returned a body.
 func (c Capture) Success() bool { return c.valid && c.failure == nil }
+
+// Skipped reports whether the command was not sent.
 func (c Capture) Skipped() bool { return c.skipped }
 func (c Capture) String() string {
 	return fmt.Sprintf("wireless.Capture{success:%t skipped:%t}", c.Success(), c.skipped)
 }
+
+// GoString formats metadata only, never the body.
 func (c Capture) GoString() string { return c.String() }
+
+// ToMap returns the capture metadata, without the body.
 func (c Capture) ToMap() Record {
 	return Record{"command": c.command, "started_at": formatTime(&c.started), "completed_at": formatTime(&c.completed), "evidence": c.Evidence(), "failure": c.failure.ToMap(), "skipped": c.skipped}
 }
+
+// MarshalJSON encodes the capture metadata, without the body.
 func (c Capture) MarshalJSON() ([]byte, error) { return MarshalJSON(c.ToMap()) }

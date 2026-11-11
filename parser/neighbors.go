@@ -9,8 +9,10 @@ import (
 	wireless "github.com/gatework/go-wireless"
 )
 
+// NeighborParser parses LLDP neighbor output read on an AP.
 type NeighborParser struct{ profile *Profile }
 
+// NewNeighborParser returns the neighbor parser of profile for an AP model.
 func NewNeighborParser(profile *Profile, model string) (*NeighborParser, error) {
 	if !profile.Valid() {
 		return nil, errors.New("wireless parser: profile required")
@@ -21,6 +23,9 @@ func NewNeighborParser(profile *Profile, model string) (*NeighborParser, error) 
 	owned := *profile
 	return &NeighborParser{&owned}, nil
 }
+
+// Parse parses the LLDP output of the AP named apName; complete declares that
+// the output was captured completely.
 func (p *NeighborParser) Parse(content, apName string, complete bool) (wireless.Observation, error) {
 	if p == nil || !p.profile.Valid() {
 		return wireless.Observation{}, errors.New("wireless parser: profile required")
@@ -41,5 +46,7 @@ func (p *NeighborParser) Parse(content, apName string, complete bool) (wireless.
 	}
 	return wireless.NewObservation(wireless.ObservationOptions{Name: wireless.LLDP, Status: o.Status(), Records: records, Issues: o.Issues()})
 }
-func (p *NeighborParser) String() string   { return "<wireless.NeighborParser>" }
+func (p *NeighborParser) String() string { return "<wireless.NeighborParser>" }
+
+// GoString formats metadata only.
 func (p *NeighborParser) GoString() string { return p.String() }

@@ -12,12 +12,13 @@ import (
 	"github.com/gatework/go-wireless/report"
 )
 
+// Executor runs one function per device with bounded concurrency.
 type Executor func(context.Context, int, []wireless.Record, func(context.Context, wireless.Record) error) error
 
 // Journal is the existing report publisher; no acquisition is replayed to repair it.
 type Journal interface {
-	WriteDevice(context.Context, report.Result, *wireless.Snapshot) error
-	Finish(context.Context, []report.Result, report.FinishOptions) (wireless.Record, error)
+	WriteDevice(ctx context.Context, result report.Result, snapshot *wireless.Snapshot) error
+	Finish(ctx context.Context, results []report.Result, options report.FinishOptions) (wireless.Record, error)
 	RecoveryFailed() bool
 }
 
@@ -43,6 +44,7 @@ func (e Events) finalized(summary wireless.Record) {
 	}
 }
 
+// Options configures New.
 type Options struct {
 	Workers   int
 	Requested []wireless.Record
@@ -59,135 +61,173 @@ type Result struct {
 	Interrupted, Failed, FinalizationFailed, RecoveryFailed bool
 }
 
+// Run runs one command line and returns its exit code.
 func Run(ctx context.Context, o Options) Result {
 	if o.Execute == nil || o.Collect == nil || o.Journal == nil {
 		return Result{Failed: true, Interrupted: ctx.Err() != nil}
 	}
 	batchCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	var mu sync.Mutex
-	results := []report.Result{}
-	var firstReportError error
-	e := o.Execute(batchCtx, o.Workers, o.Requested, func(taskCtx context.Context, device wireless.Record) error {
-		start := time.Now()
-		if o.Events.Started != nil {
-			o.Events.Started(device)
-		}
-		collected, err := o.Collect(taskCtx, device)
-		var snapshot *wireless.Snapshot
-		result := report.Result{Device: device, Status: wireless.Failed, Dimensions: map[string]report.DimensionSummary{}}
-		if err != nil {
-			result.Error = "collection_failed"
-		} else {
-			snapshot = &collected
-			result.Status = collected.Dimension(wireless.Collection).Status()
-			for name, observation := range collected.Dimensions() {
-				codes := []string{}
-				seen := map[string]bool{}
-				for _, issue := range observation.Issues() {
-					code, _ := issue["code"].(string)
-					if code != "" && !seen[code] {
-						codes = append(codes, code)
-						seen[code] = true
-					}
-				}
-				result.Dimensions[string(name)] = report.DimensionSummary{Status: observation.Status(), Records: len(observation.Records()), Issues: codes}
-			}
-		}
-		result.DurationMS = time.Since(start).Round(time.Millisecond).Milliseconds()
-		mu.Lock()
-		index := len(results)
-		results = append(results, result)
-		mu.Unlock()
-		// Preserve every started result after sibling storage failure or cancellation.
-		err = o.Journal.WriteDevice(context.WithoutCancel(taskCtx), result, snapshot)
-		mu.Lock()
-		if err == nil {
-			results[index].ReportSaved = true
-			result.ReportSaved = true
-		} else if firstReportError == nil {
-			firstReportError = err
-		}
-		mu.Unlock()
-		if err != nil {
-			cancel()
-			return err
-		}
-		if o.Events.Completed != nil {
-			o.Events.Completed(result)
-		}
-		return nil
-	})
+	r := &collectRun{ctx: ctx, o: o, cancel: cancel, results: []report.Result{}}
+	e := o.Execute(batchCtx, o.Workers, o.Requested, r.device)
 	// Executor returns only after callbacks and sessions have joined.
-	outcome := Result{Interrupted: ctx.Err() != nil}
-	slices.SortFunc(results, func(a, b report.Result) int {
+	r.summarize(e)
+	return r.settle(e)
+}
+
+// collectRun is one execution of Run.
+type collectRun struct {
+	ctx    context.Context //nolint:containedctx // the caller's context, scoped to one Run call
+	o      Options
+	cancel context.CancelFunc
+
+	mu               sync.Mutex // guards results and firstReportError while devices run
+	results          []report.Result
+	firstReportError error
+
+	outcome   Result
+	finish    report.FinishOptions
+	finishErr error
+}
+
+// device collects one device and persists its result. Every started result
+// is preserved after a sibling storage failure or cancellation; a storage
+// failure cancels the batch.
+func (r *collectRun) device(taskCtx context.Context, device wireless.Record) error {
+	start := time.Now()
+	if r.o.Events.Started != nil {
+		r.o.Events.Started(device)
+	}
+	collected, err := r.o.Collect(taskCtx, device)
+	var snapshot *wireless.Snapshot
+	result := report.Result{Device: device, Status: wireless.Failed, Dimensions: map[string]report.DimensionSummary{}}
+	if err != nil {
+		result.Error = "collection_failed"
+	} else {
+		snapshot = &collected
+		result.Status = collected.Dimension(wireless.Collection).Status()
+		for name, observation := range collected.Dimensions() {
+			result.Dimensions[string(name)] = report.DimensionSummary{Status: observation.Status(), Records: len(observation.Records()), Issues: issueCodes(observation)}
+		}
+	}
+	result.DurationMS = time.Since(start).Round(time.Millisecond).Milliseconds()
+	r.mu.Lock()
+	index := len(r.results)
+	r.results = append(r.results, result)
+	r.mu.Unlock()
+	err = r.o.Journal.WriteDevice(context.WithoutCancel(taskCtx), result, snapshot)
+	r.mu.Lock()
+	if err == nil {
+		r.results[index].ReportSaved = true
+		result.ReportSaved = true
+	} else if r.firstReportError == nil {
+		r.firstReportError = err
+	}
+	r.mu.Unlock()
+	if err != nil {
+		r.cancel()
+		return err
+	}
+	if r.o.Events.Completed != nil {
+		r.o.Events.Completed(result)
+	}
+	return nil
+}
+
+// issueCodes lists an observation's issue codes once each, in order.
+func issueCodes(observation wireless.Observation) []string {
+	codes := []string{}
+	seen := map[string]bool{}
+	for _, issue := range observation.Issues() {
+		code, _ := issue["code"].(string)
+		if code != "" && !seen[code] {
+			codes = append(codes, code)
+			seen[code] = true
+		}
+	}
+	return codes
+}
+
+// summarize orders the results and prepares the finish options.
+func (r *collectRun) summarize(executionErr error) {
+	r.outcome = Result{Interrupted: r.ctx.Err() != nil}
+	slices.SortFunc(r.results, func(a, b report.Result) int {
 		return cmp.Compare(StringValue(a.Device["host"]), StringValue(b.Device["host"]))
 	})
-	finish := report.FinishOptions{Interrupted: outcome.Interrupted, Requested: o.Requested, OutputError: o.Events.outputError()}
-	if firstReportError != nil {
-		finish.ReportError = reportError(firstReportError)
-	} else if e != nil && !outcome.Interrupted {
-		finish.ExecutionError = "execution_failed"
+	r.finish = report.FinishOptions{Interrupted: r.outcome.Interrupted, Requested: r.o.Requested, OutputError: r.o.Events.outputError()}
+	if r.firstReportError != nil {
+		r.finish.ReportError = reportError(r.firstReportError)
+	} else if executionErr != nil && !r.outcome.Interrupted {
+		r.finish.ExecutionError = "execution_failed"
 	}
-	var finishErr error
-	publish := func() {
-		if finishErr != nil {
-			finish.ReportError = reportError(finishErr)
-		}
-		// A failed publication has no confirmed summary. Do not return an older
-		// complete summary after a failed downgrade, even if it was once durable.
-		outcome.Summary, finishErr = o.Journal.Finish(context.Background(), results, finish)
-		if finishErr != nil {
-			outcome.Summary = nil
-		}
-		outcome.FinalizationFailed = outcome.FinalizationFailed || finishErr != nil
-		// Report resets this flag per Finish; batch state retains every failure.
-		outcome.RecoveryFailed = outcome.RecoveryFailed || o.Journal.RecoveryFailed()
+}
+
+// publish finishes the report once, recording a previous finish failure.
+func (r *collectRun) publish() {
+	if r.finishErr != nil {
+		r.finish.ReportError = reportError(r.finishErr)
 	}
-	finalize := func() {
-		publish()
-		// Cancellation is a one-way transition. If it arrived during Finish,
-		// publish interrupted state once, through the same report finalizer.
-		if ctx.Err() != nil && !finish.Interrupted {
-			finish.Interrupted = true
-			publish()
-		}
-		outcome.Interrupted = finish.Interrupted
+	// A failed publication has no confirmed summary. Do not return an older
+	// complete summary after a failed downgrade, even if it was once durable.
+	r.outcome.Summary, r.finishErr = r.o.Journal.Finish(context.Background(), r.results, r.finish)
+	if r.finishErr != nil {
+		r.outcome.Summary = nil
 	}
-	finalize()
-	if !outcome.FinalizationFailed {
-		o.Events.finalized(outcome.Summary)
+	r.outcome.FinalizationFailed = r.outcome.FinalizationFailed || r.finishErr != nil
+	// Report resets this flag per Finish; batch state retains every failure.
+	r.outcome.RecoveryFailed = r.outcome.RecoveryFailed || r.o.Journal.RecoveryFailed()
+}
+
+// finalize publishes; cancellation is a one-way transition, so if it arrived
+// during Finish the interrupted state is published once more.
+func (r *collectRun) finalize() {
+	r.publish()
+	if r.ctx.Err() != nil && !r.finish.Interrupted {
+		r.finish.Interrupted = true
+		r.publish()
+	}
+	r.outcome.Interrupted = r.finish.Interrupted
+}
+
+// settle publishes the summary, republishes it after late cancellation or
+// output failure, delivers it and returns the outcome.
+func (r *collectRun) settle(executionErr error) Result {
+	r.finalize()
+	if !r.outcome.FinalizationFailed {
+		r.o.Events.finalized(r.outcome.Summary)
 	}
 	// Progress rendering may fail or observe a signal after publication.
-	lateCancel := ctx.Err() != nil && !finish.Interrupted
-	lateOutput := o.Events.outputError() != nil && finish.OutputError == nil
+	lateCancel := r.ctx.Err() != nil && !r.finish.Interrupted
+	lateOutput := r.o.Events.outputError() != nil && r.finish.OutputError == nil
 	if lateCancel || lateOutput {
-		finish.Interrupted = finish.Interrupted || lateCancel
+		r.finish.Interrupted = r.finish.Interrupted || lateCancel
 		if lateOutput {
-			finish.OutputError = o.Events.outputError()
+			r.finish.OutputError = r.o.Events.outputError()
 		}
-		finalize()
+		r.finalize()
 	}
-	if outcome.FinalizationFailed {
-		outcome.Failed = true
-		return outcome
+	if r.outcome.FinalizationFailed {
+		r.outcome.Failed = true
+		return r.outcome
 	}
-	if o.Events.Deliver != nil {
-		if err := o.Events.Deliver(outcome.Summary); err != nil {
-			finish.Interrupted = finish.Interrupted || ctx.Err() != nil
-			finish.OutputError = wireless.Record{"host": nil, "error_type": "IOError"}
-			finalize()
-			outcome.Failed = true
-			return outcome
+	if r.o.Events.Deliver != nil {
+		if err := r.o.Events.Deliver(r.outcome.Summary); err != nil {
+			r.finish.Interrupted = r.finish.Interrupted || r.ctx.Err() != nil
+			r.finish.OutputError = wireless.Record{"host": nil, "error_type": "IOError"}
+			r.finalize()
+			r.outcome.Failed = true
+			return r.outcome
 		}
 	}
-	if ctx.Err() != nil && !finish.Interrupted {
-		finish.Interrupted = true
-		finalize()
+	if r.ctx.Err() != nil && !r.finish.Interrupted {
+		r.finish.Interrupted = true
+		r.finalize()
 	}
-	outcome.Failed = outcome.FinalizationFailed || outcome.Interrupted || firstReportError != nil || e != nil
-	return outcome
+	r.outcome.Failed = r.outcome.FinalizationFailed || r.outcome.Interrupted || r.firstReportError != nil || executionErr != nil
+	return r.outcome
 }
+
+// StringValue returns value when it is a string, otherwise "".
 func StringValue(value any) string { text, _ := value.(string); return text }
 func reportError(err error) any {
 	if publication, ok := errors.AsType[*report.Error](err); ok {

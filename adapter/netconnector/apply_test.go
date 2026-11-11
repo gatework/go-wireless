@@ -1,7 +1,9 @@
 package netconnector
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	wireless "github.com/gatework/go-wireless"
 	changes "github.com/gatework/go-wireless/change"
 	"github.com/gatework/go-wireless/collect"
+	"github.com/gatework/go-wireless/wlan"
 )
 
 func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {
@@ -35,9 +38,12 @@ func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {
 		if e != nil || hash != "294aea47c2657702a541a4d791b3376d5a96c3a9bcadbda1a606d64545d5d573" {
 			t.Fatal(hash, e)
 		}
-		change := wireless.Record{"kind": "wireless_security", "name": "lab", "enabled": true, "cipher_suites": []string{"ccmp", "tkip"}, "security_ies": []string{"rsn", "wpa"}}
-		commands, _, _ := changes.RenderChange(change)
-		for _, cmd := range commands {
+		typed := changes.TemplateSecurity{Name: "lab", Enabled: true, CipherSuites: []string{"ccmp", "tkip"}, SecurityIEs: []string{"rsn", "wpa"}}
+		script, e := typed.Render()
+		if e != nil {
+			return e
+		}
+		for _, cmd := range script.Commands {
 			if e = session.Write(ctx, cmd); e != nil {
 				return e
 			}
@@ -46,7 +52,17 @@ func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {
 		if e != nil {
 			return e
 		}
-		if !changes.ChangeSatisfied(facts, change) {
+		body, e := wireless.MarshalJSON(facts)
+		if e != nil {
+			return e
+		}
+		var cfg wlan.Configuration
+		strict := json.NewDecoder(bytes.NewReader(body))
+		strict.DisallowUnknownFields()
+		if e = strict.Decode(&cfg); e != nil {
+			return e
+		}
+		if typed.Satisfied(&cfg) != nil {
 			t.Fatal("readback mismatch", facts)
 		}
 		return nil
@@ -94,7 +110,7 @@ func TestNativeOpenersDoNotCloseAnotherOperationsLease(t *testing.T) {
 						return nil
 					})
 				}
-				failure, ok := errors.AsType[*wireless.Failure](err)
+				failure, ok := errors.AsType[*wireless.FailureError](err)
 				if !ok || failure.Code() != "session_busy" || closeErr != nil {
 					t.Fatalf("busy result: %v, cleanup=%v", err, closeErr)
 				}

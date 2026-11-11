@@ -25,13 +25,20 @@ type InventorySettings struct {
 	postgresIdentity, postgresPassword bool
 }
 
-func (s InventorySettings) Source() string             { return s.source }
+// Source returns the inventory source: http or postgres.
+func (s InventorySettings) Source() string { return s.source }
+
+// HTTP returns the Netdisco HTTP source options.
 func (s InventorySettings) HTTP() netdisco.HTTPOptions { return s.http }
+
+// Postgres returns the Netdisco Postgres source options.
 func (s InventorySettings) Postgres() netdisco.PostgresOptions {
 	options := s.postgres
 	options.Parameters = slices.Clone(options.Parameters)
 	return options
 }
+
+// FetchOptions returns the cache and limit options for a fetch.
 func (s InventorySettings) FetchOptions() netdisco.FetchOptions {
 	options := s.fetch
 	if options.Cache != nil {
@@ -44,14 +51,19 @@ func (s InventorySettings) FetchOptions() netdisco.FetchOptions {
 	}
 	return options
 }
-func (InventorySettings) String() string               { return "cli.InventorySettings" }
-func (s InventorySettings) GoString() string           { return s.String() }
+func (InventorySettings) String() string { return "cli.InventorySettings" }
+
+// GoString formats metadata only, never credentials.
+func (s InventorySettings) GoString() string { return s.String() }
+
+// MarshalJSON encodes nothing: settings may contain credentials.
 func (InventorySettings) MarshalJSON() ([]byte, error) { return []byte(`{}`), nil }
 
 // InventoryFetcher replaces the former SourceFactory. It receives detached
 // source settings and returns the complete connector cache receipt.
 type InventoryFetcher func(context.Context, InventorySettings) (netdisco.CacheResult, error)
 
+// InventoryResult is the fetched and selected inventory.
 type InventoryResult struct {
 	Devices []wireless.Record
 	Total   int
@@ -91,7 +103,8 @@ func compileInventory(data wireless.Record, environment map[string]string, cwd s
 		return s, nil
 	}
 	db := map[string]string{}
-	for key, name := range map[string]string{"host": "ND_DB_HOST", "dbname": "ND_DB_NAME", "user": "ND_DB_USER", "password": "ND_DB_PASS"} {
+	for key, name := range map[string]string{ //nolint:gosec // maps settings to environment variable names, not secrets
+		"host": "ND_DB_HOST", "dbname": "ND_DB_NAME", "user": "ND_DB_USER", "password": "ND_DB_PASS"} {
 		db[key] = secret(environment, name)
 	}
 	s.postgresIdentity = db["host"] != "" && db["dbname"] != "" && db["user"] != ""

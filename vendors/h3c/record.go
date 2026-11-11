@@ -159,7 +159,7 @@ func (p *parseState) assignField(record wireless.Record, mapping map[string]stri
 		}
 		p.assign(record, field, v, issues, line, identity)
 	} else if details != nil {
-		var v any = recordvalue.Scalar(raw)
+		var v = recordvalue.Scalar(raw)
 		if strings.HasSuffix(label, "url") {
 			v = raw != nil && parsetext.Strip(*raw) != ""
 		}
@@ -218,40 +218,40 @@ func convertField(field string, raw *string, label string) (any, error) {
 		return recordvalue.Scalar(raw), nil
 	}
 }
+
+// recordSchema is how one record-per-entity dimension maps its labels.
+type recordSchema struct {
+	mapping  map[string]string
+	details  map[string]bool
+	noun     string   // the counted noun in the reported total
+	identity []string // identity fields; the first starts a new record
+}
+
+// schemaFor returns the label mapping of a client, BSS or authentication
+// connection listing.
+func schemaFor(dim wireless.Dimension) recordSchema {
+	switch dim {
+	case wireless.BSSes:
+		return recordSchema{h3cBss, map[string]bool{}, "BSSs?", []string{"bssid"}}
+	case wireless.Dot1xConnections, wireless.MABConnections:
+		return recordSchema{h3cAuth, h3cAuthDetails, "(?:connections|users|online users)", []string{"mac_address", "interface", "bssid"}}
+	default:
+		return recordSchema{h3cClient, h3cClientDetails, "clients", []string{"client_mac"}}
+	}
+}
+
 func (p *parseState) parseRecords(dim wireless.Dimension, text string, complete bool) parser.Result {
-	mapping := h3cClient
-	details := h3cClientDetails
-	noun := "clients"
-	identity := []string{"client_mac"}
-	if dim == wireless.BSSes {
-		mapping = h3cBss
-		details = map[string]bool{}
-		noun = "BSSs?"
-		identity = []string{"bssid"}
-	}
-	if dim == wireless.Dot1xConnections || dim == wireless.MABConnections {
-		mapping = h3cAuth
-		details = h3cAuthDetails
-		noun = "(?:connections|users|online users)"
-		identity = []string{"mac_address", "interface", "bssid"}
-	}
+	schema := schemaFor(dim)
 	issues := []wireless.Record{}
 	records := []wireless.Record{}
 	fields := readFields(text, &issues)
 	start := ""
 	if dim == wireless.BSSes {
-		for _, f := range fields {
-			if f.label == "bssid" || f.label == "ap name" {
-				if f.label == "ap name" {
-					start = "ap name"
-				}
-				break
-			}
-		}
+		start = bssStart(fields)
 	}
 	var current wireless.Record
 	for _, f := range fields {
-		if (start != "" && f.label == start) || (start == "" && mapping[f.label] == identity[0]) {
+		if (start != "" && f.label == start) || (start == "" && schema.mapping[f.label] == schema.identity[0]) {
 			current = wireless.Record{}
 			records = append(records, current)
 		}
@@ -259,59 +259,91 @@ func (p *parseState) parseRecords(dim wireless.Dimension, text string, complete 
 			issues = append(issues, wireless.Record{"code": "missing_identity", "line": f.line})
 			continue
 		}
-		switch {
-		case dim == wireless.Clients && f.label == "rx/tx rate":
-			rx, tx, e := parser.ParseRatesMbps(f.raw)
-			if e != nil {
-				issues = append(issues, wireless.Record{"code": "invalid_field", "line": f.line})
-			} else {
-				p.assign(current, "rx_rate_mbps", recordvalue.Scalar(rx), &issues, f.line)
-				p.assign(current, "tx_rate_mbps", recordvalue.Scalar(tx), &issues, f.line)
-			}
-		case dim == wireless.Clients && f.label == "rssi":
-			signal, e := parser.ParseNumber(f.raw, "dBm")
-			if e != nil {
-				issues = append(issues, wireless.Record{"code": "invalid_field", "line": f.line})
-				continue
-			}
-			var dbm, rssi any
-			if signal != nil && *signal < 0 {
-				dbm = *signal
-			}
-			if signal != nil && *signal > 0 {
-				rounded, _ := new(big.Float).SetFloat64(math.Round(*signal)).Int(nil)
-				rssi = recordvalue.IntegerJSON(rounded)
-			}
-			p.assign(current, "signal_dbm", dbm, &issues, f.line)
-			p.assign(current, "rssi", rssi, &issues, f.line)
-			if current["signal_dbm"] == nil {
-				delete(current, "signal_dbm")
-			}
-			if current["rssi"] == nil {
-				delete(current, "rssi")
-			}
-		case dim == wireless.BSSes && h3cBssSecurity[f.label]:
-			p.assign(ensureMap(current, "security"), keyName(f.label), recordvalue.Scalar(f.raw), &issues, f.line)
-		default:
-			var d wireless.Record
-			if details[f.label] {
-				d = current
-			}
-			p.assignField(current, mapping, f.label, f.raw, &issues, f.line, d)
+		p.recordField(dim, schema, current, f, &issues)
+	}
+	valid := validRecords(dim, schema.identity[0], records, &issues)
+	total := reportedTotal(text, schema.noun, &issues, nil, "")
+	return parser.FieldsResult(valid, issues, complete, total, schema.identity)
+}
+
+// bssStart returns "ap name" when a BSS listing groups by AP name (it comes
+// before the first BSSID), or "" when each BSSID starts a record.
+func bssStart(fields []parsedField) string {
+	for _, f := range fields {
+		switch f.label {
+		case "ap name":
+			return "ap name"
+		case "bssid":
+			return ""
 		}
 	}
+	return ""
+}
+
+// recordField records one field of the current record.
+func (p *parseState) recordField(dim wireless.Dimension, schema recordSchema, current wireless.Record, f parsedField, issues *[]wireless.Record) {
+	switch {
+	case dim == wireless.Clients && f.label == "rx/tx rate":
+		rx, tx, e := parser.ParseRatesMbps(f.raw)
+		if e != nil {
+			*issues = append(*issues, wireless.Record{"code": "invalid_field", "line": f.line})
+			return
+		}
+		p.assign(current, "rx_rate_mbps", recordvalue.Scalar(rx), issues, f.line)
+		p.assign(current, "tx_rate_mbps", recordvalue.Scalar(tx), issues, f.line)
+	case dim == wireless.Clients && f.label == "rssi":
+		p.recordSignal(current, f, issues)
+	case dim == wireless.BSSes && h3cBssSecurity[f.label]:
+		p.assign(ensureMap(current, "security"), keyName(f.label), recordvalue.Scalar(f.raw), issues, f.line)
+	default:
+		var d wireless.Record
+		if schema.details[f.label] {
+			d = current
+		}
+		p.assignField(current, schema.mapping, f.label, f.raw, issues, f.line, d)
+	}
+}
+
+// recordSignal records a client's signal: negative values are dBm, positive
+// ones an RSSI index.
+func (p *parseState) recordSignal(current wireless.Record, f parsedField, issues *[]wireless.Record) {
+	signal, e := parser.ParseNumber(f.raw, "dBm")
+	if e != nil {
+		*issues = append(*issues, wireless.Record{"code": "invalid_field", "line": f.line})
+		return
+	}
+	var dbm, rssi any
+	if signal != nil && *signal < 0 {
+		dbm = *signal
+	}
+	if signal != nil && *signal > 0 {
+		rounded, _ := new(big.Float).SetFloat64(math.Round(*signal)).Int(nil)
+		rssi = recordvalue.IntegerJSON(rounded)
+	}
+	p.assign(current, "signal_dbm", dbm, issues, f.line)
+	p.assign(current, "rssi", rssi, issues, f.line)
+	if current["signal_dbm"] == nil {
+		delete(current, "signal_dbm")
+	}
+	if current["rssi"] == nil {
+		delete(current, "rssi")
+	}
+}
+
+// validRecords keeps records with their identity (and, for BSSs, AP name and
+// radio) and reports the rest.
+func validRecords(dim wireless.Dimension, identity string, records []wireless.Record, issues *[]wireless.Record) []wireless.Record {
 	valid := []wireless.Record{}
 	for _, r := range records {
-		ok := parsetext.Strip(recordvalue.StringValue(r[identity[0]])) != ""
+		ok := parsetext.Strip(recordvalue.StringValue(r[identity])) != ""
 		if dim == wireless.BSSes {
 			ok = ok && parsetext.Strip(recordvalue.StringValue(r["ap_name"])) != "" && r["radio_id"] != nil
 		}
 		if !ok {
-			issues = append(issues, wireless.Record{"code": "invalid_identity"})
+			*issues = append(*issues, wireless.Record{"code": "invalid_identity"})
 		} else {
 			valid = append(valid, r)
 		}
 	}
-	total := reportedTotal(text, noun, &issues, nil, "")
-	return parser.FieldsResult(valid, issues, complete, total, identity)
+	return valid
 }

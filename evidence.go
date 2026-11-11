@@ -37,12 +37,12 @@ func ValidCommand(command string) bool {
 }
 
 // FailureFrom retains only safe diagnostic classifications from an error.
-func FailureFrom(err error, fallback, stage string) *Failure {
+func FailureFrom(err error, fallback, stage string) *FailureError {
 	return safeFailure(err, fallback, stage)
 }
 
 // CloneFailure returns an independently owned safe failure, including nil.
-func CloneFailure(failure *Failure) *Failure { return cloneFailure(failure) }
+func CloneFailure(failure *FailureError) *FailureError { return cloneFailure(failure) }
 
 // ValidJSONNumber checks the exact JSON numeric grammar.
 func ValidJSONNumber(number string) bool { return jsonNumberPattern.MatchString(number) }

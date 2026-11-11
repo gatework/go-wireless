@@ -1,87 +1,74 @@
-# Recommendations, plans, review and apply API
+# Assessment, plans, review and apply API
 
-The ordinary Go runtime and `go test ./...` require no Ruby installation. These
-APIs implement the frozen Ruby Wireless behavior; the fingerprint oracle is
-Ruby 4.0.7 with **JSON gem 3.1.0**, including its bundled `fpconv.c`, not RFC 8785
-or Go's ordinary JSON float formatting. Source hashes and fixture provenance are
-in `docs/change-oracle.json`. The Boost Software License is retained in
-`fpconv.go`, a pure-Go translation of that generator's Grisu2 implementation.
+The Go runtime and `go test ./...` require no Ruby installation. Ruby byte
+compatibility was dropped with schema 3; Ruby fixtures remain only as test
+inputs whose provenance is recorded in `docs/change-oracle.json`.
 
 ## Evidence, review and change packages
 
 ```go
 // package wireless
-func CanonicalJSON(any) ([]byte, error)
 func Fingerprint(any) (string, error)
 // package change
-func RenderChange(Record) (commands, rollback []string, err error)
-func ChangeEligible(config, change Record) bool
-func ChangeSatisfied(config, change Record) bool
-type ChangePlan struct { /* immutable, private state */ }
-func NewChangePlan(Record) (ChangePlan, error)
-func (ChangePlan) Device() Record
-func (ChangePlan) Commands() []string
-func (ChangePlan) Rollback() []string
-func (ChangePlan) ToMap() Record
-func (ChangePlan) CheckBefore(Record) error
-func (ChangePlan) CheckAfter(Record) (string, error)
+type TemplateSecurity struct{ Name string; Enabled bool; CipherSuites, SecurityIEs []string }
+func (TemplateSecurity) Eligible(*wlan.Configuration) error
+func (TemplateSecurity) Satisfied(*wlan.Configuration) error
+func DecodeTemplateSecurity(any) (TemplateSecurity, error)
+type Plan struct { /* immutable, private state */ }
+func NewPlan(Record) (Plan, error)
+func (Plan) Device() Record
+func (Plan) Commands() []string
+func (Plan) Rollback() []string
+func (Plan) ToMap() Record
+func (Plan) CheckBefore(Record) error
+func (Plan) CheckAfter(Record) (string, error)
 
 // package wireless
-type ObjectOrder map[uintptr][]string
-func DecodeJSONDocument([]byte) (Record, ObjectOrder, error)
-// package review
-func DecodeReviewJSON([]byte) (Record, ObjectOrder, error)
-func ValidateReviewDocument(Record) error
-func Recommendations(Record, ...ObjectOrder) Record
+func DecodeJSONDocument([]byte) (Record, error)
+// package wlan
+func DecodeDocument([]byte) (*Controller, error)
+// package rules
+func NewAssessor(assess.Policy, Commands) (*Assessor, error)
+func (*Assessor) AssessWith(context.Context, []*wlan.Controller, Inputs) (Report, error)
 ```
 
-Canonical JSON sorts object keys recursively and preserves array order. It
-preserves arbitrary integer precision, distinguishes integer syntax from
-`json.Number` decimal/exponent syntax, and encodes float64 using the Ruby
-fpconv digit and formatting rules. Integral floats remain floats; negative zero
-remains `-0.0`. UTF-8, HTML and U+2028/U+2029 remain unescaped, while JSON control
-characters are escaped. Invalid UTF-8, malformed number tokens, nonfinite
-numbers, unsupported values and cycles fail. Fingerprint is lowercase SHA256
-of those exact canonical bytes, without newline.
+`Fingerprint` is the go-netops canonical SHA-256 (`evidence.Fingerprint`: sorted
+keys, numbers kept as written, no HTML escaping) of a value's `MarshalJSON` wire
+encoding. Because the live readback and the stored JSON pass through the same
+encoder, they fingerprint alike, including integral floats (`20.0`) and large
+integers. Invalid UTF-8 is rejected rather than replaced, so distinct byte
+strings can never share a fingerprint; nonfinite numbers and invalid number
+tokens fail too.
 
-The decoders require one JSON object and reject trailing content, nonfinite
-numbers, invalid UTF-8 and malformed UTF-16 surrogate escapes. They preserve
-number tokens and source object key order. Returned records and ObjectOrder are
-caller-owned; the order is bound to those exact map instances and must not be
-reused with a different document. Recommendations reads but does not mutate its
-input and returns a deep-owned copy of device identity, advice and nested
-evidence using the core record copier. Subsequent mutations of the input or
-returned advice do not affect one another. Callers must not mutate the input
-during the call. With ObjectOrder it preserves the Ruby source iteration
-order of dimensions, nested reference evidence and resulting candidate indexes.
-Without ObjectOrder, Go map keys use lexical order deterministically. Explicit
-arrays always preserve their source order.
+`DecodeJSONDocument` requires one JSON object and rejects trailing content,
+invalid UTF-8 and malformed UTF-16 surrogate escapes. Numbers keep their source
+text as `json.Number`.
 
-Review validation accepts generic historical device reports, including
-`snapshot: null`, minimal observations without names/timestamps, and absent
-optional fields. A present null or wrong-type container is not treated as an
-absent field. It validates every container consumed by rules before output
-creation, without constructing a live Snapshot with stronger invariants.
+`wlan.DecodeDocument` checks the report envelope strictly before any output is
+created: device name and host are strings, `snapshot` is present (`null` for a
+report without evidence), every dimension has a valid status, and records and
+issues are arrays of objects. Fields inside records are decoded strictly per
+dimension; a field the typed model does not know marks that dimension
+`partial` with an `unmodeled_fact` issue, so rules requiring it are skipped
+and no change can be authorized from it.
 
-Recommendations covers incomplete evidence, legacy TKIP/WPA, missing or disabled
-bound templates, historical IP conflicts, AP state and administratively down
-radios. Every result is review-only, with no health assessment. The exact
-`h3c_wireless` identity enables H3C rules; `h3c` remains a parsing/collection alias
-but its recommendations are `platform_not_supported`, as in Ruby. Huawei never
-receives H3C commands. Historical scalar template names can produce advisory
-candidates under Ruby's name-string rule; only an actual valid string name can
-become a typed plan or apply action. Historical numeric tokens are parsed before
-Ruby-compatible scalar display (for example `1e+3` becomes `1000.0`); this display
-conversion does not use or change canonical fingerprint formatting.
+The schema 3 assessment (package `rules`) replaced the legacy
+`review.Recommendations`. It covers incomplete evidence, legacy TKIP/WPA,
+missing or disabled bound templates, historical IP conflicts, AP state,
+administratively down radios, baseline and temporal drift. Completeness is not
+health. The exact `h3c_wireless` identity enables H3C configuration rules;
+other platforms receive a blocked `platform_not_supported` finding and Huawei
+never receives H3C commands. Only an actual valid string template name can
+become a typed change.
 
 The only rendered action is `wireless_security`, with a known boolean enabled
 state, an allowed 1–63 character template name, existing CCMP/RSN alternatives
 and TKIP and/or WPA to remove. Rendering disables the template first and restores
-its original enabled state. Eligibility compares original ordered protocol
-arrays and enabled state. Satisfaction compares exact arrays after removing
+its original enabled state. `TemplateSecurity.Eligible` compares original ordered
+protocol arrays and enabled state on the strictly decoded typed configuration. Satisfaction compares exact arrays after removing
 TKIP/WPA and the original enabled state; CLI acknowledgement alone is insufficient.
 
-NewChangePlan validates once and deeply owns its document, device, action and
+NewPlan validates once and deeply owns its document, device, action and
 rendered commands. Accessors return detached copies; the zero value cannot execute.
 Schema is compared exactly: 1, 1.0 and 1e0 are valid; a near-one decimal such as
 1.0000000000000001 is rejected without float64 rounding. Huge exponents do not
@@ -96,19 +83,25 @@ of the exact plan file bytes.
 ## Report package
 
 ```go
-func RecommendationHook(scripts bool) DeviceHook
-func (*Report) WriteReview(context.Context, wireless.Record,
-    basename, source, sourceSHA string, advice wireless.Record,
+func AssessmentHook(scripts bool) DeviceHook
+func (*Report) WriteAssessment(context.Context, wireless.Record, *wlan.Controller,
+    rules.ControllerAssessment, basename, source, sourceSHA string,
     scripts bool) (wireless.Record, error)
 func (*Report) FinalizeExecution(context.Context, wireless.Record) error
 ```
 
-Default collection installs the recommendation hook. Device JSON contains
-diagnostics, and `recommendations/` contains JSON, TXT and deduplicated ordered
-`verify.cli`. `--scripts` additionally preserves candidate commands/change data,
-writes wholly commented `suggested.cfg`/`rollback.cfg`, and writes per-item
-schema-1 plans only for eligible supported changes. Source path and hash bind to
-the final enriched device JSON, including its trailing newline.
+Default collection installs the assessment hook, which embeds the controller's
+assessment in device JSON under `assessment`. `recommendations/` contains the
+assessment JSON, a risk-ordered TXT report and deduplicated ordered
+`verify.cli`. Without `--scripts` no change, command or rollback is embedded or
+published. `--scripts` additionally writes wholly commented
+`suggested.cfg`/`rollback.cfg`, and one schema-1 plan per candidate whose typed
+change is still eligible on the decoded configuration. Plan contents are
+byte-identical to the retired legacy writer (`report/plan_parity_test.go`
+replays `testdata/typed/plan-oracle.json`); the one input where legacy planned
+and the typed review does not carries an unmodeled configuration field. Source
+path and hash bind to the final enriched device JSON, including its trailing
+newline.
 
 All artifacts use the existing private publisher. A writer returning nil error
 must still provide a durable storage receipt. Execution intent and acknowledgement
@@ -124,8 +117,9 @@ replays commands to repair logs.
 ## CLI and native transport
 
 The executable and its `internal/cli` command tree install actual review/apply
-behavior and default advice. Explicit `Commands` and `RecommendationHook` (or a
-ReportOptions hook) remain injectable. Review accepts `--batch`, `--output`,
+behavior and default advice. Explicit `Commands` and `RecommendationHook` (the
+device hook selector, default `report.AssessmentHook`, or a ReportOptions hook)
+remain injectable. Review accepts `--batch`, `--output`,
 `--scripts`/`--no-scripts`, and help. It reads and validates all sorted source
 files before creating a fresh private batch under `<batch>/reviews` or the
 explicit output root. It preserves original source bytes and never alters their
@@ -225,8 +219,7 @@ Ruby via a real PTY and injected session. Go's default tests apply the original
 Ruby-generated plan through both injected sessions and real PTY confirmation;
 native transport tests use in-memory duplex transcripts. No test here is a
 live-device, SSH-server, external-service or production acceptance claim.
-`export-ruby-fpconv.rb` and `export-ruby-recommendations.rb` are explicit development
-oracles that emit corpus JSON to stdout; they are never called by Go production
+`export-ruby-recommendations.rb` is an explicit development oracle that emits corpus JSON to stdout; it is never called by Go production
 code or the ordinary test suite.
 
 The apply workflow keeps progress in a private typed execution state. Journal and

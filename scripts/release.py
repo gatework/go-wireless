@@ -60,7 +60,7 @@ def check_modules(root):
     mod = json.loads(go(root, 'mod', 'edit', '-json'))
     if mod.get('Replace'):
         raise ValueError('release rejects all replace directives')
-    if any(m['Version'] == 'v0.0.0' for m in mod.get('Require', [])):
+    if any(m['Version'] == 'v0.0.0' for m in mod.get('Require') or []):
         raise ValueError('release rejects unpublished v0.0.0 dependencies')
     if tuple(map(int, mod['Go'].split('.')[:2])) < (1, 26):
         raise ValueError('module must declare the Go 1.26 floor or newer')
@@ -187,10 +187,6 @@ def json_stream(raw):
 
 def third_party_notices(root):
     lines = ['Third-party notices for go-wireless\n\n']
-    fpconv = root / 'fpconv.go'
-    if fpconv.is_file():
-        header = fpconv.read_text().split('\npackage wireless', 1)[0]
-        lines.append('Bundled fpconv / Ruby JSON float formatter\n' + header + '\n\n')
     goroot = Path(go(root, 'env', 'GOROOT').decode().strip())
     lines.append('Go standard library (' + go(root, 'env', 'GOVERSION').decode().strip() + ')\n')
     for name in ('LICENSE', 'PATENTS'):
@@ -332,8 +328,6 @@ def verify(root, directory, sha, version=None):
         current_notices = entries['THIRD_PARTY_NOTICES.txt'][1]
         if b'Go standard library' not in current_notices or (notices is not None and current_notices != notices):
             raise ValueError('missing or inconsistent third-party notices')
-        if 'fpconv.go' in tree and b'Boost Software License - Version 1.0' not in current_notices:
-            raise ValueError('missing bundled fpconv license')
         notices = current_notices
         if manifest['platforms'][platform] != payload_manifest(entries):
             raise ValueError('payload manifest mismatch')

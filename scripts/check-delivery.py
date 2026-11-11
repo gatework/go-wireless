@@ -79,9 +79,9 @@ def check_modules(root, env):
 
 
 def export_source(root, exported):
-    allowed_dirs = {"adapter", "parser", "vendors", "collect", "review", "change", "cmd", "internal", "docs", "examples",
+    allowed_dirs = {"adapter", "parser", "vendors", "collect", "review", "change", "wlan", "rules", "cmd", "internal", "docs", "examples",
                     "report", "scripts", "testdata", ".github"}
-    allowed_root = {"go.mod", "go.sum", "LICENSE", "README.md", "GLOSSARY.md", "VERSION", ".gitignore", ".golangci.yml"}
+    allowed_root = {"go.mod", "go.sum", "LICENSE", "README.md", "GLOSSARY.md", "VERSION", "Makefile", "standard.mk", "architecture.yaml", "AGENTS.md", "CHANGELOG.md", ".gitignore", ".golangci.yml"}
     forbidden = {".env", ".git", ".work", ".superpowers", "wireless-reports", "wireless-executions"}
     selected = []
     for path in sorted(root.rglob("*")):
@@ -146,7 +146,7 @@ def main():
         consumer.mkdir()
         (consumer / "go.mod").write_text("module example.invalid/consumer\n\ngo 1.26.0\n\nrequire " + MODULE + " " + version + "\n")
         (consumer / "main.go").write_text((exported / "examples/library/main.go").read_text())
-        (consumer / "adapter.go").write_text('package main\nimport (\n_ "github.com/gatework/go-wireless/adapter/netconnector"\n_ "github.com/gatework/go-wireless/parser"\n_ "github.com/gatework/go-wireless/collect"\n_ "github.com/gatework/go-wireless/review"\n_ "github.com/gatework/go-wireless/change"\n)\n')
+        (consumer / "adapter.go").write_text('package main\nimport (\n_ "github.com/gatework/go-wireless/adapter/netconnector"\n_ "github.com/gatework/go-wireless/parser"\n_ "github.com/gatework/go-wireless/collect"\n_ "github.com/gatework/go-wireless/change"\n_ "github.com/gatework/go-wireless/wlan"\n_ "github.com/gatework/go-wireless/rules"\n)\n')
         env["GOPROXY"] = proxy.as_uri() + "," + env.get("GOPROXY", "https://proxy.golang.org,direct")
         env["GONOPROXY"] = "none"
         env["GONOSUMDB"] = ",".join(filter(None, [env.get("GONOSUMDB"), MODULE]))

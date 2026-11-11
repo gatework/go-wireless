@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// ErrInput reports an unreadable or invalid input document.
 var ErrInput = errors.New("wireless: invalid input file")
 
 // ContextReader is the cooperative contract for injected blocking input. Reads
@@ -16,9 +17,11 @@ var ErrInput = errors.New("wireless: invalid input file")
 // must return promptly; the CLI never closes them or spawns a reader goroutine.
 // A Runner exclusively reads its input for the duration of a command.
 type ContextReader interface {
-	ReadContext(context.Context, []byte) (int, error)
+	ReadContext(ctx context.Context, p []byte) (int, error)
 }
 
+// Read reads from input, observing ctx through a ContextReader when input is
+// one.
 func Read(ctx context.Context, input io.Reader, p []byte) (int, error) {
 	if e := ctx.Err(); e != nil {
 		return 0, e
@@ -42,9 +45,10 @@ func Read(ctx context.Context, input io.Reader, p []byte) (int, error) {
 	return n, e
 }
 
+// Reader is an io.Reader whose reads observe Context.
 type Reader struct {
 	Source  io.Reader
-	Context context.Context
+	Context context.Context //nolint:containedctx // an io.Reader adapter cannot take ctx per Read
 }
 
 func (r Reader) Read(p []byte) (int, error) { return Read(r.Context, r.Source, p) }

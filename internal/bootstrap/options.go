@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
@@ -16,20 +17,25 @@ import (
 
 	"github.com/gatework/go-wireless/vendors"
 
+	"go.yaml.in/yaml/v3"
+
 	ncconfig "github.com/gatework/go-net-connector/config"
 	"github.com/gatework/go-net-connector/inventory"
 	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
-	"go.yaml.in/yaml/v3"
 )
 
 //go:embed templates/*
 var templates embed.FS
+
+// ErrOptions reports invalid public configuration or command options.
 var ErrOptions = errors.New("wireless: invalid public configuration or options")
 
 // ErrLegacyConfiguration identifies the removed common/wireless shared layout.
 var ErrLegacyConfiguration = fmt.Errorf("wireless: move common settings to the root of net-connector.yml and wireless settings to wireless.yml: %w", ErrOptions)
 
+// Discovery locates configuration: the working and home directories, the
+// program path and the search directories.
 type Discovery struct {
 	CWD, Home, Program string
 	Directories        []string
@@ -157,106 +163,14 @@ func readConfigurationFile(ctx context.Context, path string, missingOK bool) ([]
 	}
 	return body, found, nil
 }
-func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) error {
-	if err := ctx.Err(); err != nil {
-		return err
+
+// Dynamic reports whether devices come from an inventory source rather than a
+// static list.
+func (o *Options) Dynamic() bool {
+	if o.runtime != nil {
+		return o.runtime.dynamic
 	}
-	if o.explicitConfig && strings.TrimSpace(o.selectedConfig) == "" || o.explicitEnv && strings.TrimSpace(o.selectedEnv) == "" {
-		return ErrOptions
-	}
-	d := &o.discovery
-	actual, e := os.Getwd()
-	if e != nil {
-		return ErrOptions
-	}
-	if d.CWD == "" {
-		d.CWD = actual
-	}
-	if d.Home == "" {
-		d.Home, e = os.UserHomeDir()
-		if e != nil {
-			return ErrOptions
-		}
-	}
-	d.Home = absolute(d.Home, actual, d.Home)
-	d.CWD = absolute(d.CWD, actual, d.Home)
-	o.process = map[string]string{}
-	for k, v := range env {
-		o.process[k] = v
-	}
-	resolveEnvironment(o.process, d.CWD, d.Home)
-	user := o.process["XDG_CONFIG_HOME"]
-	if user == "" {
-		user = filepath.Join(d.Home, ".config")
-	}
-	o.userDirectory = filepath.Join(absolute(user, d.CWD, d.Home), "net-connector")
-	if d.Directories == nil {
-		program := d.Program
-		if program == "" {
-			program = os.Args[0]
-		}
-		d.Directories = []string{"/etc/net-connector", "/usr/local/etc/net-connector", o.userDirectory, filepath.Dir(absolute(program, d.CWD, d.Home)), d.CWD}
-	}
-	dirs := []string{}
-	for _, p := range d.Directories {
-		dirs = append(dirs, absolute(p, d.CWD, d.Home))
-	}
-	d.Directories = uniqueLast(dirs, "")
-	if strings.TrimSpace(o.selectedEnv) != "" {
-		o.selectedEnv = absolute(o.selectedEnv, d.CWD, d.Home)
-	}
-	o.fileEnvironment = map[string]string{}
-	envFiles := []string{}
-	candidates := []string{}
-	for _, dir := range d.Directories {
-		candidates = append(candidates, filepath.Join(dir, ".env"))
-	}
-	for _, p := range uniqueLast(candidates, o.selectedEnv) {
-		b, ok, e := readConfigurationFile(ctx, p, p != o.selectedEnv || o.initializing)
-		if e != nil {
-			return e
-		}
-		if !ok {
-			continue
-		}
-		values, e := ncconfig.ParseEnvironment(string(b), o.fileEnvironment, o.process)
-		if e != nil {
-			return ErrOptions
-		}
-		resolveEnvironment(values, filepath.Dir(p), d.Home)
-		for k, v := range values {
-			o.fileEnvironment[k] = v
-		}
-		envFiles = append(envFiles, p)
-	}
-	o.Environment = map[string]string{}
-	for _, m := range []map[string]string{o.fileEnvironment, o.process} {
-		for k, v := range m {
-			o.Environment[k] = v
-		}
-	}
-	selected := o.selectedConfig
-	if strings.TrimSpace(selected) == "" {
-		selected = o.process["WIRELESS_CONFIG"]
-		if strings.TrimSpace(selected) == "" {
-			selected = o.fileEnvironment["WIRELESS_CONFIG"]
-		}
-	}
-	if strings.TrimSpace(selected) != "" {
-		o.selectedConfig = absolute(selected, d.CWD, d.Home)
-	} else {
-		o.selectedConfig = ""
-	}
-	o.Config = o.selectedConfig
-	if o.Config == "" {
-		o.Config = filepath.Join(o.userDirectory, "wireless.yml")
-	}
-	o.EnvFile = o.selectedEnv
-	if o.EnvFile == "" {
-		o.EnvFile = filepath.Join(o.userDirectory, ".env")
-	}
-	o.Sources = wireless.Record{"configuration_files": []string{}, "environment_files": envFiles, "fields": map[string]string{}}
-	return ctx.Err()
+	return has(o.Values, "netdisco") || has(o.Values, "inventory") || has(o.Values, "netdisco_config")
 }
 func recordFields(fields map[string]string, m, previous wireless.Record, source, prefix string) {
 	for k, v := range m {
@@ -283,6 +197,254 @@ func recordFields(fields map[string]string, m, previous wireless.Record, source,
 	}
 }
 
+// Initialize writes only missing templates with exclusive hard-link publication.
+func (o *Options) Initialize(ctx context.Context, out io.Writer) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// The initializer writes Wireless-specific fields, which are not valid in
+	// the shared connector schema. Reject before creating either template.
+	if filepath.Base(o.selectedConfig) == "net-connector.yml" {
+		return ErrLegacyConfiguration
+	}
+	b, _ := templates.ReadFile("templates/wireless.yml")
+	data, e := ncconfig.ParseYAML(b)
+	if e != nil {
+		return ErrOptions
+	}
+	proc, e := o.publicEnvironment(o.process, true, o.overrides)
+	if e != nil {
+		return e
+	}
+	file, e := o.publicEnvironment(o.fileEnvironment, true, merge(proc, o.overrides))
+	if e != nil {
+		return e
+	}
+	resolvePaths(data, o.discovery.CWD, o.discovery.Home, "")
+	resolvePaths(o.overrides, o.discovery.CWD, o.discovery.Home, "")
+	o.Values = merge(data, wireless.Record{"directory": filepath.Join(o.discovery.CWD, "wireless-reports"), "parallel": 4}, file, proc, o.overrides)
+	if e = o.validate(); e != nil {
+		return e
+	}
+	if e = o.loadInventoryPolicy(ctx); e != nil {
+		return e
+	}
+	o.dropInheritedParallel()
+	document := o.Values
+	path := o.selectedConfig
+	if path == "" {
+		path = filepath.Join(o.userDirectory, "wireless.yml")
+	}
+	body, e := yaml.Marshal(document)
+	if e != nil {
+		return ErrOptions
+	}
+	envBody, _ := templates.ReadFile("templates/env.example")
+	envPath := o.selectedEnv
+	if envPath == "" {
+		envPath = filepath.Join(o.userDirectory, ".env")
+	}
+	for _, item := range []struct {
+		path string
+		body []byte
+	}{{path, body}, {envPath, envBody}} {
+		if e := writeInitialFile(ctx, out, item.path, item.body); e != nil {
+			return e
+		}
+	}
+	_, e = fmt.Fprintln(out, "请检查配置及凭据后再次运行；本次未读取清单、未连接设备。")
+	return e
+}
+
+// dropInheritedParallel keeps an inherited NC_PARALLEL out of the written
+// configuration unless this tool's own setting or override chose it.
+func (o *Options) dropInheritedParallel() {
+	source := o.process
+	if _, a := source["WIRELESS_PARALLEL"]; !a {
+		if _, b := source["NC_PARALLEL"]; !b {
+			source = o.fileEnvironment
+		}
+	}
+	if !has(o.overrides, "parallel") {
+		if _, ok := source["WIRELESS_PARALLEL"]; !ok {
+			delete(o.Values, "parallel")
+		}
+	}
+}
+
+// writeInitialFile creates path with body unless it exists, and reports
+// which happened.
+func writeInitialFile(ctx context.Context, out io.Writer, path string, body []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	created, e := initializeFile(path, body)
+	if e != nil {
+		return e
+	}
+	verb := "已保留"
+	if created {
+		verb = "已创建"
+	}
+	_, e = fmt.Fprintf(out, "%s：%s\n", verb, path)
+	return e
+}
+
+// loadEnvironment resolves the discovery directories, reads the .env files
+// and selects the configuration file.
+func (o *Options) loadEnvironment(ctx context.Context, env map[string]string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if o.explicitConfig && strings.TrimSpace(o.selectedConfig) == "" || o.explicitEnv && strings.TrimSpace(o.selectedEnv) == "" {
+		return ErrOptions
+	}
+	if err := o.resolveDiscovery(env); err != nil {
+		return err
+	}
+	envFiles, err := o.readEnvironmentFiles(ctx)
+	if err != nil {
+		return err
+	}
+	o.Environment = map[string]string{}
+	for _, m := range []map[string]string{o.fileEnvironment, o.process} {
+		maps.Copy(o.Environment, m)
+	}
+	o.selectConfiguration()
+	o.Sources = wireless.Record{"configuration_files": []string{}, "environment_files": envFiles, "fields": map[string]string{}}
+	return ctx.Err()
+}
+
+// resolveDiscovery makes the working and home directories absolute, copies
+// the process environment and settles the configuration search directories.
+func (o *Options) resolveDiscovery(env map[string]string) error {
+	d := &o.discovery
+	actual, e := os.Getwd()
+	if e != nil {
+		return ErrOptions
+	}
+	if d.CWD == "" {
+		d.CWD = actual
+	}
+	if d.Home == "" {
+		if d.Home, e = os.UserHomeDir(); e != nil {
+			return ErrOptions
+		}
+	}
+	d.Home = absolute(d.Home, actual, d.Home)
+	d.CWD = absolute(d.CWD, actual, d.Home)
+	o.process = map[string]string{}
+	maps.Copy(o.process, env)
+	resolveEnvironment(o.process, d.CWD, d.Home)
+	user := o.process["XDG_CONFIG_HOME"]
+	if user == "" {
+		user = filepath.Join(d.Home, ".config")
+	}
+	o.userDirectory = filepath.Join(absolute(user, d.CWD, d.Home), "net-connector")
+	if d.Directories == nil {
+		program := d.Program
+		if program == "" {
+			program = os.Args[0]
+		}
+		d.Directories = []string{"/etc/net-connector", "/usr/local/etc/net-connector", o.userDirectory, filepath.Dir(absolute(program, d.CWD, d.Home)), d.CWD}
+	}
+	dirs := []string{}
+	for _, p := range d.Directories {
+		dirs = append(dirs, absolute(p, d.CWD, d.Home))
+	}
+	d.Directories = uniqueLast(dirs, "")
+	if strings.TrimSpace(o.selectedEnv) != "" {
+		o.selectedEnv = absolute(o.selectedEnv, d.CWD, d.Home)
+	}
+	return nil
+}
+
+// readEnvironmentFiles reads the .env file of every search directory (the
+// selected one last) and returns the files that existed.
+func (o *Options) readEnvironmentFiles(ctx context.Context) ([]string, error) {
+	d := &o.discovery
+	o.fileEnvironment = map[string]string{}
+	envFiles := []string{}
+	candidates := []string{}
+	for _, dir := range d.Directories {
+		candidates = append(candidates, filepath.Join(dir, ".env"))
+	}
+	for _, p := range uniqueLast(candidates, o.selectedEnv) {
+		b, ok, e := readConfigurationFile(ctx, p, p != o.selectedEnv || o.initializing)
+		if e != nil {
+			return nil, e
+		}
+		if !ok {
+			continue
+		}
+		values, e := ncconfig.ParseEnvironment(string(b), o.fileEnvironment, o.process)
+		if e != nil {
+			return nil, ErrOptions
+		}
+		resolveEnvironment(values, filepath.Dir(p), d.Home)
+		maps.Copy(o.fileEnvironment, values)
+		envFiles = append(envFiles, p)
+	}
+	return envFiles, nil
+}
+
+// selectConfiguration picks the configuration file: the explicit one, then
+// WIRELESS_CONFIG from the process, then from the .env files, then the
+// user default.
+func (o *Options) selectConfiguration() {
+	d := &o.discovery
+	selected := o.selectedConfig
+	if strings.TrimSpace(selected) == "" {
+		selected = o.process["WIRELESS_CONFIG"]
+		if strings.TrimSpace(selected) == "" {
+			selected = o.fileEnvironment["WIRELESS_CONFIG"]
+		}
+	}
+	if strings.TrimSpace(selected) != "" {
+		o.selectedConfig = absolute(selected, d.CWD, d.Home)
+	} else {
+		o.selectedConfig = ""
+	}
+	o.Config = o.selectedConfig
+	if o.Config == "" {
+		o.Config = filepath.Join(o.userDirectory, "wireless.yml")
+	}
+	o.EnvFile = o.selectedEnv
+	if o.EnvFile == "" {
+		o.EnvFile = filepath.Join(o.userDirectory, ".env")
+	}
+}
+func in(s string, values ...string) bool     { return slices.Contains(values, s) }
+func boolValue(v any) bool                   { b, _ := v.(bool); return b }
+func has(m wireless.Record, key string) bool { _, ok := m[key]; return ok }
+func number(v any) (float64, bool) {
+	switch n := v.(type) {
+	case int:
+		return float64(n), true
+	case float64:
+		return n, true
+	default:
+		return 0, false
+	}
+}
+
+// StringValue returns v when it is a string, otherwise "".
+func StringValue(v any) string { s, _ := v.(string); return s }
+func stringList(v any) ([]string, error) {
+	a, ok := v.([]any)
+	if !ok {
+		return nil, ErrOptions
+	}
+	out := []string{}
+	for _, v := range a {
+		s, ok := v.(string)
+		if !ok || strings.TrimSpace(s) == "" || strings.IndexFunc(s, unicode.IsControl) >= 0 {
+			return nil, ErrOptions
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
 func (o *Options) loadFiles(ctx context.Context) (wireless.Record, wireless.Record, error) {
 	data, specific := wireless.Record{}, wireless.Record{}
 	paths := []string{}
@@ -337,7 +499,7 @@ func (o *Options) sharedConfiguration(ctx context.Context, data wireless.Record,
 	if has(data, "common") || has(data, "wireless") {
 		return nil, ErrLegacyConfiguration
 	}
-	validated, err := ncconfig.LoadContext(ctx, ncconfig.Options{
+	validated, err := ncconfig.Load(ctx, ncconfig.Options{
 		Name: "backup", CWD: directory, Home: o.discovery.Home,
 		Directories: []string{}, Environment: map[string]string{},
 		Defaults: wireless.Record{}, Overrides: data,
@@ -364,35 +526,6 @@ func (o *Options) sharedConfiguration(ctx context.Context, data wireless.Record,
 		}
 	}
 	return projected, nil
-}
-func in(s string, values ...string) bool     { return slices.Contains(values, s) }
-func boolValue(v any) bool                   { b, _ := v.(bool); return b }
-func has(m wireless.Record, key string) bool { _, ok := m[key]; return ok }
-func number(v any) (float64, bool) {
-	switch n := v.(type) {
-	case int:
-		return float64(n), true
-	case float64:
-		return n, true
-	default:
-		return 0, false
-	}
-}
-func StringValue(v any) string { s, _ := v.(string); return s }
-func stringList(v any) ([]string, error) {
-	a, ok := v.([]any)
-	if !ok {
-		return nil, ErrOptions
-	}
-	out := []string{}
-	for _, v := range a {
-		s, ok := v.(string)
-		if !ok || strings.TrimSpace(s) == "" || strings.IndexFunc(s, unicode.IsControl) >= 0 {
-			return nil, ErrOptions
-		}
-		out = append(out, s)
-	}
-	return out, nil
 }
 func (o *Options) load(ctx context.Context, data, specific wireless.Record) error {
 	dynamic := has(data, "netdisco") || has(data, "inventory")
@@ -427,12 +560,6 @@ func (o *Options) load(ctx context.Context, data, specific wireless.Record) erro
 	}
 	return o.freeze()
 }
-func (o *Options) Dynamic() bool {
-	if o.runtime != nil {
-		return o.runtime.dynamic
-	}
-	return has(o.Values, "netdisco") || has(o.Values, "inventory") || has(o.Values, "netdisco_config")
-}
 func (o *Options) publicEnvironment(env map[string]string, dynamic bool, higher wireless.Record) (wireless.Record, error) {
 	result := wireless.Record{}
 	for key, field := range map[string]string{"WIRELESS_PLATFORM": "platform", "WIRELESS_DIRECTORY": "directory"} {
@@ -464,12 +591,28 @@ func (o *Options) publicEnvironment(env map[string]string, dynamic bool, higher 
 	}
 	return result, nil
 }
+
+// validate checks and normalizes the merged options, in a fixed order.
 func (o *Options) validate() error {
+	for _, check := range []func() error{o.validateKeys, o.validateParallel, o.validateTarget, o.validateDimensions, o.validateSources, o.validateSelectors, o.validateSSH} {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o *Options) validateKeys() error {
 	for k := range o.Values {
 		if !in(k, "platform", "ap_names", "devices", "netdisco", "inventory", "netdisco_config", "parallel", "directory", "dimensions", "ssh", "hosts", "exclude_hosts", "names", "exclude_names") {
 			return ErrOptions
 		}
 	}
+	return nil
+}
+
+// validateParallel accepts 1..500 workers, given as an integer or digits.
+func (o *Options) validateParallel() error {
 	if s, ok := o.Values["parallel"].(string); ok {
 		n, e := strconv.Atoi(s)
 		if e != nil || s == "" || strings.Trim(s, "0123456789") != "" {
@@ -480,26 +623,42 @@ func (o *Options) validate() error {
 	if n, ok := o.Values["parallel"].(int); !ok || n < 1 || n > 500 {
 		return ErrOptions
 	}
-	if !in(StringValue(o.Values["platform"]), vendors.NewBuiltinRegistry().Platforms()...) || strings.TrimSpace(StringValue(o.Values["directory"])) == "" || strings.ContainsRune(StringValue(o.Values["directory"]), 0) {
+	return nil
+}
+
+// validateTarget requires a known platform and a usable output directory.
+func (o *Options) validateTarget() error {
+	directory := StringValue(o.Values["directory"])
+	if !in(StringValue(o.Values["platform"]), vendors.NewBuiltinRegistry().Platforms()...) || strings.TrimSpace(directory) == "" || strings.ContainsRune(directory, 0) {
 		return ErrOptions
 	}
-	if o.Values["dimensions"] != nil {
-		a, e := stringList(o.Values["dimensions"])
-		if e != nil || len(a) == 0 {
+	return nil
+}
+
+// validateDimensions accepts a non-empty list of distinct known dimensions.
+func (o *Options) validateDimensions() error {
+	if o.Values["dimensions"] == nil {
+		return nil
+	}
+	a, e := stringList(o.Values["dimensions"])
+	if e != nil || len(a) == 0 {
+		return ErrOptions
+	}
+	known := vendors.NewBuiltinRegistry().Dimensions()
+	seen := map[string]bool{}
+	for _, s := range a {
+		if !slices.Contains(known, wireless.Dimension(s)) || seen[s] {
 			return ErrOptions
 		}
-		seen := map[string]bool{}
-		for _, s := range a {
-			valid := false
-			for _, d := range vendors.NewBuiltinRegistry().Dimensions() {
-				valid = valid || s == string(d)
-			}
-			if !valid || seen[s] {
-				return ErrOptions
-			}
-			seen[s] = true
-		}
+		seen[s] = true
 	}
+	return nil
+}
+
+// validateSources normalizes the static devices and requires exactly one
+// inventory source: static devices, inline netdisco/inventory settings or a
+// netdisco configuration file. Inventory overrides need a dynamic source.
+func (o *Options) validateSources() error {
 	rows, ok := o.Values["devices"].([]any)
 	if !ok {
 		return ErrOptions
@@ -536,6 +695,12 @@ func (o *Options) validate() error {
 			o.Values["netdisco"] = merge(m, o.inventoryOverrides)
 		}
 	}
+	return nil
+}
+
+// validateSelectors defaults and checks the host, name and AP selectors;
+// host selectors must be addresses or prefixes, not ranges.
+func (o *Options) validateSelectors() error {
 	for _, k := range []string{"hosts", "exclude_hosts", "names", "exclude_names", "ap_names"} {
 		v, ok := o.Values[k]
 		if !ok {
@@ -546,17 +711,24 @@ func (o *Options) validate() error {
 		if e != nil {
 			return e
 		}
-		if in(k, "hosts", "exclude_hosts") {
-			for _, s := range a {
-				if strings.Contains(s, "-") {
-					return ErrOptions
-				}
-			}
-			if _, e = inventory.NewAddressSet(a); e != nil {
+		if !in(k, "hosts", "exclude_hosts") {
+			continue
+		}
+		for _, s := range a {
+			if strings.Contains(s, "-") {
 				return ErrOptions
 			}
 		}
+		if _, e = inventory.NewAddressSet(a); e != nil {
+			return ErrOptions
+		}
 	}
+	return nil
+}
+
+// validateSSH checks the SSH settings: known keys, host key policy, positive
+// timeouts, port range and known_hosts path.
+func (o *Options) validateSSH() error {
 	ssh, ok := o.Values["ssh"].(map[string]any)
 	if !ok {
 		return ErrOptions
@@ -576,8 +748,7 @@ func (o *Options) validate() error {
 		}
 	}
 	if v, ok := ssh["port"]; ok {
-		n, ok := v.(int)
-		if !ok || n < 1 || n > 65535 {
+		if n, ok := v.(int); !ok || n < 1 || n > 65535 {
 			return ErrOptions
 		}
 	}
@@ -587,87 +758,6 @@ func (o *Options) validate() error {
 		}
 	}
 	return nil
-}
-
-// Initialize writes only missing templates with exclusive hard-link publication.
-func (o *Options) Initialize(ctx context.Context, out io.Writer) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	// The initializer writes Wireless-specific fields, which are not valid in
-	// the shared connector schema. Reject before creating either template.
-	if filepath.Base(o.selectedConfig) == "net-connector.yml" {
-		return ErrLegacyConfiguration
-	}
-	b, _ := templates.ReadFile("templates/wireless.yml")
-	data, e := ncconfig.ParseYAML(b)
-	if e != nil {
-		return ErrOptions
-	}
-	proc, e := o.publicEnvironment(o.process, true, o.overrides)
-	if e != nil {
-		return e
-	}
-	file, e := o.publicEnvironment(o.fileEnvironment, true, merge(proc, o.overrides))
-	if e != nil {
-		return e
-	}
-	resolvePaths(data, o.discovery.CWD, o.discovery.Home, "")
-	resolvePaths(o.overrides, o.discovery.CWD, o.discovery.Home, "")
-	o.Values = merge(data, wireless.Record{"directory": filepath.Join(o.discovery.CWD, "wireless-reports"), "parallel": 4}, file, proc, o.overrides)
-	if e = o.validate(); e != nil {
-		return e
-	}
-	if e = o.loadInventoryPolicy(ctx); e != nil {
-		return e
-	}
-	// NC_PARALLEL is inherited, unless this tool explicitly overrides it.
-	source := o.process
-	if _, a := source["WIRELESS_PARALLEL"]; !a {
-		if _, b := source["NC_PARALLEL"]; !b {
-			source = o.fileEnvironment
-		}
-	}
-	if !has(o.overrides, "parallel") {
-		if _, ok := source["WIRELESS_PARALLEL"]; !ok {
-			delete(o.Values, "parallel")
-		}
-	}
-	document := o.Values
-	path := o.selectedConfig
-	if path == "" {
-		path = filepath.Join(o.userDirectory, "wireless.yml")
-	}
-	body, e := yaml.Marshal(document)
-	if e != nil {
-		return ErrOptions
-	}
-	envBody, _ := templates.ReadFile("templates/env.example")
-	envPath := o.selectedEnv
-	if envPath == "" {
-		envPath = filepath.Join(o.userDirectory, ".env")
-	}
-	for _, item := range []struct {
-		path string
-		body []byte
-	}{{path, body}, {envPath, envBody}} {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		created, e := initializeFile(item.path, item.body)
-		if e != nil {
-			return e
-		}
-		verb := "已保留"
-		if created {
-			verb = "已创建"
-		}
-		if _, e = fmt.Fprintf(out, "%s：%s\n", verb, item.path); e != nil {
-			return e
-		}
-	}
-	_, e = fmt.Fprintln(out, "请检查配置及凭据后再次运行；本次未读取清单、未连接设备。")
-	return e
 }
 func initializeFile(path string, body []byte) (bool, error) {
 	if e := os.MkdirAll(filepath.Dir(path), 0700); e != nil {
@@ -712,6 +802,9 @@ func initializeFile(path string, body []byte) (bool, error) {
 	}
 	return true, nil
 }
+
+// LoadEnvironment reads the .env files a command would read and returns the
+// effective environment and its sources.
 func LoadEnvironment(ctx context.Context, environment map[string]string, envFile string, d Discovery) (map[string]string, wireless.Record, error) {
 	o := NewOptions(Request{EnvFile: envFile, ExplicitEnv: envFile != ""}, d, nil)
 	if e := o.loadEnvironment(ctx, environment); e != nil {

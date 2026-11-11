@@ -2,19 +2,19 @@
 
 独立的 Go 无线控制器证据采集、离线解析、报告复核与受控变更库/CLI。移植基线为 Wireless Ruby `b328e1f`（2026-10-26）；运行和普通测试不需要 Ruby、Rails 或数据库。证据完整不代表网络健康。
 
-需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.6.0**、go-expect **v0.5.0**。当前版本 **v0.4.0**；Python 3 仅用于源码交付与发布验证。
+需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 go-net-connector **v0.7.1**、go-expect **v0.6.0**。当前版本 **v0.5.0**；Python 3 仅用于源码交付与发布验证。
 
-本版本升级正式依赖并适配类型化清单缓存模式；共享 TFTP 配置需要迁移旧字段。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.4.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
+本版本引入类型化 WLAN 模型、go-netops 规则与变更计划，并接入 go-standards v1.0.2。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.5.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.4.0) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
+从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.5.0) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
 
 也可使用 Go 安装 CLI 或在项目中添加库依赖：
 
 ```sh
-GOWORK=off go install github.com/gatework/go-wireless/cmd/wireless@v0.4.0
-go get github.com/gatework/go-wireless@v0.4.0
+GOWORK=off go install github.com/gatework/go-wireless/cmd/wireless@v0.5.0
+go get github.com/gatework/go-wireless@v0.5.0
 ```
 
 ## 构建与安全预览
@@ -99,10 +99,10 @@ GOWORK=off go test -race ./...
 GOWORK=off go vet ./...
 python3 -O scripts/test_check_delivery.py
 python3 scripts/check-delivery.py
-# CI 同时执行只读模块、格式和完整 race 检查
-bash scripts/ci
+# 提交前的统一门禁（gatework Go 规范 MOD-5），CI 执行同一入口
+make check
 ```
 
 [兼容矩阵](docs/compatibility.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[验证说明](docs/verification.md) 列出当前检查入口、已发布版本证据与实测边界。测试使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。
 
-许可沿用参考项目 [MIT](LICENSE)，原署名完整保留。fpconv 的 Boost Software License 在源码中保留；发行包的 THIRD_PARTY_NOTICES.txt 汇集实际模块依赖及 fpconv 的许可。
+许可沿用参考项目 [MIT](LICENSE)，原署名完整保留；发行包的 THIRD_PARTY_NOTICES.txt 汇集实际模块依赖的许可。

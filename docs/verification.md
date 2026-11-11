@@ -19,20 +19,20 @@ apply 日志投影所有权与提交能力回归，以及架构门禁的禁止/�
 使用 Go 1.26 或更新版本，依赖由 go.mod/go.sum 固定。完整本地门禁与 GitHub Actions 共用：
 
 ```sh
-GOWORK=off bash scripts/ci
+make check
 ```
 
-该入口检查格式、架构导入方向、正式依赖与 checksum、tidy 差异、全包 race/shuffle、vet、Python 普通及 -O 架构/交付控制测试、源码导出和独立消费者。`scripts/check-delivery.py` 使用临时文件模块代理提供当前 Wireless 源码，消费者禁用 workspace、没有 replace、使用全新 module cache；Connector 与 Expect 从正式模块版本取得。该检查证明候选源码可独立消费，正式标签仍按 [发布流程](releasing.md) 验证。
+该入口检查规范文件、格式、tidy 差异、vet、共享 lint、`architecture.yaml` 导入方向、全包 race/shuffle、govulncheck、正式依赖与 checksum、Python 普通及 -O 交付控制测试、发布工具测试、源码导出和独立消费者。`scripts/check-delivery.py` 使用临时文件模块代理提供当前 Wireless 源码，消费者禁用 workspace、没有 replace、使用全新 module cache；Connector 与 Expect 从正式模块版本取得。该检查证明候选源码可独立消费，正式标签仍按 [发布流程](releasing.md) 验证。
 
-`go test ./...`、`go vet ./...` 和 `python3 scripts/check-architecture.py` 可单独执行。CI 的 quality 作业另外运行配置中的 golangci-lint、govulncheck、actionlint 与 `scripts/test_release.py`。普通构建不需要恢复历史 workspace。
+`make test`、`make vet`、`make lint`、`make arch` 可单独执行。CI 的 quality 作业另外运行 actionlint。普通构建不需要恢复历史 workspace。
 
 ## 保留的回归依据
 
 - `testdata/` 提供解析、来源、字段、精确数值、建议及变更计划的合成/冻结金样，供当前 Go 测试读取。
-- `docs/ruby-baseline.json`、`ruby-spec-matrix.json`、`ruby-lib-matrix.json` 保留参考 Ruby 源码身份、34 个 spec 与全部 lib 的实现/测试映射。`change-oracle.json` 固定变更和 fpconv fixture 的校验和。
+- `docs/ruby-baseline.json`、`ruby-spec-matrix.json`、`ruby-lib-matrix.json` 保留参考 Ruby 源码身份、34 个 spec 与全部 lib 的实现/测试映射。`change-oracle.json` 固定变更 fixture 的校验和。
 - `scripts/export-ruby-*.rb` 与 `check-ruby-change-interop.rb` 是显式开发对照工具，普通 Go 测试和运行不调用 Ruby。原始金样及来源哈希不因目录清理而重生。
 - `scripts/test_check_delivery.py` 验证证据篡改、依赖替换、占位版本、秘密文件和符号链接拒绝。源码导出仅包含当前源码、文档、测试与工具，不携带依赖归档或恢复脚本。
-- `fpconv.go` 中的完整 Boost 许可与来源头、项目 MIT LICENSE 和发行包第三方许可保留。
+- 项目 MIT LICENSE 和发行包第三方许可保留。
 
 兼容范围、非逐字等价项与测试映射见 [兼容矩阵](compatibility.md)。旧依赖快照、实施草案和过程日志由 Git 历史或仓库外的验证记录保存，不参与当前源码交付。
 

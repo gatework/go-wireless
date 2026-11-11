@@ -85,7 +85,7 @@ func TestApplyRetainsIndependentSafeDiagnostics(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			state, _, e := wireless.DecodeJSONDocument(body)
+			state, e := wireless.DecodeJSONDocument(body)
 			if e != nil {
 				t.Fatal(e)
 			}
@@ -96,9 +96,9 @@ func TestApplyRetainsIndependentSafeDiagnostics(t *testing.T) {
 				if !failedPublication || session.writes != 1 || state["pending_command"] != json.Number("0") || state["status"] != "executing" {
 					t.Fatal("intent lost/replay", session.writes, state)
 				}
-				for _, line := range strings.Split(stderr.String(), "\n") {
-					if strings.HasPrefix(line, "安全诊断：") {
-						state, _, e = wireless.DecodeJSONDocument([]byte(strings.TrimPrefix(line, "安全诊断：")))
+				for line := range strings.SplitSeq(stderr.String(), "\n") {
+					if after0, ok := strings.CutPrefix(line, "安全诊断："); ok {
+						state, e = wireless.DecodeJSONDocument([]byte(after0))
 						if e != nil {
 							t.Fatal(e)
 						}

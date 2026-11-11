@@ -19,6 +19,8 @@ type Request struct {
 	Overrides, InventoryOverrides wireless.Record
 }
 
+// NewOptions returns unloaded options for a command request;
+// LoadConfiguration fills them.
 func NewOptions(request Request, discovery Discovery, registry dialect.Registry) *Options {
 	if registry == nil {
 		registry = ncvendors.NewBuiltinRegistry()
@@ -51,43 +53,60 @@ func LoadConfiguration(ctx context.Context, request Request, environment map[str
 	}
 	return o, nil
 }
+
+// Missing reports that no applicable configuration file was found.
 func (o *Options) Missing() bool { return !o.applicable }
+
+// Workers returns the number of devices collected in parallel.
 func (o *Options) Workers() int {
 	if o.runtime == nil {
 		return 0
 	}
 	return o.runtime.workers
 }
+
+// Directory returns the batch report root.
 func (o *Options) Directory() string {
 	if o.runtime == nil {
 		return ""
 	}
 	return o.runtime.directory
 }
+
+// Dimensions returns the requested dimensions, or nil for the defaults.
 func (o *Options) Dimensions() []wireless.Dimension {
 	if o.runtime == nil {
 		return nil
 	}
 	return slices.Clone(o.runtime.dimensions)
 }
+
+// APNames returns the APs to read LLDP neighbors from; empty means all.
 func (o *Options) APNames() []string {
 	if o.runtime == nil {
 		return nil
 	}
 	return slices.Clone(o.runtime.apNames)
 }
+
+// Connection returns the connector settings for one device, credentials
+// resolved from the environment.
 func (o *Options) Connection(device wireless.Record) (connector.ConnectionConfig, error) {
 	if o.runtime == nil {
 		return connector.ConnectionConfig{}, ErrOptions
 	}
 	return o.runtime.connection(device)
 }
+
+// InventorySettings returns the resolved inventory source settings.
 func (o *Options) InventorySettings() InventorySettings {
 	if o.runtime == nil {
 		return InventorySettings{}
 	}
 	return o.runtime.inventory
 }
+
+// EnvironmentSnapshot returns a copy of the effective environment.
 func (o *Options) EnvironmentSnapshot() map[string]string {
 	if o.runtime == nil {
 		return maps.Clone(o.Environment)

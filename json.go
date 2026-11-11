@@ -27,6 +27,11 @@ func MarshalJSONIndent(value any, prefix, indent string) ([]byte, error) {
 	} // Re-encode RawMessage to retain numeric tokens.
 	return json.MarshalIndent(json.RawMessage(b), prefix, indent)
 }
+
+// wireNumbers rewrites v for encoding: floats become json.Number tokens that
+// keep a decimal point, and containers are walked with cycle detection.
+//
+//nolint:nilnil // nil is JSON null
 func wireNumbers(v reflect.Value, active map[visit]bool) (any, error) {
 	if !v.IsValid() {
 		return nil, nil
@@ -38,24 +43,16 @@ func wireNumbers(v reflect.Value, active map[visit]bool) (any, error) {
 		return wireNumbers(v.Elem(), active)
 	}
 	if v.CanInterface() {
-		if _, ok := v.Interface().(json.Marshaler); ok {
+		if _, ok := reflect.TypeAssert[json.Marshaler](v); ok {
 			return v.Interface(), nil
 		}
-		if _, ok := v.Interface().(json.Number); ok {
+		if _, ok := reflect.TypeAssert[json.Number](v); ok {
 			return v.Interface(), nil
 		}
 	}
 	switch v.Kind() {
 	case reflect.Float32, reflect.Float64:
-		f := v.Float()
-		if math.IsInf(f, 0) || math.IsNaN(f) {
-			return nil, &json.UnsupportedValueError{Value: v, Str: "non-finite float"}
-		}
-		s := strconv.FormatFloat(f, 'g', -1, v.Type().Bits())
-		if !strings.ContainsAny(s, ".eE") {
-			s += ".0"
-		}
-		return json.Number(s), nil
+		return wireFloat(v)
 	case reflect.Map, reflect.Slice:
 		if v.IsNil() {
 			return nil, nil
@@ -67,43 +64,55 @@ func wireNumbers(v reflect.Value, active map[visit]bool) (any, error) {
 		active[key] = true
 		defer delete(active, key)
 		if v.Kind() == reflect.Map {
-			if v.Type().Key().Kind() != reflect.String {
-				return v.Interface(), nil
-			}
-			m := map[string]any{}
-			it := v.MapRange()
-			for it.Next() {
-				x, e := wireNumbers(it.Value(), active)
-				if e != nil {
-					return nil, e
-				}
-				m[it.Key().String()] = x
-			}
-			return m, nil
+			return wireMap(v, active)
 		}
 		if v.Type().Elem().Kind() == reflect.Uint8 {
 			return v.Interface(), nil
 		}
-		a := make([]any, v.Len())
-		for i := range a {
-			x, e := wireNumbers(v.Index(i), active)
-			if e != nil {
-				return nil, e
-			}
-			a[i] = x
-		}
-		return a, nil
+		return wireList(v, active)
 	case reflect.Array:
-		a := make([]any, v.Len())
-		for i := range a {
-			x, e := wireNumbers(v.Index(i), active)
-			if e != nil {
-				return nil, e
-			}
-			a[i] = x
-		}
-		return a, nil
+		return wireList(v, active)
 	default:
 		return v.Interface(), nil
 	}
+}
+
+// wireFloat renders a finite float as a token that always reads as a float.
+func wireFloat(v reflect.Value) (any, error) {
+	f := v.Float()
+	if math.IsInf(f, 0) || math.IsNaN(f) {
+		return nil, &json.UnsupportedValueError{Value: v, Str: "non-finite float"}
+	}
+	s := strconv.FormatFloat(f, 'g', -1, v.Type().Bits())
+	if !strings.ContainsAny(s, ".eE") {
+		s += ".0"
+	}
+	return json.Number(s), nil
+}
+
+func wireMap(v reflect.Value, active map[visit]bool) (any, error) {
+	if v.Type().Key().Kind() != reflect.String {
+		return v.Interface(), nil
+	}
+	m := map[string]any{}
+	for it := v.MapRange(); it.Next(); {
+		x, e := wireNumbers(it.Value(), active)
+		if e != nil {
+			return nil, e
+		}
+		m[it.Key().String()] = x
+	}
+	return m, nil
+}
+
+func wireList(v reflect.Value, active map[visit]bool) (any, error) {
+	a := make([]any, v.Len())
+	for i := range a {
+		x, e := wireNumbers(v.Index(i), active)
+		if e != nil {
+			return nil, e
+		}
+		a[i] = x
+	}
+	return a, nil
 }

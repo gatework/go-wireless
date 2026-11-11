@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strings"
 	"unicode"
@@ -12,17 +13,25 @@ import (
 
 	"github.com/gatework/go-wireless/internal/bootstrap"
 
+	"golang.org/x/term"
+
 	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/report"
-	"golang.org/x/term"
 )
 
-const Version = "0.4.0"
+// Version is the release version of the wireless command.
+const Version = "0.5.0"
 
+// Executor runs one function per device with bounded concurrency.
 type Executor func(context.Context, int, []wireless.Record, func(context.Context, wireless.Record) error) error
+
+// Command replaces a built-in command, for embedding and tests.
 type Command func(context.Context, []string, *Runner) int
+
+// Dependencies are the injectable collaborators of the command line; zero
+// fields use production defaults.
 type Dependencies struct {
 	Environment      map[string]string
 	Input            io.Reader
@@ -44,8 +53,11 @@ type Dependencies struct {
 	// Terminal can be injected for stream tests; the default checks OS descriptors.
 	Terminal func(any) bool
 }
+
+// Runner runs wireless commands with its dependencies.
 type Runner struct{ Dependencies }
 
+// New creates a private batch directory under root.
 func New(d Dependencies) *Runner {
 	if d.Input == nil {
 		d.Input = os.Stdin
@@ -64,9 +76,7 @@ func New(d Dependencies) *Runner {
 		}
 	} else {
 		m := map[string]string{}
-		for k, v := range d.Environment {
-			m[k] = v
-		}
+		maps.Copy(m, d.Environment)
 		d.Environment = m
 	}
 	defaults := bootstrap.CollectionDefaults(bootstrap.CollectionDependencies{Registry: d.Registry, PrepareResources: d.PrepareResources, Execute: collectrun.Executor(d.Execute), NewReport: d.NewReport, ReportOptions: d.ReportOptions, RecommendationHook: d.RecommendationHook})
@@ -77,6 +87,8 @@ func New(d Dependencies) *Runner {
 	}
 	return &Runner{d}
 }
+
+// Run runs one command line and returns its exit code.
 func Run(ctx context.Context, argv []string, d Dependencies) int { return New(d).Run(ctx, argv) }
 func isTerminal(v any) bool {
 	if f, ok := v.(interface{ Fd() uintptr }); ok {
@@ -84,6 +96,10 @@ func isTerminal(v any) bool {
 	}
 	return false
 }
+
+// Help prints a bundled command help without configuration or input reads.
+func (r *Runner) Help(command string) int { return r.help(command, false) }
+
 func (r *Runner) usage() int {
 	_, e := fmt.Fprintln(r.Output, "用法：wireless collect [选项]  只读采集与报告\n      wireless parse [选项]    离线文件或 stdin 解析\n      wireless review [选项]   离线生成建议\n      wireless apply [选项]    交互式单设备变更\n      wireless --version\n使用 wireless <命令> --help 查看参数；collect --help-all 查看完整约定，collect/parse --examples 查看范例。")
 	if e != nil {
@@ -91,9 +107,6 @@ func (r *Runner) usage() int {
 	}
 	return 0
 }
-
-// Help prints a bundled command help without configuration or input reads.
-func (r *Runner) Help(command string) int { return r.help(command, false) }
 func (r *Runner) help(command string, all bool) int {
 	file := command
 	if all && command == "collect" {

@@ -1,3 +1,5 @@
+// Command library shows the parser used as a library: it parses an H3C
+// configuration offline and prints the observation as JSON.
 package main
 
 import (

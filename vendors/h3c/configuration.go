@@ -21,6 +21,15 @@ type configurationScope struct {
 	path   []any
 }
 
+// Scope heading and list patterns, compiled once.
+var (
+	groupTypeSuffix = regexp.MustCompile(`(?i)^type \S+$`)
+	apModelSuffix   = regexp.MustCompile(`(?i)^model \S+$`)
+	typePrefix      = regexp.MustCompile(`(?i)^type `)
+	modelPrefix     = regexp.MustCompile(`(?i)^model `)
+	staticListLine  = regexp.MustCompile(`^(?:undo )?wlan (?:client-security )?static-(black|white)list\b`)
+)
+
 func (s *configurationScope) settings() wireless.Record {
 	if s.kind == "ap_groups" || s.kind == "service_templates" {
 		return recordvalue.Map(s.record["configuration"])
@@ -130,17 +139,19 @@ func (p *configurationParser) globalScope(kind string, identity *string) *config
 	}
 	return &configurationScope{kind, record, path}
 }
+
+//nolint:nilnil // a line that opens no scope yields no scope
 func (p *configurationParser) rootScope(line string) (*configurationScope, error) {
 	if m := rootEntity.FindStringSubmatch(line); m != nil {
 		kind := map[string]string{"ap-group": "ap_groups", "service-template": "service_templates", "ap": "access_points"}[strings.ToLower(m[1])]
 		name, suffix := m[2], m[3]
-		if kind == "ap_groups" && suffix != "" && !regexp.MustCompile(`(?i)^type \S+$`).MatchString(suffix) {
+		if kind == "ap_groups" && suffix != "" && !groupTypeSuffix.MatchString(suffix) {
 			return nil, errors.New("invalid AP group type")
 		}
 		if kind == "service_templates" && suffix != "" {
 			return nil, errors.New("invalid service template")
 		}
-		if kind == "access_points" && !regexp.MustCompile(`(?i)^model \S+$`).MatchString(suffix) {
+		if kind == "access_points" && !apModelSuffix.MatchString(suffix) {
 			return nil, errors.New("missing AP model")
 		}
 		if p.names[kind] == nil {
@@ -156,19 +167,19 @@ func (p *configurationParser) rootScope(line string) (*configurationScope, error
 		case "ap_groups":
 			settings := wireless.Record{}
 			if suffix != "" {
-				settings["type"] = regexp.MustCompile(`(?i)^type `).ReplaceAllString(suffix, "")
+				settings["type"] = typePrefix.ReplaceAllString(suffix, "")
 			}
 			record = wireless.Record{"name": name, "ap_names": []any{}, "serial_ids": []any{}, "vlan_ids": []any{}, "model_profiles": wireless.Record{}, "configuration": settings}
 		case "service_templates":
 			record = wireless.Record{"name": name, "ssid": nil, "vlan_id": nil, "enabled": nil, "configuration": wireless.Record{"akm_modes": []any{}, "cipher_suites": []any{}, "security_ies": []any{}}}
 		case "access_points":
-			record = wireless.Record{"name": name, "model": regexp.MustCompile(`(?i)^model `).ReplaceAllString(suffix, ""), "radios": wireless.Record{}}
+			record = wireless.Record{"name": name, "model": modelPrefix.ReplaceAllString(suffix, ""), "radios": wireless.Record{}}
 		}
 		if kind == "access_points" {
 			recordvalue.Map(p.data[kind])[name] = record
 			identity = name
 		} else {
-			rows := p.data[kind].([]wireless.Record)
+			rows, _ := p.data[kind].([]wireless.Record)
 			identity = len(rows)
 			p.data[kind] = append(rows, record)
 		}
@@ -185,6 +196,8 @@ func (p *configurationParser) rootScope(line string) (*configurationScope, error
 	}
 	return nil, nil
 }
+
+//nolint:nilnil // a line that opens no scope yields no scope
 func (p *configurationParser) nestedScope(line string, owner *configurationScope) (*configurationScope, error) {
 	if m := nestedModel.FindStringSubmatch(line); m != nil {
 		if owner.kind != "ap_groups" {
@@ -285,8 +298,8 @@ func (p *configurationParser) unsupported(block *sourceBlock) {
 		pending = pending[:len(pending)-1]
 		p.source.states[b.index] = "unsupported"
 		p.issues = append(p.issues, wireless.Record{"code": "unrecognized_wireless_configuration", "line": b.index + 1})
-		for i := len(b.children) - 1; i >= 0; i-- {
-			pending = append(pending, b.children[i])
+		for _, v := range slices.Backward(b.children) {
+			pending = append(pending, v)
 		}
 	}
 }
@@ -299,8 +312,8 @@ func (p *configurationParser) ignore(block *sourceBlock) {
 			p.unsupported(b)
 		} else {
 			p.source.states[b.index] = "ignored"
-			for i := len(b.children) - 1; i >= 0; i-- {
-				pending = append(pending, b.children[i])
+			for _, v := range slices.Backward(b.children) {
+				pending = append(pending, v)
 			}
 		}
 	}
@@ -390,12 +403,12 @@ func (p *configurationParser) applyBlock(block *sourceBlock, scope *configuratio
 	}
 	if scope.kind == "global" {
 		line := p.source.lines[block.index].text
-		if regexp.MustCompile(`^(?:undo )?wlan (?:client-security )?static-(black|white)list\b`).MatchString(line) {
+		if staticListLine.MatchString(line) {
 			key := "whitelist"
 			if strings.Contains(line, "static-blacklist") {
 				key = "blacklist"
 			}
-			rows := p.data[key].([]wireless.Record)
+			rows, _ := p.data[key].([]wireless.Record)
 			p.source.capture(block, rows[len(rows)-1], []any{key, len(rows) - 1})
 		} else {
 			p.source.capture(block, scope.record, scope.path)
@@ -422,6 +435,7 @@ func (p *configurationParser) bindTemplate(record wireless.Record, name string, 
 		return nil
 	}
 	bindings[name] = binding
-	record["service_templates"] = append(record["service_templates"].([]wireless.Record), binding)
+	templates, _ := record["service_templates"].([]wireless.Record)
+	record["service_templates"] = append(templates, binding)
 	return nil
 }

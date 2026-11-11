@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -30,7 +31,7 @@ func TestHTTPInventoryThroughNativePaginationAndControllerRules(t *testing.T) {
 		t.Fatal(e)
 	}
 	requests := 0
-	rows, total, e := inventoryRows(o, context.Background(), func(ctx context.Context, settings bootstrap.InventorySettings) (netdisco.CacheResult, error) {
+	rows, total, e := inventoryRows(context.Background(), o, func(ctx context.Context, settings bootstrap.InventorySettings) (netdisco.CacheResult, error) {
 		httpOptions := settings.HTTP()
 		httpOptions.Client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
 			requests++
@@ -41,7 +42,7 @@ func TestHTTPInventoryThroughNativePaginationAndControllerRules(t *testing.T) {
 			if requests == 1 {
 				body = `[{"ip":"192.0.2.10","vendor":"H3C","model":"WX3540","name":"WLC"},{"ip":"192.0.2.11","vendor":"H3C","model":"S6520","name":"Switch"}]`
 			}
-			return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}}, nil
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{}}, nil
 		})}
 		return netdisco.FetchHTTP(ctx, httpOptions, settings.FetchOptions())
 	})
@@ -62,11 +63,11 @@ func TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache(t *testing.T) {
 		return []inventory.Device{{IP: "192.0.2.10", Vendor: "H3C", Model: "WX3540"}}, nil
 	})
 	factory := fixtureInventoryFetcher(source, "identity")
-	rows, _, e := inventoryRows(o, context.Background(), factory)
+	rows, _, e := inventoryRows(context.Background(), o, factory)
 	if e != nil || len(rows) != 1 || calls != 1 {
 		t.Fatal(rows, calls, e)
 	}
-	rows, _, e = inventoryRows(o, context.Background(), factory)
+	rows, _, e = inventoryRows(context.Background(), o, factory)
 	if e != nil || len(rows) != 1 || calls != 1 {
 		t.Fatal("cache not preferred", rows, calls, e)
 	}
@@ -74,7 +75,7 @@ func TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	rows, _, e = inventoryRows(only, context.Background(), fixtureInventoryFetcher(nil, "identity"))
+	rows, _, e = inventoryRows(context.Background(), only, fixtureInventoryFetcher(nil, "identity"))
 	if e != nil || len(rows) != 1 {
 		t.Fatal(rows, e)
 	}
@@ -82,7 +83,7 @@ func TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	rows, _, e = inventoryRows(refresh, context.Background(), fixtureInventoryFetcher(netdisco.SourceFunc(func(context.Context) ([]inventory.Device, error) { return nil, errors.New("private remote error") }), "identity"))
+	rows, _, e = inventoryRows(context.Background(), refresh, fixtureInventoryFetcher(netdisco.SourceFunc(func(context.Context) ([]inventory.Device, error) { return nil, errors.New("private remote error") }), "identity"))
 	if e != nil || len(rows) != 1 {
 		t.Fatal("no cache fallback", rows, e)
 	}
@@ -93,7 +94,7 @@ func TestCacheOnlyAndRefreshFallbackUseNativeVerifiedCache(t *testing.T) {
 	if e = os.WriteFile(paths[0], []byte(`{"schema":1,"identity":"tampered","fetched_at":0,"rows":[]}`), 0600); e != nil {
 		t.Fatal(e)
 	}
-	if _, _, e = inventoryRows(only, context.Background(), factory); e == nil {
+	if _, _, e = inventoryRows(context.Background(), only, factory); e == nil {
 		t.Fatal("tampered cache accepted")
 	}
 }
@@ -155,7 +156,7 @@ func TestInitializationPreservesPublicSchemaDefaults(t *testing.T) {
 	}
 }
 
-func inventoryRows(o *bootstrap.Options, ctx context.Context, fetch bootstrap.InventoryFetcher) ([]wireless.Record, int, error) {
+func inventoryRows(ctx context.Context, o *bootstrap.Options, fetch bootstrap.InventoryFetcher) ([]wireless.Record, int, error) {
 	result, err := o.FetchInventory(ctx, fetch)
 	return result.Devices, result.Total, err
 }
@@ -166,10 +167,30 @@ func fixtureInventoryFetcher(source netdisco.Source, identity string) bootstrap.
 			rows, err := source.Devices(ctx)
 			return netdisco.CacheResult{Rows: rows, Status: netdisco.CacheStatusDisabled}, err
 		}
-		cache, err := netdisco.NewCache(source, netdisco.CacheOptions{Directory: policy.Cache.Directory, Identity: identity, TTL: policy.Cache.TTL, Limits: settings.HTTP().Limits})
-		if err != nil {
-			return netdisco.CacheResult{}, err
-		}
-		return cache.Fetch(ctx, policy.Mode)
+		options := settings.HTTP()
+		options.URL, options.Username, options.Password, options.APIKey = "https://fixture.invalid", "fixture", "", "fixture-key"
+		policy.Cache.Namespace = identity
+		options.Client = &http.Client{Transport: roundTrip(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Query().Get("offset") != "0" {
+				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("[]"))}, nil
+			}
+			if source == nil {
+				return nil, errors.New("cache-only unexpectedly reached source")
+			}
+			rows, err := source.Devices(r.Context())
+			if err != nil {
+				return nil, err
+			}
+			wire := make([]map[string]string, len(rows))
+			for i, row := range rows {
+				wire[i] = map[string]string{"ip": row.IP, "name": row.Name, "dns": row.DNS, "vendor": row.Vendor, "os": row.OS, "model": row.Model, "os_ver": row.OSVersion, "serial": row.Serial}
+			}
+			data, err := json.Marshal(wire)
+			if err != nil {
+				return nil, err
+			}
+			return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(data))}, nil
+		})}
+		return netdisco.FetchHTTP(ctx, options, policy)
 	}
 }

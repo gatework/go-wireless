@@ -20,7 +20,7 @@ const (
 // execution owns progress independently of journal records. Durable intent makes
 // failures uncertain; only a successful Write acknowledges a command.
 type execution struct {
-	plan                 change.ChangePlan
+	plan                 change.Plan
 	planSHA256           string
 	commands             []string
 	status               executionStatus
@@ -35,7 +35,7 @@ type execution struct {
 	diagnostics          diagnostics
 }
 
-func newExecution(plan change.ChangePlan, planSHA256 string) *execution {
+func newExecution(plan change.Plan, planSHA256 string) *execution {
 	return &execution{plan: plan, planSHA256: planSHA256, commands: plan.Commands(), status: confirmed, stage: "connect"}
 }
 

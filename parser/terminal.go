@@ -11,6 +11,8 @@ import (
 var terminalInvalid = rx(`(?i)--[ \t]*More[ \t]*--|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]`)
 var terminalUnsupported = rx(`(?i)^[ \t]*(?:%[ \t]*)?(?:Unrecognized command\b|Wrong parameter\b|Invalid (?:input|command)\b|Unknown command\b|Error:[^\r\n]*\bcommand\b)[^\r\n]*`)
 
+// TerminalUnsupported reports whether the device rejected the command
+// (outside a login banner).
 func TerminalUnsupported(text string) bool {
 	b := parsetext.Banner{}
 	for _, line := range SourceLines(text) {
@@ -20,7 +22,13 @@ func TerminalUnsupported(text string) bool {
 	}
 	return false
 }
+
+// TerminalInvalid reports paging prompts or control characters, which make
+// output untrustworthy.
 func TerminalInvalid(text string) bool { return terminalInvalid.MatchString(text) }
+
+// TerminalIssue returns an invalid_terminal_output issue for the first
+// invalid line, or nil.
 func TerminalIssue(text string) wireless.Record {
 	if !TerminalInvalid(text) {
 		return nil
@@ -32,6 +40,9 @@ func TerminalIssue(text string) wireless.Record {
 	}
 	return nil
 }
+
+// SourceLines splits text into lines on LF, CRLF or CR, without a trailing
+// empty line.
 func SourceLines(text string) []string {
 	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
 	lines := strings.Split(text, "\n")

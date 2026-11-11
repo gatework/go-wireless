@@ -14,11 +14,13 @@ import (
 	"github.com/gatework/go-wireless/parser"
 )
 
+// Session runs the profile's declared collection commands on one controller
+// device.
 type Session struct {
 	device       *connector.Device
 	profile      parser.Profile
 	commands     map[string]bool
-	closeFailure atomic.Pointer[wireless.Failure]
+	closeFailure atomic.Pointer[wireless.FailureError]
 }
 
 // Borrow binds a validated query profile without connecting or owning device close.
@@ -26,7 +28,7 @@ func Borrow(device *connector.Device, profile *parser.Profile) (*Session, error)
 	if device == nil {
 		return nil, errors.New("wireless: device required")
 	}
-	if !profile.Valid() || !profile.MatchesConnector(device.ProfileName()) {
+	if !profile.Valid() || !profile.MatchesConnector(device.PlatformName()) {
 		return nil, errors.New("wireless: connector profile mismatch")
 	}
 	scope, err := profile.CollectionScope(profile.Dimensions())
@@ -39,8 +41,12 @@ func Borrow(device *connector.Device, profile *parser.Profile) (*Session, error)
 	}
 	return &Session{device: device, profile: *profile, commands: commands}, nil
 }
-func (*Session) String() string                        { return "wireless.adapter.Session" }
-func (s *Session) GoString() string                    { return s.String() }
+func (*Session) String() string { return "wireless.adapter.Session" }
+
+// GoString formats metadata only.
+func (s *Session) GoString() string { return s.String() }
+
+// State reports whether the controller session is still connected.
 func (s *Session) State(context.Context) (bool, error) { return s.device.Connected(), nil }
 
 // Open owns only the explicitly supplied device's connect/callback/close lifecycle.
@@ -103,6 +109,8 @@ func receipt(command string, result connector.Result, err error) collect.Receipt
 		Attempted: len(attempts) > 0, Success: f == nil, Failure: f,
 	})
 }
+
+// Execute runs one declared command and returns its receipt.
 func (s *Session) Execute(ctx context.Context, command string) (collect.Receipt, error) {
 	if !s.commands[command] {
 		return collect.Receipt{}, wireless.NewFailure("invalid_command_result", "execute")
@@ -132,7 +140,7 @@ func (s *Session) Execute(ctx context.Context, command string) (collect.Receipt,
 }
 
 // CloseFailure retains the first retirement failure for hosts borrowing a Session.
-func (s *Session) CloseFailure() *wireless.Failure {
+func (s *Session) CloseFailure() *wireless.FailureError {
 	f := s.closeFailure.Load()
 	if f == nil {
 		return nil
