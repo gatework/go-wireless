@@ -255,32 +255,48 @@ func DeriveBaseline(controllers []*wlan.Controller) wlan.Baseline {
 	for _, c := range controllers {
 		e := wlan.Expectation{}
 		if h3c(c) && c.Has(wlan.DimConfiguration) && c.Configuration != nil {
-			e.ServiceTemplates = map[string]wlan.TemplateExpectation{}
-			for _, t := range c.Configuration.ServiceTemplates {
-				e.ServiceTemplates[t.Name] = wlan.TemplateExpectation{SSID: t.SSID, VLAN: t.VLANID, Enabled: t.Enabled,
-					AKMModes: nonNil(t.Configuration.AKMModes), CipherSuites: nonNil(t.Configuration.CipherSuites), SecurityIEs: nonNil(t.Configuration.SecurityIEs)}
-			}
-			if ip := c.Configuration.GlobalSettings.BackupACIP; ip != "" {
-				e.BackupAC = &ip
-			}
+			e.ServiceTemplates, e.BackupAC = configurationExpectation(c.Configuration)
 		}
 		if c.Has(wlan.DimAccessPoints) {
-			byModel := map[string][]drift.Member[string]{}
-			for _, ap := range c.AccessPoints {
-				if ap.Model != "" && ap.OSVersion != "" {
-					byModel[ap.Model] = append(byModel[ap.Model], drift.Member[string]{Value: ap.OSVersion, Present: true})
-				}
-			}
-			for model, members := range byModel {
-				if v, ok, _ := drift.Consensus("", members); ok {
-					if e.APFirmware == nil {
-						e.APFirmware = map[string]string{}
-					}
-					e.APFirmware[model] = v
-				}
-			}
+			e.APFirmware = firmwareConsensus(c.AccessPoints)
 		}
 		b.Controllers[c.Host] = e
 	}
 	return b
+}
+
+// configurationExpectation drafts the template and backup AC expectations
+// from a configuration.
+func configurationExpectation(cfg *wlan.Configuration) (map[string]wlan.TemplateExpectation, *string) {
+	templates := map[string]wlan.TemplateExpectation{}
+	for _, t := range cfg.ServiceTemplates {
+		templates[t.Name] = wlan.TemplateExpectation{SSID: t.SSID, VLAN: t.VLANID, Enabled: t.Enabled,
+			AKMModes: nonNil(t.Configuration.AKMModes), CipherSuites: nonNil(t.Configuration.CipherSuites), SecurityIEs: nonNil(t.Configuration.SecurityIEs)}
+	}
+	var backup *string
+	if ip := cfg.GlobalSettings.BackupACIP; ip != "" {
+		backup = &ip
+	}
+	return templates, backup
+}
+
+// firmwareConsensus returns the plurality firmware per AP model, or nil when
+// no model has one.
+func firmwareConsensus(aps []wlan.AccessPoint) map[string]string {
+	byModel := map[string][]drift.Member[string]{}
+	for _, ap := range aps {
+		if ap.Model != "" && ap.OSVersion != "" {
+			byModel[ap.Model] = append(byModel[ap.Model], drift.Member[string]{Value: ap.OSVersion, Present: true})
+		}
+	}
+	var out map[string]string
+	for model, members := range byModel {
+		if v, ok, _ := drift.Consensus("", members); ok {
+			if out == nil {
+				out = map[string]string{}
+			}
+			out[model] = v
+		}
+	}
+	return out
 }

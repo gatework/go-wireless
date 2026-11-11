@@ -519,63 +519,83 @@ func (a *Assessor) Assess(ctx context.Context, controllers []*wlan.Controller) (
 // AssessWith also compares controllers with a baseline and a previous batch.
 func (a *Assessor) AssessWith(ctx context.Context, controllers []*wlan.Controller, in Inputs) (Report, error) {
 	r := Report{SchemaVersion: assess.SchemaVersion, Controllers: []ControllerAssessment{}, Counts: map[assess.Severity]int{}}
-	add := func(as assess.Assessment) {
-		for sev, n := range as.Counts {
-			r.Counts[sev] += n
-		}
-		r.Highest = max(r.Highest, as.Highest())
-		r.Incomplete = r.Incomplete || as.Incomplete()
-	}
 	for _, c := range controllers {
 		as, err := a.engine.Run(ctx, c, c.Coverage)
 		if err != nil {
 			return Report{}, err
 		}
-		add(as)
+		r.add(as)
 		r.Controllers = append(r.Controllers, ControllerAssessment{Controller: c.Identity, Coverage: c.Coverage, Assessment: as})
 	}
-	if b := in.Baseline; b != nil {
-		if err := b.Validate(); err != nil {
+	if in.Baseline != nil {
+		if err := a.assessBaseline(ctx, &r, controllers, in.Baseline); err != nil {
 			return Report{}, err
-		}
-		for _, c := range controllers {
-			as, err := a.baseline.Run(ctx, &BaselineScope{Controller: c, Expect: b.For(c.Host)}, c.Coverage)
-			if err != nil {
-				return Report{}, err
-			}
-			add(as)
-			r.Baseline = append(r.Baseline, ControllerAssessment{Controller: c.Identity, Coverage: c.Coverage, Assessment: as})
 		}
 	}
 	if in.Previous != nil {
-		before := map[string]*wlan.Controller{}
-		for _, c := range in.Previous {
-			before[c.Host] = c
+		if err := a.assessChanges(ctx, &r, controllers, in.Previous); err != nil {
+			return Report{}, err
 		}
-		now := map[string]bool{}
-		for _, c := range controllers {
-			now[c.Host] = true
-			p, ok := before[c.Host]
-			if !ok {
-				r.Appeared = append(r.Appeared, c.Host)
-				continue
-			}
-			change := &Change{Previous: p, Current: c}
-			as, err := a.temporal.Run(ctx, change, change.Coverage())
-			if err != nil {
-				return Report{}, err
-			}
-			add(as)
-			r.Changes = append(r.Changes, ControllerAssessment{Controller: c.Identity, Coverage: change.Coverage(), Assessment: as})
-		}
-		for _, c := range in.Previous {
-			if !now[c.Host] {
-				r.Disappeared = append(r.Disappeared, c.Host)
-			}
-		}
-		slices.Sort(r.Appeared)
-		slices.Sort(r.Disappeared)
-		r.Incomplete = r.Incomplete || len(r.Disappeared) > 0
 	}
 	return r, nil
+}
+
+// add folds one assessment into the report totals.
+func (r *Report) add(as assess.Assessment) {
+	for sev, n := range as.Counts {
+		r.Counts[sev] += n
+	}
+	r.Highest = max(r.Highest, as.Highest())
+	r.Incomplete = r.Incomplete || as.Incomplete()
+}
+
+// assessBaseline compares every controller with its baseline expectation.
+func (a *Assessor) assessBaseline(ctx context.Context, r *Report, controllers []*wlan.Controller, b *wlan.Baseline) error {
+	if err := b.Validate(); err != nil {
+		return err
+	}
+	for _, c := range controllers {
+		as, err := a.baseline.Run(ctx, &BaselineScope{Controller: c, Expect: b.For(c.Host)}, c.Coverage)
+		if err != nil {
+			return err
+		}
+		r.add(as)
+		r.Baseline = append(r.Baseline, ControllerAssessment{Controller: c.Identity, Coverage: c.Coverage, Assessment: as})
+	}
+	return nil
+}
+
+// assessChanges compares every controller with its previous snapshot and
+// records controllers that appeared or disappeared; a disappeared controller
+// makes the report incomplete.
+func (a *Assessor) assessChanges(ctx context.Context, r *Report, controllers, previous []*wlan.Controller) error {
+	before := map[string]*wlan.Controller{}
+	for _, c := range previous {
+		before[c.Host] = c
+	}
+	now := map[string]bool{}
+	for _, c := range controllers {
+		now[c.Host] = true
+		p, ok := before[c.Host]
+		if !ok {
+			r.Appeared = append(r.Appeared, c.Host)
+			continue
+		}
+		change := &Change{Previous: p, Current: c}
+		as, err := a.temporal.Run(ctx, change, change.Coverage())
+		if err != nil {
+			return err
+		}
+		r.add(as)
+		r.Changes = append(r.Changes, ControllerAssessment{Controller: c.Identity, Coverage: change.Coverage(), Assessment: as})
+	}
+	for _, c := range previous {
+		if !now[c.Host] {
+			r.Disappeared = append(r.Disappeared, c.Host)
+		}
+	}
+	slices.Sort(r.Appeared)
+	slices.Sort(r.Disappeared)
+	r.Incomplete = r.Incomplete || len(r.Disappeared) > 0
+	return nil
 }

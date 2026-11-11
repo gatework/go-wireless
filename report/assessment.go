@@ -159,35 +159,15 @@ func (r *Report) WriteAssessment(ctx context.Context, doc wireless.Record, c *wl
 	if err := r.Publish(ctx, prefix+".txt", []byte(assessmentText(doc, a, source, sourceSHA, len(planned)))); err != nil {
 		return nil, err
 	}
-	verify := []string{}
-	for _, f := range a.Assessment.Findings {
-		for _, cmd := range f.Verify {
-			if !slices.Contains(verify, cmd) {
-				verify = append(verify, cmd)
-			}
-		}
-	}
-	if err := r.Publish(ctx, prefix+".verify.cli", []byte(strings.Join(verify, "\n")+"\n")); err != nil {
+	if err := r.Publish(ctx, prefix+".verify.cli", []byte(strings.Join(verifyCommands(a.Assessment.Findings), "\n")+"\n")); err != nil {
 		return nil, err
 	}
 	if scripts {
 		if err := r.writeScripts(ctx, prefix, a.Assessment); err != nil {
 			return nil, err
 		}
-		if config := firstConfiguration(doc); config != nil {
-			for i, cand := range planned {
-				plan, err := planRecord(doc, config, source, sourceSHA, cand)
-				if err != nil {
-					return nil, err
-				}
-				body, err := jsonBody(plan)
-				if err != nil {
-					return nil, err
-				}
-				if err := r.Publish(ctx, fmt.Sprintf("%s.%d.plan.json", prefix, i+1), body); err != nil {
-					return nil, err
-				}
-			}
+		if err := r.writePlans(ctx, prefix, doc, source, sourceSHA, planned); err != nil {
+			return nil, err
 		}
 	}
 	counts := wireless.Record{}
@@ -195,6 +175,43 @@ func (r *Report) WriteAssessment(ctx context.Context, doc wireless.Record, c *wl
 		counts[sev.String()] = n
 	}
 	return wireless.Record{"device": doc["device"], "counts": counts, "highest": a.Assessment.Highest().String(), "report": prefix + ".txt", "source": source, "source_sha256": sourceSHA}, nil
+}
+
+// verifyCommands lists the findings' verification commands once each, in
+// order.
+func verifyCommands(findings []assess.Finding) []string {
+	out := []string{}
+	for _, f := range findings {
+		for _, cmd := range f.Verify {
+			if !slices.Contains(out, cmd) {
+				out = append(out, cmd)
+			}
+		}
+	}
+	return out
+}
+
+// writePlans publishes one plan per eligible candidate, bound to the
+// fingerprint of the collected configuration record.
+func (r *Report) writePlans(ctx context.Context, prefix string, doc wireless.Record, source, sourceSHA string, planned []candidate) error {
+	config := firstConfiguration(doc)
+	if config == nil {
+		return nil
+	}
+	for i, cand := range planned {
+		plan, err := planRecord(doc, config, source, sourceSHA, cand)
+		if err != nil {
+			return err
+		}
+		body, err := jsonBody(plan)
+		if err != nil {
+			return err
+		}
+		if err := r.Publish(ctx, fmt.Sprintf("%s.%d.plan.json", prefix, i+1), body); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeScripts publishes the commented, review-only candidate and rollback
@@ -239,59 +256,72 @@ func assessmentText(doc wireless.Record, a rules.ControllerAssessment, source, s
 	var b strings.Builder
 	fmt.Fprintf(&b, "%v（%v）风险评估与修复建议\n\n仅供审阅，未执行。证据时间：%v；来源：%v\n\n源文件 SHA256：%v\n\n", device["name"], device["host"], observed, source, sourceSHA)
 	b.WriteString("先重采确认配置未变化，再逐项确认前提；禁止整批直接粘贴。回退前确认本次变更实际生效且无并行修改。\n证据完整性不代表网络健康；证据不完整的规则不会给出结论。\n\n")
-	skipped := 0
-	for _, o := range a.Assessment.Rules {
-		if o.State == assess.RuleSkipped {
-			skipped++
-		}
-	}
-	if skipped > 0 {
+	if skipped := skippedRules(a.Assessment); skipped > 0 {
 		fmt.Fprintf(&b, "因证据不完整而跳过的规则：%d 项\n\n", skipped)
 	}
 	if len(a.Assessment.Findings) == 0 {
 		b.WriteString("当前规则没有命中；不代表网络健康或已覆盖所有配置问题。\n")
 	}
 	for i, f := range a.Assessment.Findings {
-		fmt.Fprintf(&b, "%d. [%s] %s — %s\n规则：%s；类别：%s\n", i+1, strings.ToUpper(f.Severity.String()), f.Title, f.Subject.String(), f.Rule, f.Category)
-		if f.Detail != "" {
-			fmt.Fprintf(&b, "说明：%s\n", f.Detail)
-		}
-		if f.Expected != nil || f.Actual != nil {
-			e, _ := json.Marshal(f.Expected)
-			x, _ := json.Marshal(f.Actual)
-			fmt.Fprintf(&b, "期望：%s\n实际：%s\n", e, x)
-		}
-		if r := f.Remediation; r != nil {
-			fmt.Fprintf(&b, "修复：%s\n", r.Status)
-			for _, field := range []struct {
-				label  string
-				values []string
-			}{{"适用条件", r.Prerequisites}, {"待补信息", r.Blockers}, {"候选配置（未执行）", r.Commands}, {"条件回退", r.Rollback}} {
-				if len(field.values) == 0 {
-					continue
-				}
-				fmt.Fprintf(&b, "%s：\n", field.label)
-				for _, v := range field.values {
-					fmt.Fprintf(&b, "  %s\n", v)
-				}
-			}
-			if r.Impact != "" {
-				fmt.Fprintf(&b, "影响：%s\n", r.Impact)
-			}
-			if r.Expected != "" {
-				fmt.Fprintf(&b, "验收：%s\n", r.Expected)
-			}
-		}
-		if len(f.Verify) > 0 {
-			fmt.Fprintf(&b, "只读核查 / 验收命令：%s\n", strings.Join(f.Verify, "；"))
-		}
-		if len(f.References) > 0 {
-			fmt.Fprintf(&b, "命令参考：%s\n", strings.Join(f.References, " "))
-		}
-		b.WriteString("\n")
+		writeFinding(&b, i+1, f)
 	}
 	if plans > 0 {
 		fmt.Fprintf(&b, "可执行计划：%d 项（同名 .<序号>.plan.json，apply 前会重新核对配置指纹）\n", plans)
 	}
 	return b.String()
+}
+
+func skippedRules(a assess.Assessment) int {
+	n := 0
+	for _, o := range a.Rules {
+		if o.State == assess.RuleSkipped {
+			n++
+		}
+	}
+	return n
+}
+
+// writeFinding writes finding n of the report text.
+func writeFinding(b *strings.Builder, n int, f assess.Finding) {
+	fmt.Fprintf(b, "%d. [%s] %s — %s\n规则：%s；类别：%s\n", n, strings.ToUpper(f.Severity.String()), f.Title, f.Subject.String(), f.Rule, f.Category)
+	if f.Detail != "" {
+		fmt.Fprintf(b, "说明：%s\n", f.Detail)
+	}
+	if f.Expected != nil || f.Actual != nil {
+		e, _ := json.Marshal(f.Expected)
+		x, _ := json.Marshal(f.Actual)
+		fmt.Fprintf(b, "期望：%s\n实际：%s\n", e, x)
+	}
+	if r := f.Remediation; r != nil {
+		writeRemediation(b, r)
+	}
+	if len(f.Verify) > 0 {
+		fmt.Fprintf(b, "只读核查 / 验收命令：%s\n", strings.Join(f.Verify, "；"))
+	}
+	if len(f.References) > 0 {
+		fmt.Fprintf(b, "命令参考：%s\n", strings.Join(f.References, " "))
+	}
+	b.WriteString("\n")
+}
+
+func writeRemediation(b *strings.Builder, r *assess.Remediation) {
+	fmt.Fprintf(b, "修复：%s\n", r.Status)
+	for _, field := range []struct {
+		label  string
+		values []string
+	}{{"适用条件", r.Prerequisites}, {"待补信息", r.Blockers}, {"候选配置（未执行）", r.Commands}, {"条件回退", r.Rollback}} {
+		if len(field.values) == 0 {
+			continue
+		}
+		fmt.Fprintf(b, "%s：\n", field.label)
+		for _, v := range field.values {
+			fmt.Fprintf(b, "  %s\n", v)
+		}
+	}
+	if r.Impact != "" {
+		fmt.Fprintf(b, "影响：%s\n", r.Impact)
+	}
+	if r.Expected != "" {
+		fmt.Fprintf(b, "验收：%s\n", r.Expected)
+	}
 }
