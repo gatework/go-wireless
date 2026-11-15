@@ -65,11 +65,11 @@ type Rates struct {
 
 // Portal configures portal authentication on a template.
 type Portal struct {
-	Domain                string `json:"domain,omitempty"`
-	BASIP                 string `json:"bas_ip,omitempty"`
-	EnableMethod          string `json:"enable_method,omitempty"`
-	ApplyWebServer        *bool  `json:"apply_web_server,omitempty"`
-	ApplyMACTriggerServer string `json:"apply_mac_trigger_server,omitempty"`
+	Domain                string           `json:"domain,omitempty"`
+	BASIP                 string           `json:"bas_ip,omitempty"`
+	EnableMethod          string           `json:"enable_method,omitempty"`
+	ApplyWebServer        *ServerReference `json:"apply_web_server,omitempty"`
+	ApplyMACTriggerServer *ServerReference `json:"apply_mac_trigger_server,omitempty"`
 }
 
 // LicenseGroup is the AC license-sharing group.
@@ -143,6 +143,7 @@ type Settings struct {
 	ServiceTemplates    []TemplateBinding   `json:"service_templates,omitempty"`
 	BandDefaults        map[string]Settings `json:"band_defaults,omitempty"` // 2.4g, 5g, 6g
 	Radios              map[string]Settings `json:"radios,omitempty"`        // radio id
+	VLANID              *int                `json:"vlan_id,omitempty"`
 	EthernetPorts       map[string]Settings `json:"ethernet_ports,omitempty"`
 
 	// Service template security and client policy.

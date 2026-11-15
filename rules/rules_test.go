@@ -164,3 +164,23 @@ func TestOpenSSIDAndBackupAC(t *testing.T) {
 		t.Fatal("backup AC ignored")
 	}
 }
+
+func TestRuntimeRulesRequireCompleteEvidence(t *testing.T) {
+	for _, status := range []evidence.Status{evidence.StatusPartial, evidence.StatusFailed, evidence.StatusUnsupported, evidence.StatusNotRequested} {
+		t.Run(string(status), func(t *testing.T) {
+			c := h3c()
+			c.Coverage[wlan.DimRadios] = status
+			c.Coverage[wlan.DimAccessPoints] = status
+			c.Coverage[wlan.DimIPConflicts] = status
+			c.Radios = []wlan.Radio{{APName: "synthetic", RadioID: "1", AdminStatus: "Down"}}
+			c.AccessPoints = []wlan.AccessPoint{{Name: "synthetic", OperationalStatus: "Idle"}}
+			c.IPConflicts = []wlan.IPConflict{{IPAddress: "192.0.2.1"}}
+			fs := run(t, c, assess.Policy{})
+			for _, id := range []assess.RuleID{"wireless.radio_admin_down", "wireless.ap_not_running", "wireless.client_ip_conflict_history"} {
+				if len(by(fs, id)) != 0 {
+					t.Errorf("%s evaluated %s evidence", id, status)
+				}
+			}
+		})
+	}
+}

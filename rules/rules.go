@@ -211,7 +211,8 @@ var templateBinding = assess.NewRule(assess.RuleMeta{
 
 var ipConflictHistory = assess.NewRule(assess.RuleMeta{
 	ID: "wireless.client_ip_conflict_history", Title: "存在历史客户端 IP 冲突记录", Severity: assess.SeverityLow, Category: assess.CategoryRuntime,
-	Verify: []evidence.Dimension{wlan.DimIPConflicts, wlan.DimClients},
+	Requires: []evidence.Dimension{wlan.DimIPConflicts},
+	Verify:   []evidence.Dimension{wlan.DimIPConflicts, wlan.DimClients},
 }, func(in input) []assess.Finding {
 	if !h3c(in.Model) || len(in.Model.IPConflicts) == 0 {
 		return nil
@@ -254,7 +255,8 @@ func NormalizeAPState(raw string) APState {
 
 var apNotRunning = assess.NewRule(assess.RuleMeta{
 	ID: "wireless.ap_not_running", Title: "AP 未处于运行状态", Severity: assess.SeverityHigh, Category: assess.CategoryRuntime,
-	Verify: []evidence.Dimension{wlan.DimAccessPoints},
+	Requires: []evidence.Dimension{wlan.DimAccessPoints},
+	Verify:   []evidence.Dimension{wlan.DimAccessPoints},
 }, func(in input) []assess.Finding {
 	var out []assess.Finding
 	for _, ap := range in.Model.AccessPoints {
@@ -275,7 +277,8 @@ func apName(ap wlan.AccessPoint) string {
 
 var radioAdminDown = assess.NewRule(assess.RuleMeta{
 	ID: "wireless.radio_admin_down", Title: "存在管理状态 Down 的射频", Severity: assess.SeverityLow, Category: assess.CategoryRuntime,
-	Verify: []evidence.Dimension{wlan.DimAccessPoints, wlan.DimConfiguration},
+	Requires: []evidence.Dimension{wlan.DimRadios},
+	Verify:   []evidence.Dimension{wlan.DimRadios, wlan.DimConfiguration},
 }, func(in input) []assess.Finding {
 	if !h3c(in.Model) {
 		return nil

@@ -117,7 +117,7 @@ var h3cAP = map[string]string{
 }
 var h3cRadio = map[string]string{
 	"admin state":         "admin_status",
-	"state":               "admin_status",
+	"state":               "operational_status",
 	"radio type":          "protocol",
 	"type":                "protocol",
 	"channel":             "channel",

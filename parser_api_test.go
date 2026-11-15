@@ -282,3 +282,22 @@ func TestAPProfileRequiresPreparationAndNeighborDeclaration(t *testing.T) {
 		}
 	}
 }
+
+func TestRadioAdministrativeAndOperationalState(t *testing.T) {
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := "Total APs: 1\nAP name: synthetic\n Radio 1:\n  State: Down\n Radio 2:\n  State: Down\n  Admin state: Up\n"
+	o, err := profile.Parse(wireless.Radios, body, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := o.Records()
+	if !o.Complete() || len(rows) != 2 {
+		t.Fatalf("radio evidence: %v", o.Issues())
+	}
+	if rows[0]["operational_status"] != "Down" || rows[0]["admin_status"] != nil || rows[1]["operational_status"] != "Down" || rows[1]["admin_status"] != "Up" {
+		t.Fatal("radio states conflated")
+	}
+}

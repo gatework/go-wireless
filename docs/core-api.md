@@ -293,3 +293,25 @@ enter normalized facts; known URL fields retain presence booleans.
 
 Canonical fingerprints, typed security changes, generic historical report
 validation and recommendation APIs are documented in `docs/change-api.md`.
+
+## Runtime evidence corrections
+
+H3C radio `State` is `operational_status`; only `Admin state` supplies
+`admin_status`. `wlan.Radio.OperationalStatus` preserves this distinction.
+Existing reports with `admin_status` populated by older parsers have ambiguous
+provenance: recollect before treating them as administrative evidence.
+
+`wlan.Settings.VLANID` models VLAN configuration in nested Ethernet scopes.
+`Portal.ApplyWebServer` and `ApplyMACTriggerServer` are now `*ServerReference`:
+`Name` holds a named server, while `URLPresent` holds the redacted URL presence.
+The existing JSON string/boolean/null representation is preserved; URL contents
+remain absent. Go callers that supplied `*bool` use
+`&wlan.ServerReference{URLPresent: flag}` instead. Both fields cannot be set.
+Strict model decoding remains enabled and unknown facts still downgrade coverage.
+
+AP, radio and historical IP-conflict rules require their corresponding complete
+runtime dimension. `Verify` identifies follow-up commands; it does not authorize
+assessment of incomplete evidence. Four frozen Ruby AP cases intentionally differ:
+`9f07faa51a2a959b`, `e3c47f36c867ddfc`, `f14f4af0e72d1abc`, and
+`f69c6445b9e25311` map radio State to operational status. Original fixtures and
+checksums remain unchanged.

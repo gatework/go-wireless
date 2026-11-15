@@ -34,15 +34,16 @@ type AccessPoint struct {
 
 // Radio is one AP radio.
 type Radio struct {
-	APName       string   `json:"ap_name,omitempty"`
-	RadioID      string   `json:"radio_id,omitempty"`
-	AdminStatus  string   `json:"admin_status,omitempty"`
-	Protocol     string   `json:"protocol,omitempty"`
-	Channel      *int     `json:"channel,omitempty"`
-	ChannelWidth *Number  `json:"channel_width,omitempty"`
-	NoiseDBm     *float64 `json:"noise_dbm,omitempty"`
-	Utilization  *int     `json:"utilization,omitempty"` // percent
-	Details      Details  `json:"details,omitempty"`
+	APName            string   `json:"ap_name,omitempty"`
+	RadioID           string   `json:"radio_id,omitempty"`
+	AdminStatus       string   `json:"admin_status,omitempty"`
+	OperationalStatus string   `json:"operational_status,omitempty"`
+	Protocol          string   `json:"protocol,omitempty"`
+	Channel           *int     `json:"channel,omitempty"`
+	ChannelWidth      *Number  `json:"channel_width,omitempty"`
+	NoiseDBm          *float64 `json:"noise_dbm,omitempty"`
+	Utilization       *int     `json:"utilization,omitempty"` // percent
+	Details           Details  `json:"details,omitempty"`
 }
 
 // BSS is one basic service set.

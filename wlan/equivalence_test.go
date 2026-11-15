@@ -259,3 +259,50 @@ func TestUnmodeledFieldDowngradesDimension(t *testing.T) {
 		t.Fatalf("unmodeled field accepted: %+v", c)
 	}
 }
+
+func TestConfigurationRuntimeSyntaxDecodesLosslessly(t *testing.T) {
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []string{
+		"wlan ap AP1 model MODEL\n ethernet 1\n  vlan 20\n#\nreturn\n",
+		"wlan service-template WEB\n ssid Synthetic\n portal apply web-server named-server\n#\nreturn\n",
+		"wlan service-template WEB\n portal apply web-server https://private.invalid/token\n#\nreturn\n",
+	} {
+		t.Run(strings.Fields(input)[1]+strings.Fields(input)[2], func(t *testing.T) {
+			o, err := profile.Parse(wireless.Configuration, input, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			obs := wlan.Observed{Status: evidence.Status(o.Status())}
+			for _, rec := range o.Records() {
+				b, err := wireless.MarshalJSON(rec)
+				if err != nil {
+					t.Fatal(err)
+				}
+				obs.Records = append(obs.Records, b)
+			}
+			c := wlan.NewController(wlan.Identity{}, map[evidence.Dimension]wlan.Observed{wlan.DimConfiguration: obs})
+			if !c.Has(wlan.DimConfiguration) {
+				t.Fatalf("configuration did not decode: %v", c.Issues)
+			}
+			b, err := json.Marshal([]any{c.Configuration})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := lossless(generic(t, mustJSON(t, o.Records())), generic(t, b), "configuration"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := wireless.MarshalJSON(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
