@@ -153,3 +153,17 @@ running APs that disappeared or went down, LLDP uplink switch/port changes,
 AP firmware changes, and service templates added, removed or changed. A
 dimension incomplete in either batch infers no change; controllers present
 in only one batch are listed as `appeared` / `disappeared`.
+
+## Source indexing
+
+Published `github.com/gatework/parser v0.2.1` owns immutable raw text, SHA-256,
+physical lines and spans. Wireless keeps vendor syntax, block traversal and the
+existing pending/parsed/ignored/unsupported/invalid diagnostics. A cursor's parsed
+bit is not a substitute for those states. Each parse owns its indexing/traversal
+state; no mutable cursor is shared across calls or profiles.
+
+`ConfigurationSource` retains its public accessors and metadata-only formatting.
+It indexes the exact source once and captures raw spans without newline rewriting.
+Sources are admitted with 32 MiB and 400,000 physical-line limits; over-budget
+input produces failed `source_limit_exceeded` evidence with no partial source.
+Existing tighter file/transport limits still apply. No new operator flag is needed.

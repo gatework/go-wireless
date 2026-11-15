@@ -10,6 +10,8 @@ github.com/gatework/go-net-connector v0.7.1 h1:FR0qtxC8Nm2ii57AvfhX5BRFwpoiG60qg
 github.com/gatework/go-net-connector v0.7.1/go.mod h1:9E6N3dHlwa/iWLDagzanMD+mq1RMV+LEED9auXjB5Lw=
 github.com/gatework/go-netops v0.3.0 h1:sTHaPudEL1IqZh8FzM7AkAOO5Sh25xD+i29nNOVDyNg=
 github.com/gatework/go-netops v0.3.0/go.mod h1:JpEw01h81Ji9LXQFDFayosgz5cLmfoqRBmmN4rRKpAE=
+github.com/gatework/parser v0.2.1 h1:hhjicYLCLyq5gD8QGo04nS4+mq/MtgatJoGsyOB5cz8=
+github.com/gatework/parser v0.2.1/go.mod h1:OsmQl2b6ftdgzG04SUfs0SCA3bPg57BycfzJrMXyjXQ=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=

@@ -301,3 +301,14 @@ func TestRadioAdministrativeAndOperationalState(t *testing.T) {
 		t.Fatal("radio states conflated")
 	}
 }
+
+func TestConfigurationSourceRejectsPhysicalLineLimit(t *testing.T) {
+	source, err := h3c.ParseConfigurationSource("sysname synthetic\n"+strings.Repeat("\n", 400000), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := source.Observation()
+	if o.Status() != wireless.Failed || len(o.Issues()) != 1 || o.Issues()[0]["code"] != "source_limit_exceeded" || source.Content() != "" {
+		t.Fatal("oversized configuration accepted or retained")
+	}
+}
