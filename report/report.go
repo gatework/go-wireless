@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gatework/go-net-connector/storage"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/storage"
 )
 
 // DimensionSummary is one dimension's status, record count and issue codes in

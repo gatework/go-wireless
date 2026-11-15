@@ -7,12 +7,12 @@ import (
 
 	"github.com/gatework/go-wireless/vendors"
 
-	"github.com/gatework/go-net-connector/connector"
-	"github.com/gatework/go-net-connector/fleet"
-	"github.com/gatework/go-net-connector/inventory"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/parser"
+	"github.com/gatework/net-connector/connector"
+	"github.com/gatework/net-connector/fleet"
+	"github.com/gatework/net-connector/inventory"
 )
 
 type sshSettings struct {

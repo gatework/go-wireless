@@ -16,7 +16,7 @@
 
 配置指纹不再与 Ruby 字节兼容：它是 go-netops 规范 JSON（键排序、数字保持原文、不转义 HTML）对 `MarshalJSON` 线上编码的 SHA-256，因此实时回读与存储的 JSON 指纹一致；无效 UTF-8 被拒绝而不是替换。唯一受控写动作是原 Ruby 已有的 wireless_security；其他诊断保持复核建议，不能生成自动写动作。
 
-运行依赖使用正式 `go-net-connector v0.7.1` / `go-expect v0.6.0`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
+运行依赖使用正式 `net-connector v0.9.0` / `go-expect v0.6.0`，版本和校验和以 `go.mod/go.sum` 为准。构建不使用冻结源码或本地 workspace。Ruby 来源哈希和 oracle fixture 用于行为回归，不作为 Go 运行依赖；实际验证范围见 [验证说明](verification.md)。
 
 ## 全部 Ruby lib 文件
 
@@ -117,3 +117,12 @@
 ## v0.4.0 依赖升级
 
 共享 `net-connector.yml` 中的 `tftp.h3c_source_file`、`tftp.h3c_wireless_source_file`、`tftp.huawei_source_file` 分别改为 `tftp.source_files.h3c`、`tftp.source_files.h3c_wireless`、`tftp.source_files.huawei`。旧键在设备连接前报错。清单缓存仍使用 `prefer` / `refresh` / `only`。
+
+## net-connector v0.9.0 migration
+
+The module path is now `github.com/gatework/net-connector`. Registry users import
+`platform.Registry`; raw inventory vendors remain source data, while resolved
+records expose `Platform`. Shared inventory selectors use `include_platforms`,
+`exclude_platforms` and `platform_overrides`; device rules retain `vendor` for
+matching the source and use `platform` for the destination. Shared SSH protocol
+maps use `platform_protocols`. Old keys fail strict configuration validation.

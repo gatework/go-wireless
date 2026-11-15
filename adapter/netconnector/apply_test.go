@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
 	changes "github.com/gatework/go-wireless/change"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/wlan"
+	"github.com/gatework/net-connector/connector"
 )
 
 func TestNativeApplyOneLeaseCompleteReadback(t *testing.T) {

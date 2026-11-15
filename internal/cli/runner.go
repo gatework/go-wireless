@@ -15,14 +15,14 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/report"
+	ncplatform "github.com/gatework/net-connector/platform"
 )
 
 // Version is the release version of the wireless command.
-const Version = "0.5.0"
+const Version = "0.6.0"
 
 // Executor runs one function per device with bounded concurrency.
 type Executor func(context.Context, int, []wireless.Record, func(context.Context, wireless.Record) error) error
@@ -37,7 +37,7 @@ type Dependencies struct {
 	Input            io.Reader
 	Output, Error    io.Writer
 	Discovery        bootstrap.Discovery
-	Registry         dialect.Registry
+	Registry         ncplatform.Registry
 	SessionFactory   bootstrap.SessionFactory
 	ApplyFactory     bootstrap.ApplyFactory
 	InventoryFetch   bootstrap.InventoryFetcher

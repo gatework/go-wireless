@@ -16,13 +16,13 @@ import (
 
 	"github.com/gatework/go-wireless/internal/bootstrap"
 
-	"github.com/gatework/go-net-connector/connector"
-	"github.com/gatework/go-net-connector/inventory"
-	"github.com/gatework/go-net-connector/netdisco"
-	"github.com/gatework/go-net-connector/storage"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/report"
+	"github.com/gatework/net-connector/connector"
+	"github.com/gatework/net-connector/inventory"
+	"github.com/gatework/net-connector/netdisco"
+	"github.com/gatework/net-connector/storage"
 )
 
 func panicFactory(context.Context, wireless.Record, connector.ConnectionConfig) (bootstrap.Connection, error) {

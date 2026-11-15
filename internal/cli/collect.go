@@ -9,9 +9,9 @@ import (
 
 	"github.com/gatework/go-wireless/internal/bootstrap"
 
-	"github.com/gatework/go-net-connector/netdisco"
 	wireless "github.com/gatework/go-wireless"
 	collectrun "github.com/gatework/go-wireless/internal/workflow/collect"
+	"github.com/gatework/net-connector/netdisco"
 )
 
 func (r *Runner) collect(ctx context.Context, o *commandOptions) int {

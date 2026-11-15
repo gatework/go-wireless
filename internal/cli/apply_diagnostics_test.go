@@ -15,11 +15,11 @@ import (
 
 	"github.com/gatework/go-wireless/internal/bootstrap"
 
-	"github.com/gatework/go-net-connector/connector"
-	"github.com/gatework/go-net-connector/storage"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/change"
 	"github.com/gatework/go-wireless/report"
+	"github.com/gatework/net-connector/connector"
+	"github.com/gatework/net-connector/storage"
 )
 
 func TestApplyRetainsIndependentSafeDiagnostics(t *testing.T) {

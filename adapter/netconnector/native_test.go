@@ -16,10 +16,10 @@ import (
 	"github.com/gatework/go-wireless/vendors"
 
 	expect "github.com/gatework/go-expect"
-	"github.com/gatework/go-net-connector/connector"
-	ncvendors "github.com/gatework/go-net-connector/vendors"
 	"github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
+	"github.com/gatework/net-connector/connector"
+	ncvendors "github.com/gatework/net-connector/vendors"
 )
 
 type exchange struct{ send, reply string }

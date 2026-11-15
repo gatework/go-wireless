@@ -195,7 +195,7 @@ func (p *Profile) Model() string {
 	return p.model
 }
 
-// ConnectorPlatform returns the go-net-connector platform used to reach the
+// ConnectorPlatform returns the net-connector platform used to reach the
 // device.
 func (p *Profile) ConnectorPlatform() string {
 	if !p.Valid() {

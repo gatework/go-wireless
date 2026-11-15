@@ -8,9 +8,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/report"
+	"github.com/gatework/net-connector/connector"
 )
 
 type progress struct {
