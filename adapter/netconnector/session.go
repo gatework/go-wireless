@@ -7,11 +7,11 @@ import (
 	"sync/atomic"
 
 	expect "github.com/gatework/go-expect"
-	"github.com/gatework/go-net-connector/connector"
 	"github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/internal/nativeerr"
 	"github.com/gatework/go-wireless/parser"
+	"github.com/gatework/net-connector/connector"
 )
 
 // Session runs the profile's declared collection commands on one controller

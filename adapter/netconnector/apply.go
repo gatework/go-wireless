@@ -7,10 +7,10 @@ import (
 
 	"github.com/gatework/go-wireless/vendors"
 
-	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/change"
 	"github.com/gatework/go-wireless/internal/nativeerr"
+	"github.com/gatework/net-connector/connector"
 )
 
 // Apply opens once and owns one operation for preparation, precheck, all writes

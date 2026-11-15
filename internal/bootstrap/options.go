@@ -19,10 +19,10 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	ncconfig "github.com/gatework/go-net-connector/config"
-	"github.com/gatework/go-net-connector/inventory"
-	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
+	ncconfig "github.com/gatework/net-connector/config"
+	"github.com/gatework/net-connector/inventory"
+	ncplatform "github.com/gatework/net-connector/platform"
 )
 
 //go:embed templates/*
@@ -55,7 +55,7 @@ type Options struct {
 	selectedConfig, selectedEnv, userDirectory string
 	explicitConfig, explicitEnv                bool
 	applicable                                 bool
-	registry                                   dialect.Registry
+	registry                                   ncplatform.Registry
 }
 
 func copyMap(m wireless.Record) wireless.Record {

@@ -5,10 +5,10 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/gatework/go-net-connector/connector"
-	ncvendors "github.com/gatework/go-net-connector/vendors"
-	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/connector"
+	ncplatform "github.com/gatework/net-connector/platform"
+	ncvendors "github.com/gatework/net-connector/vendors"
 )
 
 // Request carries explicit configuration inputs; presentation flags stay in CLI.
@@ -21,7 +21,7 @@ type Request struct {
 
 // NewOptions returns unloaded options for a command request;
 // LoadConfiguration fills them.
-func NewOptions(request Request, discovery Discovery, registry dialect.Registry) *Options {
+func NewOptions(request Request, discovery Discovery, registry ncplatform.Registry) *Options {
 	if registry == nil {
 		registry = ncvendors.NewBuiltinRegistry()
 	}
@@ -31,7 +31,7 @@ func NewOptions(request Request, discovery Discovery, registry dialect.Registry)
 
 // LoadConfiguration resolves configuration once, without inventory or device I/O.
 // Initialization requests load only the environment snapshot required by templates.
-func LoadConfiguration(ctx context.Context, request Request, environment map[string]string, discovery Discovery, registry dialect.Registry) (*Options, error) {
+func LoadConfiguration(ctx context.Context, request Request, environment map[string]string, discovery Discovery, registry ncplatform.Registry) (*Options, error) {
 	o := NewOptions(request, discovery, registry)
 	if err := o.loadEnvironment(ctx, environment); err != nil {
 		return nil, err

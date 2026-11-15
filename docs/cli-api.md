@@ -67,7 +67,7 @@ Discovery, deduplicated in order: `/etc/net-connector`,
 `$HOME/.config/net-connector`), executable directory, launch CWD. Each directory
 loads `.env`, then flat `net-connector.yml` and `wireless.yml`. Shared configuration is validated
 against the full connector schema, then projects only netdisco/inventory and
-SSH host_key_policy/known_hosts. Shared protocol/vendor_protocols/logging fields
+SSH host_key_policy/known_hosts. Shared protocol/platform_protocols/logging fields
 do not change wireless behavior. Wireless SSH port/timeouts remain in wireless.yml.
 Legacy common/wireless containers fail with an explicit migration diagnostic.
 Explicit env/config files are applied last. Blank WIRELESS_CONFIG selectors are
@@ -112,7 +112,7 @@ before Wireless CLI selectors. General H3C switches never become controllers.
 The verbatim initialized YAML defaults HTTP cache enabled/prefer, TTL 259200s,
 page 500, max_pages 10000, max_response_bytes 16777216,
 max_inventory_bytes 134217728, max_devices 100000, inventory_timeout 300s,
-allow_insecure_http false, include_vendors [h3c_wireless], SSH accept_new.
+allow_insecure_http false, include_platforms [h3c_wireless], SSH accept_new.
 Init creates missing user-directory files with 0600, publishes exclusively by
 hard link, fsyncs, preserves existing files, and does not read inventory. NC_PARALLEL
 inheritance is kept out of generated YAML unless WIRELESS_PARALLEL or CLI explicitly

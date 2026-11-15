@@ -10,9 +10,9 @@ import (
 
 	"github.com/gatework/go-wireless/vendors"
 
-	"github.com/gatework/go-net-connector/inventory"
-	"github.com/gatework/go-net-connector/netdisco"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/inventory"
+	"github.com/gatework/net-connector/netdisco"
 )
 
 // InventorySettings owns only source and cache settings. It never exposes the
@@ -168,8 +168,8 @@ func (o *Options) FetchInventory(ctx context.Context, fetch InventoryFetcher) (I
 		targets = []wireless.Record{}
 		for _, device := range result.Cache.Rows {
 			record := r.rules.Record(device)
-			profile, err := vendors.NewBuiltinRegistry().Fetch(record.Vendor, record.Model)
-			if record.Issue != "" || err != nil || profile.ConnectorPlatform() != record.Vendor {
+			profile, err := vendors.NewBuiltinRegistry().Fetch(record.Platform, record.Model)
+			if record.Issue != "" || err != nil || profile.ConnectorPlatform() != record.Platform {
 				continue
 			}
 			var model any
@@ -180,7 +180,7 @@ func (o *Options) FetchInventory(ctx context.Context, fetch InventoryFetcher) (I
 			if name == "" {
 				name = record.Host
 			}
-			targets = append(targets, wireless.Record{"host": record.Host, "name": name, "model": model, "platform": record.Vendor})
+			targets = append(targets, wireless.Record{"host": record.Host, "name": name, "model": model, "platform": record.Platform})
 		}
 		rows := make([]any, len(targets))
 		for i, device := range targets {

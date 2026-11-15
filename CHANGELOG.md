@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.0
+
+- Upgrade the published transport dependency to net-connector v0.9.0 and shared operations to go-netops v0.4.0.
+- Migrate registry contracts to platform and inventory selectors, overrides and device-rule destinations to platform names.
+- Preserve scoped controller/AP queries, accepted receipts and cleanup failures; retain strict host trust and no automatic replay.
+
 ## v0.5.0
 
 - Introduce typed WLAN models, go-netops assessments and typed template-security changes.

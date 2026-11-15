@@ -12,13 +12,13 @@ import (
 
 	"github.com/gatework/go-wireless/vendors"
 
-	ncconfig "github.com/gatework/go-net-connector/config"
-	"github.com/gatework/go-net-connector/fleet"
-	"github.com/gatework/go-net-connector/inventory"
-	"github.com/gatework/go-net-connector/netdisco"
-	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/parser"
+	ncconfig "github.com/gatework/net-connector/config"
+	"github.com/gatework/net-connector/fleet"
+	"github.com/gatework/net-connector/inventory"
+	"github.com/gatework/net-connector/netdisco"
+	ncplatform "github.com/gatework/net-connector/platform"
 )
 
 func (o *Options) loadInventoryPolicy(ctx context.Context) error {
@@ -173,7 +173,7 @@ func scalarParams(params []any) bool {
 }
 
 // inventoryRules builds the fleet rules from the inventory settings.
-func inventoryRules(data wireless.Record, registry dialect.Registry) (*fleet.Rules, error) {
+func inventoryRules(data wireless.Record, registry ncplatform.Registry) (*fleet.Rules, error) {
 	i, _ := data["inventory"].(map[string]any)
 	lists, e := selectionLists(i)
 	if e != nil {
@@ -192,10 +192,10 @@ func inventoryRules(data wireless.Record, registry dialect.Registry) (*fleet.Rul
 			IncludeHosts: lists["include_hosts"], ExcludeHosts: lists["exclude_hosts"],
 			IncludeNames: lists["include_names"], ExcludeNames: lists["exclude_names"],
 			IncludeModels: lists["include_models"], ExcludeModels: lists["exclude_models"],
-			IncludeVendors: lists["include_vendors"], ExcludeVendors: lists["exclude_vendors"],
+			IncludePlatforms: lists["include_platforms"], ExcludePlatforms: lists["exclude_platforms"],
 			NameMatch: StringValue(i["name_match"]), ModelMatch: StringValue(i["model_match"]),
 		},
-		Mappings: mappings, VendorOverrides: overrides["vendor_overrides"], HostOverrides: overrides["host_overrides"],
+		Mappings: mappings, PlatformOverrides: overrides["platform_overrides"], HostOverrides: overrides["host_overrides"],
 	}, registry)
 	if e != nil {
 		return nil, ErrOptions
@@ -205,7 +205,7 @@ func inventoryRules(data wireless.Record, registry dialect.Registry) (*fleet.Rul
 
 func selectionLists(i map[string]any) (map[string][]string, error) {
 	lists := map[string][]string{}
-	for _, k := range []string{"include_hosts", "exclude_hosts", "include_names", "exclude_names", "include_models", "exclude_models", "include_vendors", "exclude_vendors"} {
+	for _, k := range []string{"include_hosts", "exclude_hosts", "include_names", "exclude_names", "include_models", "exclude_models", "include_platforms", "exclude_platforms"} {
 		if v, ok := i[k]; ok {
 			a, e := stringList(v)
 			if e != nil {
@@ -245,12 +245,12 @@ func deviceMappings(i map[string]any) ([]fleet.Mapping, error) {
 
 func deviceMapping(m map[string]any) (fleet.Mapping, error) {
 	for k := range m {
-		if !in(k, "vendor", "connector", "os", "model_prefix") {
+		if !in(k, "vendor", "platform", "os", "model_prefix") {
 			return fleet.Mapping{}, ErrOptions
 		}
 	}
-	rule := fleet.Mapping{Vendor: StringValue(m["vendor"]), Connector: StringValue(m["connector"])}
-	if strings.TrimSpace(rule.Vendor) == "" || strings.TrimSpace(rule.Connector) == "" {
+	rule := fleet.Mapping{Vendor: StringValue(m["vendor"]), Platform: StringValue(m["platform"])}
+	if strings.TrimSpace(rule.Vendor) == "" || strings.TrimSpace(rule.Platform) == "" {
 		return fleet.Mapping{}, ErrOptions
 	}
 	for _, k := range []string{"os", "model_prefix"} {
@@ -271,10 +271,10 @@ func deviceMapping(m map[string]any) (fleet.Mapping, error) {
 	return rule, nil
 }
 
-// inventoryOverrides decodes vendor_overrides and host_overrides as string maps.
+// inventoryOverrides decodes platform_overrides and host_overrides as string maps.
 func inventoryOverrides(i map[string]any) (map[string]map[string]string, error) {
 	overrides := map[string]map[string]string{}
-	for _, k := range []string{"vendor_overrides", "host_overrides"} {
+	for _, k := range []string{"platform_overrides", "host_overrides"} {
 		values := map[string]string{}
 		if v, ok := i[k]; ok {
 			m, ok := v.(map[string]any)

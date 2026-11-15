@@ -28,7 +28,7 @@ declared:
 rules:
   - name: domain packages never reach transport, presentation or composition
     packages: [., ./wlan, ./rules, ./change, ./parser, ./collect, ./vendors/...]
-    deny: [github.com/gatework/go-net-connector/..., github.com/gatework/go-expect/...,
+    deny: [github.com/gatework/net-connector/..., github.com/gatework/go-expect/...,
            github.com/spf13/cobra/..., golang.org/x/term/...,
            ./internal/bootstrap/..., ./internal/cli/..., ./internal/workflow/..., ./adapter/..., ./report/...]
     transitive: true
@@ -69,7 +69,7 @@ rules:
   - name: workflows never import composition, transport or presentation
     packages: [./internal/workflow/...]
     deny: [./internal/cli/..., ./internal/bootstrap/..., ./adapter/..., ./vendors/...,
-           github.com/gatework/go-net-connector/..., github.com/gatework/go-expect/...,
+           github.com/gatework/net-connector/..., github.com/gatework/go-expect/...,
            github.com/spf13/..., golang.org/x/term/...]
 
   - name: the apply workflow does not depend on concrete publication

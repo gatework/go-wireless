@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gatework/go-net-connector/inventory"
-	"github.com/gatework/go-net-connector/netdisco"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/inventory"
+	"github.com/gatework/net-connector/netdisco"
 )
 
 func TestOptionsExecutionOwnsConfigurationAndCredentials(t *testing.T) {

@@ -138,7 +138,7 @@ def main():
         run(["go", "build", "-o", str(temporary / "wireless"), "./cmd/wireless"], exported, env)
         run(["go", "run", "./examples/library"], exported, env)
         dependencies = output(["go", "list", "-deps", "."], exported, env)
-        require("go-net-connector" not in dependencies and "go-expect" not in dependencies,
+        require("net-connector" not in dependencies and "go-expect" not in dependencies,
                 "core package imports a transport dependency")
         proxy = temporary / "proxy"
         version = publish_local_module(exported, selected, proxy)
