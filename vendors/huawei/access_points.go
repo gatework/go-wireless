@@ -37,9 +37,18 @@ var huaweiClientHeader = regexp.MustCompile(`(?i)^STA MAC\s+AP ID\s+Ap name\s+Rf
 var huaweiSkip = regexp.MustCompile(`(?i)^Total AP information:|^(?:nor|fault|idle|stdby)\s*:`)
 
 func parseHuawei(dim wireless.Dimension, text string, complete bool) parser.Result {
+	content, err := parsetext.NewContent(text)
+	if err != nil {
+		return parser.FailedResult("source_limit_exceeded")
+	}
+	for line := range content.All() {
+		if parser.TerminalInvalid(line.Raw) {
+			return parser.Result{Status: wireless.Partial, Issues: []wireless.Record{{"code": "invalid_terminal_output", "line": line.Number}}}
+		}
+	}
 	t := &huaweiTable{dim: dim, records: []wireless.Record{}, issues: []wireless.Record{}}
-	for index, line := range parser.SourceLines(text) {
-		t.line(index, parsetext.Strip(line))
+	for line := range content.All() {
+		t.line(line.Number-1, parsetext.Strip(line.Text))
 	}
 	if !t.header {
 		t.issues = append(t.issues, wireless.Record{"code": "missing_header"})

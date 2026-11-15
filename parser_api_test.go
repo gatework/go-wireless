@@ -312,3 +312,14 @@ func TestConfigurationSourceRejectsPhysicalLineLimit(t *testing.T) {
 		t.Fatal("oversized configuration accepted or retained")
 	}
 }
+
+func TestRuntimeSourceRejectsPhysicalLineLimit(t *testing.T) {
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o, err := profile.Parse(wireless.Clients, strings.Repeat("\n", 400001), true)
+	if err != nil || o.Status() != wireless.Failed || o.Issues()[0]["code"] != "source_limit_exceeded" {
+		t.Fatal("runtime physical limit not enforced")
+	}
+}

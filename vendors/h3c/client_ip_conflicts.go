@@ -14,10 +14,11 @@ import (
 var conflictHeader = regexp.MustCompile(`(?i)^IP\s+New-MAC/APID\s+Old-MAC/APID\s+Time$`)
 var conflictRow = regexp.MustCompile(`^(\S+)\s+(\S+)/(\d+)\s+(\S+)/(\d+)\s+(\d{2}-\d{2} \d{2}:\d{2}:\d{2})$`)
 
-func (p *parseState) parseConflicts(text string, complete bool) parser.Result {
+func (p *parseState) parseConflicts(complete bool) parser.Result {
 	records, issues := []wireless.Record{}, []wireless.Record{}
 	header := false
-	for index, line := range parser.SourceLines(text) {
+	for sourceLine := range p.source.All() {
+		index, line := sourceLine.Number-1, sourceLine.Text
 		row := parsetext.Strip(line)
 		if row == "" || separatorLine.MatchString(row) {
 			continue

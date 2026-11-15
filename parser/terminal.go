@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"strings"
+	source "github.com/gatework/parser"
 
 	parsetext "github.com/gatework/go-wireless/internal/parsetext"
 
@@ -44,10 +44,11 @@ func TerminalIssue(text string) wireless.Record {
 // SourceLines splits text into lines on LF, CRLF or CR, without a trailing
 // empty line.
 func SourceLines(text string) []string {
-	text = strings.ReplaceAll(strings.ReplaceAll(text, "\r\n", "\n"), "\r", "\n")
-	lines := strings.Split(text, "\n")
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
+	// An in-memory string cannot have more physical lines than bytes.
+	content, _ := source.New(text, source.Limits{MaxBytes: max(1, len(text)), MaxLines: max(1, len(text))})
+	lines := make([]string, 0, content.Len())
+	for line := range content.All() {
+		lines = append(lines, line.Text)
 	}
 	return lines
 }

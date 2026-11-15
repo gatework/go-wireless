@@ -16,9 +16,10 @@ var blockedRow = regexp.MustCompile(`(?i)^((?:[0-9a-f]{4}-){2}[0-9a-f]{4}|(?:[0-
 // noBlockedClients is the output for an empty block list.
 var noBlockedClients = regexp.MustCompile(`(?i)^No blocked clients\s*$`)
 
-func (p *parseState) parseBlocked(text string, complete bool) parser.Result {
+func (p *parseState) parseBlocked(complete bool) parser.Result {
 	records, issues := []wireless.Record{}, []wireless.Record{}
-	for index, line := range parser.SourceLines(text) {
+	for sourceLine := range p.source.All() {
+		index, line := sourceLine.Number-1, sourceLine.Text
 		row := parsetext.Strip(line)
 		if row == "" || separatorLine.MatchString(row) || blockedSkip.MatchString(row) {
 			continue
@@ -30,8 +31,8 @@ func (p *parseState) parseBlocked(text string, complete bool) parser.Result {
 			issues = append(issues, wireless.Record{"code": "unrecognized_line", "line": index + 1})
 		}
 	}
-	total := reportedTotal(text, "(?:blocked clients|clients|entries)", &issues, nil, "")
-	if noBlockedClients.MatchString(parsetext.Strip(text)) {
+	total := p.reportedTotal("(?:blocked clients|clients|entries)", &issues, nil)
+	if noBlockedClients.MatchString(parsetext.Strip(p.source.Text())) {
 		total = big.NewInt(0)
 	}
 	return parser.FieldsResult(records, issues, complete, total, []string{"mac_address"})

@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 
+	source "github.com/gatework/parser"
+
 	parsetext "github.com/gatework/go-wireless/internal/parsetext"
 	recordvalue "github.com/gatework/go-wireless/internal/record"
 	fields "github.com/gatework/go-wireless/vendors/internal/fields"
@@ -23,9 +25,12 @@ type assignment struct {
 }
 type parseState struct {
 	assignments map[uintptr]map[string]*assignment
+	source      *source.Content
 }
 
-func newParseState() *parseState { return &parseState{map[uintptr]map[string]*assignment{}} }
+func newParseState(content *source.Content) *parseState {
+	return &parseState{assignments: map[uintptr]map[string]*assignment{}, source: content}
+}
 func (p *parseState) assign(record wireless.Record, field string, value any, issues *[]wireless.Record, line int, identities ...string) {
 	id := field
 	if len(identities) > 0 {
@@ -70,9 +75,10 @@ type parsedField struct {
 	line, indent int
 }
 
-func readFields(text string, issues *[]wireless.Record) []parsedField {
+func (p *parseState) readFields(issues *[]wireless.Record) []parsedField {
 	fields := []parsedField{}
-	for index, line := range parser.SourceLines(text) {
+	for sourceLine := range p.source.All() {
+		index, line := sourceLine.Number-1, sourceLine.Text
 		row := parsetext.Strip(line)
 		if row == "" || separatorLine.MatchString(row) {
 			continue
@@ -96,24 +102,45 @@ func readFields(text string, issues *[]wireless.Record) []parsedField {
 	}
 	return fields
 }
-func reportedTotal(text, noun string, issues *[]wireless.Record, continuations map[int]bool, auxiliary string) *big.Int {
-	prefix := regexp.MustCompile(`(?i)^(?:Total\b|Number of (?:` + noun + `)\b|Current BSS number\b)`)
-	pattern := regexp.MustCompile(`(?i)^(?:Total(?: number of)?(?:\s+(?:` + noun + `))?|Number of (?:` + noun + `)|Current BSS number)\s*:\s*(\d+)\s*$`)
-	var aux *regexp.Regexp
-	if auxiliary != "" {
-		aux = regexp.MustCompile(`(?i)^Total(?: number of)? (?:` + auxiliary + `)\s*:\s*\d+\s*$`)
+
+// totalSyntax is immutable count grammar for one declared command family.
+type totalSyntax struct{ prefix, pattern, auxiliary *regexp.Regexp }
+
+func compileTotal(noun, auxiliary string) totalSyntax {
+	t := totalSyntax{
+		prefix:  regexp.MustCompile(`(?i)^(?:Total\b|Number of (?:` + noun + `)\b|Current BSS number\b)`),
+		pattern: regexp.MustCompile(`(?i)^(?:Total(?: number of)?(?:\s+(?:` + noun + `))?|Number of (?:` + noun + `)|Current BSS number)\s*:\s*(\d+)\s*$`),
 	}
+	if auxiliary != "" {
+		t.auxiliary = regexp.MustCompile(`(?i)^Total(?: number of)? (?:` + auxiliary + `)\s*:\s*\d+\s*$`)
+	}
+	return t
+}
+
+var totalPatterns = map[string]totalSyntax{
+	"APs":                                 compileTotal("APs", "connected (?:(?:manual |auto |common )?APs|WTUs)|inside APs|AP licenses"),
+	"AP models":                           compileTotal("AP models", ""),
+	"BSSs?":                               compileTotal("BSSs?", ""),
+	"clients":                             compileTotal("clients", ""),
+	"(?:connections|users|online users)":  compileTotal("(?:connections|users|online users)", ""),
+	"(?:blocked clients|clients|entries)": compileTotal("(?:blocked clients|clients|entries)", ""),
+	"(?:LLDP )?neighbors":                 compileTotal("(?:LLDP )?neighbors", ""),
+}
+
+func (p *parseState) reportedTotal(noun string, issues *[]wireless.Record, continuations map[int]bool) *big.Int {
+	syntax := totalPatterns[noun]
 	var total *big.Int
 	different := false
-	for i, line := range parser.SourceLines(text) {
+	for sourceLine := range p.source.All() {
+		i, line := sourceLine.Number-1, sourceLine.Text
 		row := parsetext.Strip(line)
-		if continuations[i+1] || !prefix.MatchString(row) {
+		if continuations[i+1] || !syntax.prefix.MatchString(row) {
 			continue
 		}
-		if aux != nil && aux.MatchString(row) {
+		if syntax.auxiliary != nil && syntax.auxiliary.MatchString(row) {
 			continue
 		}
-		m := pattern.FindStringSubmatch(row)
+		m := syntax.pattern.FindStringSubmatch(row)
 		if m == nil {
 			*issues = append(*issues, wireless.Record{"code": "invalid_total", "line": i + 1})
 			continue
@@ -240,11 +267,11 @@ func schemaFor(dim wireless.Dimension) recordSchema {
 	}
 }
 
-func (p *parseState) parseRecords(dim wireless.Dimension, text string, complete bool) parser.Result {
+func (p *parseState) parseRecords(dim wireless.Dimension, complete bool) parser.Result {
 	schema := schemaFor(dim)
 	issues := []wireless.Record{}
 	records := []wireless.Record{}
-	fields := readFields(text, &issues)
+	fields := p.readFields(&issues)
 	start := ""
 	if dim == wireless.BSSes {
 		start = bssStart(fields)
@@ -262,7 +289,7 @@ func (p *parseState) parseRecords(dim wireless.Dimension, text string, complete 
 		p.recordField(dim, schema, current, f, &issues)
 	}
 	valid := validRecords(dim, schema.identity[0], records, &issues)
-	total := reportedTotal(text, schema.noun, &issues, nil, "")
+	total := p.reportedTotal(schema.noun, &issues, nil)
 	return parser.FieldsResult(valid, issues, complete, total, schema.identity)
 }
 

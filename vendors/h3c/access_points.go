@@ -14,12 +14,12 @@ import (
 
 var radioLabel = regexp.MustCompile(`^radio (\d+)$`)
 
-func (p *parseState) parseAPs(text string, complete bool) map[wireless.Dimension]parser.Result {
+func (p *parseState) parseAPs(complete bool) map[wireless.Dimension]parser.Result {
 	a := &apScan{state: p, aps: []wireless.Record{}, radios: []wireless.Record{}, issues: []wireless.Record{}, radioEvidence: map[uintptr]bool{}}
-	for _, f := range readFields(text, &a.issues) {
+	for _, f := range p.readFields(&a.issues) {
 		a.field(f)
 	}
-	return a.results(text, complete)
+	return a.results(complete)
 }
 
 // apScan is the state of one AP listing parse, which yields both the AP and
@@ -90,7 +90,7 @@ func (a *apScan) radioField(f parsedField) bool {
 
 // results validates identities and counts and returns the AP and radio
 // results.
-func (a *apScan) results(text string, complete bool) map[wireless.Dimension]parser.Result {
+func (a *apScan) results(complete bool) map[wireless.Dimension]parser.Result {
 	valid := []wireless.Record{}
 	invalid := false
 	for _, r := range a.aps {
@@ -114,7 +114,7 @@ func (a *apScan) results(text string, complete bool) map[wireless.Dimension]pars
 			validRadios = append(validRadios, r)
 		}
 	}
-	total := reportedTotal(text, "APs", &a.issues, nil, "connected (?:(?:manual |auto |common )?APs|WTUs)|inside APs|AP licenses")
+	total := a.state.reportedTotal("APs", &a.issues, nil)
 	if total != nil && total.Cmp(big.NewInt(int64(len(valid)))) != 0 {
 		a.issues = append(a.issues, wireless.Record{"code": "count_mismatch", "expected": record.IntegerJSON(total), "parsed": len(valid)})
 	}

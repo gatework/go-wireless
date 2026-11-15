@@ -18,16 +18,17 @@ var neighborEmpty = regexp.MustCompile(`(?i)^No (?:LLDP )?neighbors\s*$`)
 var neighborSkip = regexp.MustCompile(`(?i)^(?:LLDP agent\s+[^:]+:|(?:Total|Number of neighbors).*:\s*\d+)\s*$`)
 var neighborField = regexp.MustCompile(`^([^:]+):\s*(.*?)$`)
 
-func (p *parseState) parseNeighbors(text string, complete bool) parser.Result {
+func (p *parseState) parseNeighbors(complete bool) parser.Result {
 	n := &neighborScan{state: p, records: []wireless.Record{}, issues: []wireless.Record{}, ports: []string{}, seenPorts: map[string]bool{},
 		emptyPorts: map[any]int{}, descriptionIndent: -1, continuations: map[int]bool{}}
-	for index, line := range parser.SourceLines(text) {
+	for sourceLine := range p.source.All() {
+		index, line := sourceLine.Number-1, sourceLine.Text
 		n.line(index, line)
 	}
 	n.storeDescription()
 	n.flush()
 	n.portIssues()
-	total := n.total(text)
+	total := n.total()
 	return parser.FieldsResult(n.records, n.issues, complete, total, []string{"local_interface", "remote_chassis_id", "remote_interface"})
 }
 
@@ -178,8 +179,8 @@ func (n *neighborScan) portIssues() {
 
 // total is the reported neighbor count, or zero when every port reported
 // "No neighbors" and none was parsed.
-func (n *neighborScan) total(text string) *big.Int {
-	total := reportedTotal(text, "(?:LLDP )?neighbors", &n.issues, n.continuations, "")
+func (n *neighborScan) total() *big.Int {
+	total := n.state.reportedTotal("(?:LLDP )?neighbors", &n.issues, n.continuations)
 	if total != nil || len(n.records) > 0 || len(n.emptyPorts) == 0 {
 		return total
 	}
