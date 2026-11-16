@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"strings"
+
 	source "github.com/gatework/parser"
 
 	parsetext "github.com/gatework/go-wireless/internal/parsetext"
@@ -15,7 +17,7 @@ var terminalUnsupported = rx(`(?i)^[ \t]*(?:%[ \t]*)?(?:Unrecognized command\b|W
 // (outside a login banner).
 func TerminalUnsupported(text string) bool {
 	b := parsetext.Banner{}
-	for _, line := range SourceLines(text) {
+	for line := range strings.FieldsFuncSeq(text, func(r rune) bool { return r == '\r' || r == '\n' }) {
 		if !b.Consume(parsetext.Strip(line)) && terminalUnsupported.MatchString(line) {
 			return true
 		}
@@ -30,15 +32,13 @@ func TerminalInvalid(text string) bool { return terminalInvalid.MatchString(text
 // TerminalIssue returns an invalid_terminal_output issue for the first
 // invalid line, or nil.
 func TerminalIssue(text string) wireless.Record {
-	if !TerminalInvalid(text) {
+	location := terminalInvalid.FindStringIndex(text)
+	if location == nil {
 		return nil
 	}
-	for n, line := range SourceLines(text) {
-		if TerminalInvalid(line) {
-			return wireless.Record{"code": "invalid_terminal_output", "line": n + 1}
-		}
-	}
-	return nil
+	prefix := text[:location[0]]
+	line := strings.Count(prefix, "\n") + strings.Count(prefix, "\r") - strings.Count(prefix, "\r\n") + 1
+	return wireless.Record{"code": "invalid_terminal_output", "line": line}
 }
 
 // SourceLines splits text into lines on LF, CRLF or CR, without a trailing

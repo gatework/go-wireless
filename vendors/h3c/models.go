@@ -4,8 +4,6 @@ import (
 	"regexp"
 	"slices"
 
-	source "github.com/gatework/parser"
-
 	parsetext "github.com/gatework/go-wireless/internal/parsetext"
 	"github.com/gatework/go-wireless/internal/record"
 	fields "github.com/gatework/go-wireless/vendors/internal/fields"
@@ -18,7 +16,7 @@ var hardwareVersionLabel = regexp.MustCompile(`^hardware version (.+)$`)
 var hardwareVersionSource = regexp.MustCompile(`(?i)^Hardware version (.+?)\s*:`)
 
 func (p *parseState) parseModels(complete bool) parser.Result {
-	m := &modelScan{state: p, lines: p.source.Lines(), records: []wireless.Record{}, issues: []wireless.Record{}, mapping: h3cModel}
+	m := &modelScan{state: p, records: []wireless.Record{}, issues: []wireless.Record{}, mapping: h3cModel}
 	for _, f := range p.readFields(&m.issues) {
 		m.field(f)
 	}
@@ -33,7 +31,6 @@ func (p *parseState) parseModels(complete bool) parser.Result {
 // the section (model, radio or version) fields go to, and its label mapping.
 type modelScan struct {
 	state           *parseState
-	lines           []source.Line
 	records, issues []wireless.Record
 	model, section  wireless.Record
 	mapping         map[string]string
@@ -91,7 +88,8 @@ func (m *modelScan) openSection(f parsedField) bool {
 	}
 	if hardwareVersionLabel.MatchString(f.label) {
 		var version any
-		if v := hardwareVersionSource.FindStringSubmatch(parsetext.Strip(m.lines[f.line-1].Text)); v != nil {
+		line, _ := m.state.source.Line(f.line)
+		if v := hardwareVersionSource.FindStringSubmatch(parsetext.Strip(line.Text)); v != nil {
 			version = v[1]
 		}
 		m.section = wireless.Record{"hardware_version": version}
