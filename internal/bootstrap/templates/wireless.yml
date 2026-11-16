@@ -41,9 +41,9 @@ inventory:
   model_match: contains
   # 默认只选可识别的 H3C 控制器，避免将通用交换机当作无线设备。
   # Huawei 控制器使用 [huawei]，并以名称/IP 精确约束现场范围。
-  include_vendors: [h3c_wireless]
-  exclude_vendors: []
-  vendor_overrides: {}
+  include_platforms: [h3c_wireless]
+  exclude_platforms: []
+  platform_overrides: {}
   host_overrides: {}
   device_rules: []
 # 使用静态设备时删除 netdisco 和 inventory 两段，再填写 devices。

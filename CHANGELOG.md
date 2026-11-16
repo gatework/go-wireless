@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.6.0
 
+- Upgrade the published transport dependency to net-connector v0.9.0 and shared operations to go-netops v0.4.0.
+- Migrate registry contracts to platform and inventory selectors, overrides and device-rule destinations to platform names.
+- Preserve scoped controller/AP queries, accepted receipts and cleanup failures; retain strict host trust and no automatic replay.
 - Preserve typed nested VLAN and portal server facts, with URL-safe server references; see [API migration](docs/core-api.md#runtime-evidence-corrections).
 - Separate radio operational and administrative state, require explicit administrative provenance, and gate runtime rules on complete evidence.
 - Share published parser v0.2.1 raw source indexes and spans, admitting up to 32 MiB and 400,000 physical lines before terminal scans.

@@ -11,11 +11,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/gatework/go-net-connector/connector"
 	"github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/internal/nativeerr"
 	"github.com/gatework/go-wireless/parser"
+	"github.com/gatework/net-connector/connector"
 )
 
 var devicePrompt = regexp.MustCompile(`\A<[^<>\r\n]+>\z`)

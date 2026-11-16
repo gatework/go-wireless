@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/internal/nativeerr"
+	"github.com/gatework/net-connector/connector"
 )
 
 func TestFailureMapsNativeLifecycleWithoutPrivateText(t *testing.T) {

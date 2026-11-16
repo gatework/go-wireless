@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	ncconfig "github.com/gatework/go-net-connector/config"
 	"github.com/gatework/go-wireless/change"
 	"github.com/gatework/go-wireless/internal/input"
+	ncconfig "github.com/gatework/net-connector/config"
 )
 
 func TestConfigurationEntryPointsPreserveCancellation(t *testing.T) {

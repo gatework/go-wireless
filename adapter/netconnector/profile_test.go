@@ -8,13 +8,13 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/gatework/go-net-connector/connector"
-	ncvendors "github.com/gatework/go-net-connector/vendors"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/collect"
 	"github.com/gatework/go-wireless/parser"
 	"github.com/gatework/go-wireless/vendors"
 	"github.com/gatework/go-wireless/vendors/h3c"
+	"github.com/gatework/net-connector/connector"
+	ncvendors "github.com/gatework/net-connector/vendors"
 )
 
 func TestNativeSelectedProfileDrivesControllerAndAPQueries(t *testing.T) {

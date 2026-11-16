@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gatework/go-net-connector/storage"
 	"github.com/gatework/go-wireless/report"
+	"github.com/gatework/net-connector/storage"
 )
 
 type cancelRead struct {

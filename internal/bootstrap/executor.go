@@ -3,8 +3,8 @@ package bootstrap
 import (
 	"context"
 
-	"github.com/gatework/go-net-connector/parallel"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/parallel"
 )
 
 // Execute runs run for every device on at most workers goroutines and returns

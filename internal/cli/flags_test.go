@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gatework/go-net-connector/netdisco"
 	"github.com/gatework/go-wireless/internal/bootstrap"
+	"github.com/gatework/net-connector/netdisco"
 )
 
 func TestCacheFlagsOverrideInventoryEnvironment(t *testing.T) {

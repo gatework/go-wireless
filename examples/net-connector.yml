@@ -8,7 +8,7 @@ netdisco:
   cache_namespace: example-inventory-reader
   cache_enabled: true
 inventory:
-  include_vendors: [h3c_wireless]
+  include_platforms: [h3c_wireless]
 ssh:
   host_key_policy: strict
   known_hosts: ~/.ssh/known_hosts

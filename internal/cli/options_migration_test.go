@@ -15,8 +15,8 @@ func TestFlatSharedConfigurationProjectsOnlyConsumedSettings(t *testing.T) {
 	shared := filepath.Join(d, "shared")
 	write(t, filepath.Join(shared, "net-connector.yml"), `
 netdisco: {source: http, cache_directory: inventory-cache}
-inventory: {include_models: [WX], exclude_models: [WX100], model_match: contains}
-ssh: {known_hosts: keys, protocol: telnet, vendor_protocols: {h3c: telnet}, log_level: debug, log_directory: logs}
+inventory: {include_models: [WX], exclude_models: [WX100], model_match: contains, include_platforms: [h3c_wireless], platform_overrides: {h3c: h3c_wireless}, device_rules: [{vendor: H3C, platform: h3c_wireless}]}
+ssh: {known_hosts: keys, protocol: telnet, platform_protocols: {h3c: telnet}, log_level: debug, log_directory: logs}
 backup: {parallel: 12, directory: backups}
 topology: {parallel: 24, directory: topology}
 `)
@@ -32,7 +32,7 @@ topology: {parallel: 24, directory: topology}
 	if ssh["host_key_policy"] != "strict" || ssh["known_hosts"] != filepath.Join(shared, "keys") || ssh["port"] != 2222 || ssh["command_timeout"] != 30 {
 		t.Fatal(ssh)
 	}
-	for _, key := range []string{"protocol", "vendor_protocols", "log_level", "log_directory"} {
+	for _, key := range []string{"protocol", "platform_protocols", "log_level", "log_directory"} {
 		if _, ok := ssh[key]; ok {
 			t.Fatal("unconsumed shared SSH field was projected", key)
 		}
@@ -48,7 +48,7 @@ topology: {parallel: 24, directory: topology}
 
 func TestFlatSharedConfigurationCanSupplyDynamicInventory(t *testing.T) {
 	d := t.TempDir()
-	write(t, filepath.Join(d, "net-connector.yml"), "netdisco: {source: http}\ninventory: {include_vendors: [h3c_wireless]}\n")
+	write(t, filepath.Join(d, "net-connector.yml"), "netdisco: {source: http}\ninventory: {include_platforms: [h3c_wireless]}\n")
 	o, err := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{}, discovery(d), nil)
 	if err != nil || !o.Dynamic() {
 		t.Fatal(o, err)
@@ -84,9 +84,14 @@ func TestSharedConfigurationRejectsUnknownOrInvalidFieldsBeforeProjection(t *tes
 		"netdisco: {password: private}",
 		"unknown: {}",
 		"ssh: {command_timeout: 30}",
-		"ssh: {vendor_protocols: false}",
+		"ssh: {platform_protocols: false}",
 		"backup: {parallel: false}",
 		"inventory: {include_models: WX}",
+		"inventory: {include_vendors: [h3c_wireless]}",
+		"inventory: {exclude_vendors: []}",
+		"inventory: {vendor_overrides: {}}",
+		"inventory: {device_rules: [{vendor: H3C, connector: h3c_wireless}]}",
+		"ssh: {vendor_protocols: {h3c: telnet}}",
 	} {
 		t.Run(body, func(t *testing.T) {
 			d := t.TempDir()

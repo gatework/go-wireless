@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gatework/go-net-connector/storage"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/storage"
 )
 
 func TestExecutionFinalPublicationFailurePreservesCheckpoint(t *testing.T) {

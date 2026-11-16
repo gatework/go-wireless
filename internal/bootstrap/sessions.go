@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gatework/go-net-connector/connector"
-	ncvendors "github.com/gatework/go-net-connector/vendors"
-	"github.com/gatework/go-net-connector/vendors/dialect"
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/adapter/netconnector"
 	"github.com/gatework/go-wireless/change"
@@ -17,6 +14,9 @@ import (
 	collectrun "github.com/gatework/go-wireless/internal/workflow/collect"
 	"github.com/gatework/go-wireless/report"
 	"github.com/gatework/go-wireless/vendors"
+	"github.com/gatework/net-connector/connector"
+	ncplatform "github.com/gatework/net-connector/platform"
+	ncvendors "github.com/gatework/net-connector/vendors"
 )
 
 // Setup errors; their messages never include credentials or device text.
@@ -46,7 +46,7 @@ type ApplyFactory func(context.Context, wireless.Record, connector.ConnectionCon
 // CollectionDependencies are the injectable collaborators of a collection
 // run.
 type CollectionDependencies struct {
-	Registry           dialect.Registry
+	Registry           ncplatform.Registry
 	SessionFactory     SessionFactory
 	APFactory          collect.APFactory
 	PrepareResources   func(context.Context, int) error
@@ -146,7 +146,7 @@ func PrepareCollection(ctx context.Context, o *Options, devices []wireless.Recor
 
 // PrepareApply resolves credentials and connection settings for the plan's
 // device and returns the opener apply uses.
-func PrepareApply(ctx context.Context, environment map[string]string, envFile string, discovery Discovery, registry dialect.Registry, factory ApplyFactory, plan change.Plan, port int) (apply.Opener, error) {
+func PrepareApply(ctx context.Context, environment map[string]string, envFile string, discovery Discovery, registry ncplatform.Registry, factory ApplyFactory, plan change.Plan, port int) (apply.Opener, error) {
 	env, _, err := LoadEnvironment(ctx, environment, envFile, discovery)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrEnvironment, err)

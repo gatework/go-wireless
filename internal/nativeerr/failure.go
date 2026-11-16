@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gatework/go-net-connector/connector"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/connector"
 )
 
 // Failure classifies an error at the caller's stage without retaining its text.

@@ -15,9 +15,9 @@ import (
 
 	"github.com/gatework/go-wireless/internal/bootstrap"
 
-	"github.com/gatework/go-net-connector/inventory"
-	"github.com/gatework/go-net-connector/netdisco"
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/net-connector/inventory"
+	"github.com/gatework/net-connector/netdisco"
 )
 
 type roundTrip func(*http.Request) (*http.Response, error)
@@ -25,7 +25,7 @@ type roundTrip func(*http.Request) (*http.Response, error)
 func (f roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 func TestHTTPInventoryThroughNativePaginationAndControllerRules(t *testing.T) {
 	d := t.TempDir()
-	write(t, filepath.Join(d, "wireless.yml"), "netdisco: {source: http, url: 'https://inventory.invalid', page_size: 2, cache_enabled: false}\ninventory: {include_vendors: [h3c_wireless]}\n")
+	write(t, filepath.Join(d, "wireless.yml"), "netdisco: {source: http, url: 'https://inventory.invalid', page_size: 2, cache_enabled: false}\ninventory: {include_platforms: [h3c_wireless]}\n")
 	o, e := bootstrap.LoadConfiguration(t.Context(), bootstrap.Request{}, map[string]string{"ND_API_KEY": "private-token"}, discovery(d), nil)
 	if e != nil {
 		t.Fatal(e)
