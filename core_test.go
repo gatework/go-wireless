@@ -98,16 +98,8 @@ func TestRubyParserCorpus(t *testing.T) {
 				if _, ok := expected["status"]; !ok {
 					expected = expected[string(dim)].(map[string]any)
 				}
-				// These four frozen Ruby cases mislabeled radio State as admin_status.
-				// Keep the original corpus immutable and name the intended divergence.
-				if dim == wireless.Radios && (c.ID == "9f07faa51a2a959b" || c.ID == "e3c47f36c867ddfc" || c.ID == "f14f4af0e72d1abc" || c.ID == "f69c6445b9e25311") {
-					for _, value := range expected["records"].([]any) {
-						r := value.(map[string]any)
-						if state, ok := r["admin_status"]; ok {
-							r["operational_status"] = state
-							delete(r, "admin_status")
-						}
-					}
+				if dim == wireless.Radios {
+					correctRadioCorpus(c.ID, expected)
 				}
 				obs := out[dim]
 				actual := map[string]any{"status": obs.Status(), "records": obs.Records(), "issues": obs.Issues()}
@@ -218,5 +210,47 @@ func numberMeanings(v any) any {
 		return out
 	default:
 		return v
+	}
+}
+
+// correctRadioCorpus names deliberate departures from the unchanged Ruby corpus:
+// State is operational, and only explicit Admin state carries provenance.
+func correctRadioCorpus(id string, expected map[string]any) {
+	switch id {
+	case "9f07faa51a2a959b",
+		"e3c47f36c867ddfc",
+		"f14f4af0e72d1abc",
+		"f69c6445b9e25311":
+		for _, value := range expected["records"].([]any) {
+			row := value.(map[string]any)
+			if state, ok := row["admin_status"]; ok {
+				row["operational_status"] = state
+				delete(row, "admin_status")
+			}
+		}
+	case "061e41cf636a6c49",
+		"104160d2d38c9af1",
+		"418c225bbe5a867f",
+		"4a194111f0b15cdb",
+		"4fc2086fd4b67c1a",
+		"6083233d79623cb6",
+		"76e863b8718672ad",
+		"81f642d11cdff079",
+		"8b7fcbe0eee6c226",
+		"8fb28b5fb5b91781",
+		"9d40928773519309",
+		"c88558828bac22a0",
+		"c921e686a6cb9272",
+		"dac598658db9efa5",
+		"defd264a6e406e0b",
+		"e9ec860fe437073e",
+		"f0d7ba1bd2637294",
+		"f7a384ab7c95c8d6":
+		for _, value := range expected["records"].([]any) {
+			row := value.(map[string]any)
+			if row["admin_status"] != nil {
+				row["admin_status_source"] = "admin_state"
+			}
+		}
 	}
 }

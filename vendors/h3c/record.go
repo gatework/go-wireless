@@ -103,7 +103,6 @@ func (p *parseState) readFields(issues *[]wireless.Record) []parsedField {
 	return fields
 }
 
-// totalSyntax is immutable count grammar for one declared command family.
 type totalSyntax struct{ prefix, pattern, auxiliary *regexp.Regexp }
 
 func compileTotal(noun, auxiliary string) totalSyntax {
@@ -185,6 +184,12 @@ func (p *parseState) assignField(record wireless.Record, mapping map[string]stri
 			identity = label
 		}
 		p.assign(record, field, v, issues, line, identity)
+		if field == "admin_status" {
+			delete(record, "admin_status_source")
+			if record[field] != nil {
+				record["admin_status_source"] = "admin_state"
+			}
+		}
 	} else if details != nil {
 		var v = recordvalue.Scalar(raw)
 		if strings.HasSuffix(label, "url") {

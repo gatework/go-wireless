@@ -30,6 +30,7 @@ var h3cClient = map[string]string{
 	"cipher suite":          "cipher",
 }
 var h3cClientDetails = map[string]bool{
+	"radio slice":                      true,
 	"authorization car":                true,
 	"authorization acl id":             true,
 	"authorization user profile":       true,

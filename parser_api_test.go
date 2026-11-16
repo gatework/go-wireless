@@ -313,6 +313,20 @@ func TestConfigurationSourceRejectsPhysicalLineLimit(t *testing.T) {
 	}
 }
 
+func TestClientRadioSlice(t *testing.T) {
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o, err := profile.Parse(wireless.Clients, "Total clients: 1\r\nMAC address: 0200-0000-0011\rRadio slice: 1\n", true)
+	if err != nil || !o.Complete() || len(o.Records()) != 1 {
+		t.Fatal("radio slice not recognized", o.Issues(), err)
+	}
+	if o.Records()[0]["details"].(wireless.Record)["radio_slice"] != "1" {
+		t.Fatal("radio slice value lost")
+	}
+}
+
 func TestRuntimeSourceRejectsPhysicalLineLimit(t *testing.T) {
 	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
 	if err != nil {
@@ -321,5 +335,74 @@ func TestRuntimeSourceRejectsPhysicalLineLimit(t *testing.T) {
 	o, err := profile.Parse(wireless.Clients, strings.Repeat("\n", 400001), true)
 	if err != nil || o.Status() != wireless.Failed || o.Issues()[0]["code"] != "source_limit_exceeded" {
 		t.Fatal("runtime physical limit not enforced")
+	}
+}
+
+func TestSourceBudgetPrecedesTerminalSyntax(t *testing.T) {
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime, err := parser.NewRuntimeParser(vendors.NewBuiltinRegistry(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := "Unrecognized command\n" + strings.Repeat("\n", 400000)
+	p, err := profile.Parse(wireless.Clients, text, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := runtime.Parse(wireless.Clients, text, parser.ParseOptions{Complete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := h3c.ParseConfigurationSource(text, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range []wireless.Observation{p, r, c.Observation()} {
+		if o.Status() != wireless.Failed || o.Issues()[0]["code"] != "source_limit_exceeded" {
+			t.Fatal("terminal scan preceded source admission")
+		}
+	}
+}
+
+func TestTerminalGuardsPreservePhysicalLines(t *testing.T) {
+	banner := "\r\nheader login ^\rUnrecognized command\r\n^\n\r"
+	if parser.TerminalUnsupported(banner) || !parser.TerminalUnsupported(banner+"Unrecognized command") {
+		t.Fatal("banner-aware terminal rejection changed")
+	}
+	issue := parser.TerminalIssue("\r\n\r中\n-- More --")
+	if issue["line"] != 4 {
+		t.Fatal("terminal issue lost physical line number")
+	}
+}
+
+func TestSourceAdmissionBoundaries(t *testing.T) {
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suffix := "\nsysname SYNTHETIC\nreturn\n"
+	bytes := "#" + strings.Repeat("x", (32<<20)-1-len(suffix)) + suffix
+	lines := "sysname SYNTHETIC\n" + strings.Repeat("\r\n\n\r", 133333)
+	for _, tc := range []struct {
+		name, text string
+		status     wireless.Status
+	}{
+		{"exact bytes", bytes, wireless.Complete},
+		{"excess bytes", bytes + "x", wireless.Failed},
+		{"exact mixed lines", lines, wireless.Complete},
+		{"excess mixed lines", lines + "x", wireless.Failed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			o, err := profile.Parse(wireless.Configuration, tc.text, true)
+			if err != nil || o.Status() != tc.status {
+				t.Fatal("source admission boundary changed")
+			}
+			if tc.status == wireless.Failed && (len(o.Issues()) != 1 || o.Issues()[0]["code"] != "source_limit_exceeded") {
+				t.Fatal("source limit diagnostic missing")
+			}
+		})
 	}
 }

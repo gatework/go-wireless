@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/internal/parsetext"
 )
 
 // ParseOptions selects the platform and declares complete capture.
@@ -55,6 +56,12 @@ func (p *RuntimeParser) ParseMany(names []wireless.Dimension, content string, o 
 		return nil, err
 	}
 	out := map[wireless.Dimension]wireless.Observation{}
+	if !parsetext.SourceFits(content) {
+		for _, n := range names {
+			out[n] = Unavailable(n, wireless.Failed, "source_limit_exceeded")
+		}
+		return out, nil
+	}
 	if _, err := NormalizeText(content, true); err != nil {
 		for _, n := range names {
 			out[n] = Unavailable(n, wireless.Failed, "invalid_output")

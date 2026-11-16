@@ -91,7 +91,7 @@ func TestRuntimeRules(t *testing.T) {
 	}
 	c.Radios = []wlan.Radio{
 		{APName: "ap1", RadioID: "1", Channel: new(6), ChannelWidth: new(wlan.Number("40")), Utilization: new(85), NoiseDBm: new(-70.0)},
-		{APName: "ap1", RadioID: "2", Channel: new(36), ChannelWidth: new(wlan.Number("80")), AdminStatus: "Down"},
+		{APName: "ap1", RadioID: "2", Channel: new(36), ChannelWidth: new(wlan.Number("80")), AdminStatus: "Down", AdminStatusSource: "admin_state"},
 		{APName: "ap2", RadioID: "1", Channel: new(3), ChannelWidth: new(wlan.Number("20")), Utilization: new(30), NoiseDBm: new(-95.0)},
 	}
 	c.IPConflicts = []wlan.IPConflict{{IPAddress: "10.0.0.9"}, {IPAddress: "10.0.0.9"}}
@@ -172,7 +172,7 @@ func TestRuntimeRulesRequireCompleteEvidence(t *testing.T) {
 			c.Coverage[wlan.DimRadios] = status
 			c.Coverage[wlan.DimAccessPoints] = status
 			c.Coverage[wlan.DimIPConflicts] = status
-			c.Radios = []wlan.Radio{{APName: "synthetic", RadioID: "1", AdminStatus: "Down"}}
+			c.Radios = []wlan.Radio{{APName: "synthetic", RadioID: "1", AdminStatus: "Down", AdminStatusSource: "admin_state"}}
 			c.AccessPoints = []wlan.AccessPoint{{Name: "synthetic", OperationalStatus: "Idle"}}
 			c.IPConflicts = []wlan.IPConflict{{IPAddress: "192.0.2.1"}}
 			fs := run(t, c, assess.Policy{})
@@ -182,5 +182,13 @@ func TestRuntimeRulesRequireCompleteEvidence(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLegacyRadioStatusHasNoAdministrativeProvenance(t *testing.T) {
+	c := h3c(wlan.DimRadios)
+	c.Radios = []wlan.Radio{{APName: "legacy", RadioID: "1", AdminStatus: "Down"}}
+	if len(by(run(t, c, assess.Policy{}), "wireless.radio_admin_down")) != 0 {
+		t.Fatal("ambiguous legacy status treated as explicit administrative state")
 	}
 }

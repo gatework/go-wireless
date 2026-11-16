@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"strings"
 )
 
 // ServerReference preserves a named portal server or a redacted URL presence.
@@ -16,10 +17,10 @@ type ServerReference struct {
 
 // MarshalJSON preserves the parser's string, boolean or null representation.
 func (r ServerReference) MarshalJSON() ([]byte, error) {
+	if err := r.validate(); err != nil {
+		return nil, err
+	}
 	if r.Name != nil {
-		if r.URLPresent != nil {
-			return nil, errors.New("wlan: ambiguous server reference")
-		}
 		return json.Marshal(*r.Name)
 	}
 	return json.Marshal(r.URLPresent)
@@ -40,6 +41,22 @@ func (r *ServerReference) UnmarshalJSON(data []byte) error {
 			return errors.New("wlan: invalid server reference")
 		}
 	}
+	if err := next.validate(); err != nil {
+		return err
+	}
 	*r = next
+	return nil
+}
+
+func (r ServerReference) validate() error {
+	if r.Name == nil {
+		return nil
+	}
+	if r.URLPresent != nil {
+		return errors.New("wlan: ambiguous server reference")
+	}
+	if strings.Contains(*r.Name, "://") {
+		return errors.New("wlan: URL is not a server name")
+	}
 	return nil
 }

@@ -285,7 +285,7 @@ var radioAdminDown = assess.NewRule(assess.RuleMeta{
 	}
 	var out []assess.Finding
 	for _, r := range in.Model.Radios {
-		if strings.EqualFold(r.AdminStatus, "down") {
+		if r.AdminStatusSource == "admin_state" && strings.EqualFold(r.AdminStatus, "down") {
 			out = append(out, assess.Finding{Subject: radioSubject(in.Model, r), Actual: r.AdminStatus,
 				Detail: "主动关闭频段可能是正常设计；核对 AP、AP 组及型号配置的继承关系，不批量开启"})
 		}

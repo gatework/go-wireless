@@ -88,12 +88,29 @@ type AntiBMC struct {
 	} `json:"network,omitempty"`
 }
 
+// LoadBalance is an explicitly configured controller session-balancing policy.
+// Missing thresholds retain the inherited or unknown value.
+type LoadBalance struct {
+	Enabled          *bool  `json:"enabled,omitempty"`
+	Mode             string `json:"mode,omitempty"`
+	SessionThreshold *int   `json:"session_threshold,omitempty"`
+}
+
+// RoamNavigation is radio roaming steering with an RSSI index and transmit power.
+// RSSI is an index, not a dBm measurement.
+type RoamNavigation struct {
+	Enabled               *bool `json:"enabled,omitempty"`
+	RSSI                  *int  `json:"rssi,omitempty"`
+	ProbeResponsePowerDBm *int  `json:"probe_response_power_dbm,omitempty"`
+}
+
 // Settings is the union of configuration statements that the parser places
 // on a scope: global, AP group, AP, radio, band default, model profile,
 // virtual AP group or service template. Every field is optional; which
 // fields a scope can carry is decided by the vendor parser.
 type Settings struct {
 	// Identity of an AP scope.
+	MACAddress       string  `json:"mac_address,omitempty"`
 	Name             string  `json:"name,omitempty"`
 	Model            string  `json:"model,omitempty"`
 	SerialID         string  `json:"serial_id,omitempty"`
@@ -126,25 +143,30 @@ type Settings struct {
 	VirtualAPGroup map[string]Settings `json:"virtual_ap_group,omitempty"`
 	RROPAntiBMC    *AntiBMC            `json:"rrop_anti_bmc,omitempty"`
 
+	LoadBalance       *LoadBalance `json:"load_balance,omitempty"`
+	APHotBackupGlobal *bool        `json:"ap_hot_backup_global,omitempty"`
+
 	// Radio scope.
-	Enabled             *bool               `json:"enabled,omitempty"`
-	Channel             string              `json:"channel,omitempty"`
-	ChannelNumber       *int                `json:"channel_number,omitempty"`
-	ChannelUnlocked     *bool               `json:"channel_unlocked,omitempty"`
-	ChannelBandwidth    string              `json:"channel_bandwidth,omitempty"`
-	MaxPower            *float64            `json:"max_power,omitempty"`
-	CalibrateChannel    *bool               `json:"calibrate_channel,omitempty"`
-	CalibratePower      *bool               `json:"calibrate_power,omitempty"`
-	RadarDetectDisabled *bool               `json:"radar_detect_disabled,omitempty"`
-	AntiSticky          *AntiSticky         `json:"anti_sticky,omitempty"`
-	ClientOptions       map[string]float64  `json:"client_options,omitempty"`
-	PacketFilters       map[string]string   `json:"packet_filters,omitempty"`
-	Rates               *Rates              `json:"rates,omitempty"`
-	ServiceTemplates    []TemplateBinding   `json:"service_templates,omitempty"`
-	BandDefaults        map[string]Settings `json:"band_defaults,omitempty"` // 2.4g, 5g, 6g
-	Radios              map[string]Settings `json:"radios,omitempty"`        // radio id
-	VLANID              *int                `json:"vlan_id,omitempty"`
-	EthernetPorts       map[string]Settings `json:"ethernet_ports,omitempty"`
+	Enabled              *bool               `json:"enabled,omitempty"`
+	Channel              string              `json:"channel,omitempty"`
+	ChannelNumber        *int                `json:"channel_number,omitempty"`
+	ChannelUnlocked      *bool               `json:"channel_unlocked,omitempty"`
+	ChannelBandwidth     string              `json:"channel_bandwidth,omitempty"`
+	MaxPower             *float64            `json:"max_power,omitempty"`
+	CalibrateChannel     *bool               `json:"calibrate_channel,omitempty"`
+	CalibratePower       *bool               `json:"calibrate_power,omitempty"`
+	RadarDetectDisabled  *bool               `json:"radar_detect_disabled,omitempty"`
+	AntiSticky           *AntiSticky         `json:"anti_sticky,omitempty"`
+	ClientOptionsEnabled map[string]bool     `json:"client_options_enabled,omitempty"`
+	RoamNavigation       *RoamNavigation     `json:"roam_navigation,omitempty"`
+	ClientOptions        map[string]float64  `json:"client_options,omitempty"`
+	PacketFilters        map[string]string   `json:"packet_filters,omitempty"`
+	Rates                *Rates              `json:"rates,omitempty"`
+	ServiceTemplates     []TemplateBinding   `json:"service_templates,omitempty"`
+	BandDefaults         map[string]Settings `json:"band_defaults,omitempty"` // 2.4g, 5g, 6g
+	Radios               map[string]Settings `json:"radios,omitempty"`        // radio id
+	VLANID               *int                `json:"vlan_id,omitempty"`
+	EthernetPorts        map[string]Settings `json:"ethernet_ports,omitempty"`
 
 	// Service template security and client policy.
 	AKMModes                         []string             `json:"akm_modes,omitempty"`

@@ -167,3 +167,9 @@ It indexes the exact source once and captures raw spans without newline rewritin
 Sources are admitted with 32 MiB and 400,000 physical-line limits; over-budget
 input produces failed `source_limit_exceeded` evidence with no partial source.
 Existing tighter file/transport limits still apply. No new operator flag is needed.
+
+Built-in runtime grammars retain raw newlines and reuse one command index for all
+views and scans. Raw size/line admission runs before terminal guards, preventing
+an oversized newline-heavy input from allocating a temporary unbounded index.
+The exported string callbacks and pure SourceLines helper remain available;
+custom callbacks keep their declared newline policy and now share admission limits.

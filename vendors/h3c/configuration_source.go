@@ -124,6 +124,11 @@ type ConfigurationSource struct {
 // ParseConfigurationSource parses one display current-configuration output;
 // complete declares that it was captured completely.
 func ParseConfigurationSource(content string, complete bool) (*ConfigurationSource, error) {
+	if !parsetext.SourceFits(content) {
+		s := &ConfigurationSource{}
+		s.observation = parser.Unavailable(wireless.Configuration, wireless.Failed, "source_limit_exceeded")
+		return s, nil
+	}
 	if _, err := parser.NormalizeText(content, true); err != nil {
 		s := &ConfigurationSource{}
 		s.observation = parser.Unavailable(wireless.Configuration, wireless.Failed, "invalid_output")

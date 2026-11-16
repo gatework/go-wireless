@@ -36,6 +36,7 @@ type AccessPoint struct {
 type Radio struct {
 	APName            string   `json:"ap_name,omitempty"`
 	RadioID           string   `json:"radio_id,omitempty"`
+	AdminStatusSource string   `json:"admin_status_source,omitempty"`
 	AdminStatus       string   `json:"admin_status,omitempty"`
 	OperationalStatus string   `json:"operational_status,omitempty"`
 	Protocol          string   `json:"protocol,omitempty"`

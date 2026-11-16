@@ -3,6 +3,7 @@ package wlan_test
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -305,4 +306,72 @@ func mustJSON(t *testing.T, v any) []byte {
 		t.Fatal(err)
 	}
 	return b
+}
+
+func TestSnapshotConfigurationDialect(t *testing.T) {
+	body, err := os.ReadFile("../testdata/h3c-snapshot-syntax.cfg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := os.ReadFile("../testdata/h3c-snapshot-syntax.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		SHA256     string `json:"sha256"`
+		Provenance string `json:"provenance"`
+	}
+	if err := json.Unmarshal(metadata, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(body)) != manifest.SHA256 || manifest.Provenance == "" {
+		t.Fatal("fixture provenance mismatch")
+	}
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o, err := profile.Parse(wireless.Configuration, string(body), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !o.Complete() {
+		t.Fatalf("snapshot dialect incomplete: %v", o.Issues())
+	}
+	obs := wlan.Observed{Status: evidence.Status(o.Status())}
+	for _, rec := range o.Records() {
+		obs.Records = append(obs.Records, mustJSON(t, rec))
+	}
+	c := wlan.NewController(wlan.Identity{}, map[evidence.Dimension]wlan.Observed{wlan.DimConfiguration: obs})
+	if !c.Has(wlan.DimConfiguration) {
+		t.Fatalf("snapshot dialect lost typed facts: %v", c.Issues)
+	}
+	cfg := c.Configuration
+	balance := cfg.GlobalSettings.LoadBalance
+	if balance == nil || balance.Enabled == nil || balance.SessionThreshold == nil {
+		t.Fatal("load balancing facts missing")
+	}
+	if !*balance.Enabled || balance.Mode != "session" || *balance.SessionThreshold != 40 {
+		t.Fatal("session balancing changed")
+	}
+	if cfg.GlobalSettings.APHotBackupGlobal == nil || !*cfg.GlobalSettings.APHotBackupGlobal {
+		t.Fatal("hot backup state missing")
+	}
+	if cfg.AccessPoints["AP-SYNTHETIC"].MACAddress != "02:00:00:00:00:11" {
+		t.Fatal("AP MAC binding lost")
+	}
+	if len(cfg.APGroups) != 1 {
+		t.Fatal("group nesting lost")
+	}
+	radio := cfg.APGroups[0].ModelProfiles["MODEL-SYNTHETIC"].Radios["1"]
+	navigation := radio.RoamNavigation
+	if navigation == nil || navigation.RSSI == nil || navigation.ProbeResponsePowerDBm == nil {
+		t.Fatal("navigation settings missing")
+	}
+	if *navigation.RSSI != 17 || *navigation.ProbeResponsePowerDBm != 14 || !radio.ClientOptionsEnabled["reject"] {
+		t.Fatal("radio policy changed")
+	}
+	if err := lossless(generic(t, mustJSON(t, o.Records())), generic(t, mustJSON(t, []any{c.Configuration})), "configuration"); err != nil {
+		t.Fatal(err)
+	}
 }

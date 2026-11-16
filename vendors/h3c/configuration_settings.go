@@ -87,6 +87,14 @@ var clientAuthenticationModes = []string{"dot1x", "mac", "mac-and-dot1x", "dot1x
 
 // settings are tried in order; the first matching pattern decides.
 var settings = []setting{
+	rule(`^mac-address (\S+)$`, []string{"access_points"}, parsed(apMACSetting)),
+	rule(`^(?:undo )?wlan load-balance enable$`, []string{"global", "global_configuration"}, recorded(func(l *settingLine) { l.assignTo(ensureMap(l.record, "load_balance"), "enabled", l.enabled) })),
+	rule(`^wlan load-balance mode session (\d+)$`, []string{"global", "global_configuration"}, parsed(loadBalanceSetting)),
+	rule(`^(?:undo )?wlan ap-backup hot-backup enable global$`, []string{"global", "global_configuration"}, recorded(func(l *settingLine) { l.assign("ap_hot_backup_global", l.enabled) })),
+	rule(`^option client (reject|reconnect) (enable|disable)$`, radios, recorded(func(l *settingLine) {
+		l.assignTo(ensureMap(l.record, "client_options_enabled"), l.capture[1], l.capture[2] == "enable")
+	})),
+	rule(`^option roam-navigation enable rssi (\d+) probe-response-power (\d+)$`, radios, parsed(roamNavigationSetting)),
 	rule(`^(?:undo )?region-code-lock enable$`, global, recorded(func(l *settingLine) { l.assign("region_code_lock", l.enabled) })),
 	rule(`^nas-id (\S+)$`, global, recorded(func(l *settingLine) { l.assign("nas_id", l.capture[1]) })),
 	rule(`^(?:undo )?rrop anti-bmc network (ipv4-and-ipv6-simple) enable$`, apGroups, recorded(func(l *settingLine) {
