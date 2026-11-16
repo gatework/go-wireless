@@ -1,0 +1,5 @@
+{
+  "fixture": "h3c-snapshot-syntax.cfg",
+  "sha256": "82a87c9abe0e26057784ce21609f8eeeb763306a18e10ec83f6615c8381b721c",
+  "provenance": "Synthetic reconstruction of H3C command shapes reviewed on 2026-11-15; no controller identity, credentials, or private station data."
+}

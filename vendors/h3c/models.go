@@ -15,15 +15,15 @@ import (
 var hardwareVersionLabel = regexp.MustCompile(`^hardware version (.+)$`)
 var hardwareVersionSource = regexp.MustCompile(`(?i)^Hardware version (.+?)\s*:`)
 
-func (p *parseState) parseModels(text string, complete bool) parser.Result {
-	m := &modelScan{state: p, lines: parser.SourceLines(text), records: []wireless.Record{}, issues: []wireless.Record{}, mapping: h3cModel}
-	for _, f := range readFields(text, &m.issues) {
+func (p *parseState) parseModels(complete bool) parser.Result {
+	m := &modelScan{state: p, records: []wireless.Record{}, issues: []wireless.Record{}, mapping: h3cModel}
+	for _, f := range p.readFields(&m.issues) {
 		m.field(f)
 	}
 	for _, r := range m.records {
 		m.issues = append(m.issues, modelIssues(r)...)
 	}
-	total := reportedTotal(text, "AP models", &m.issues, nil, "")
+	total := p.reportedTotal("AP models", &m.issues, nil)
 	return parser.FieldsResult(m.records, m.issues, complete, total, []string{"model"})
 }
 
@@ -31,7 +31,6 @@ func (p *parseState) parseModels(text string, complete bool) parser.Result {
 // the section (model, radio or version) fields go to, and its label mapping.
 type modelScan struct {
 	state           *parseState
-	lines           []string
 	records, issues []wireless.Record
 	model, section  wireless.Record
 	mapping         map[string]string
@@ -89,7 +88,8 @@ func (m *modelScan) openSection(f parsedField) bool {
 	}
 	if hardwareVersionLabel.MatchString(f.label) {
 		var version any
-		if v := hardwareVersionSource.FindStringSubmatch(parsetext.Strip(m.lines[f.line-1])); v != nil {
+		line, _ := m.state.source.Line(f.line)
+		if v := hardwareVersionSource.FindStringSubmatch(parsetext.Strip(line.Text)); v != nil {
 			version = v[1]
 		}
 		m.section = wireless.Record{"hardware_version": version}

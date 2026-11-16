@@ -3,6 +3,7 @@ package h3c
 
 import (
 	wireless "github.com/gatework/go-wireless"
+	"github.com/gatework/go-wireless/internal/parsetext"
 	"github.com/gatework/go-wireless/internal/record"
 	"github.com/gatework/go-wireless/parser"
 )
@@ -24,37 +25,60 @@ func Profile() parser.ProfileSpec {
 	spec := parser.ProfileSpec{Platform: "h3c", ConnectorPlatform: "h3c_wireless", Preparation: "screen-length disable", Aliases: []string{"h3c_wireless"}, APNeighbors: true, APPreparation: "screen-length disable"}
 	for _, query := range declarations {
 		owned := parser.Query{Command: query.Command, Dimensions: append([]wireless.Dimension(nil), query.Dimensions...)}
-		spec.Queries = append(spec.Queries, parser.QuerySpec{Query: query, PreserveNewlines: query.Command == "display current-configuration", Parse: func(text string, complete bool) map[wireless.Dimension]parser.Result {
+		spec.Queries = append(spec.Queries, parser.QuerySpec{Query: query, PreserveNewlines: true, Parse: func(text string, complete bool) map[wireless.Dimension]parser.Result {
 			return parseCommand(owned, text, complete)
 		}})
 	}
 	return spec
 }
 func parseCommand(query parser.Query, text string, complete bool) map[wireless.Dimension]parser.Result {
-	state := newParseState()
+	if query.Command == "display current-configuration" {
+		return configurationViews(query, text, complete)
+	}
+	content, err := parsetext.NewContent(text)
+	if err != nil {
+		return commandViews(query, parser.FailedResult("source_limit_exceeded"))
+	}
+	for line := range content.All() {
+		if parser.TerminalInvalid(line.Raw) {
+			return commandViews(query, parser.Result{Status: wireless.Partial, Issues: []wireless.Record{{"code": "invalid_terminal_output", "line": line.Number}}})
+		}
+	}
+	state := newParseState(content)
 	var result parser.Result
 	switch query.Command {
 	case "display wlan ap all verbose":
-		return state.parseAPs(text, complete)
+		return state.parseAPs(complete)
 	case "display wlan bss all verbose":
-		result = state.parseRecords(wireless.BSSes, text, complete)
+		result = state.parseRecords(wireless.BSSes, complete)
 	case "display wlan client verbose":
-		result = state.parseRecords(wireless.Clients, text, complete)
+		result = state.parseRecords(wireless.Clients, complete)
 	case "display dot1x connection":
-		result = state.parseRecords(wireless.Dot1xConnections, text, complete)
+		result = state.parseRecords(wireless.Dot1xConnections, complete)
 	case "display mac-authentication connection":
-		result = state.parseRecords(wireless.MABConnections, text, complete)
+		result = state.parseRecords(wireless.MABConnections, complete)
 	case "display wlan ap-model all":
-		result = state.parseModels(text, complete)
+		result = state.parseModels(complete)
 	case "display wlan client-security block-mac":
-		result = state.parseBlocked(text, complete)
+		result = state.parseBlocked(complete)
 	case "display wlan statistics client-ip-conflict":
-		result = state.parseConflicts(text, complete)
+		result = state.parseConflicts(complete)
 	case "display lldp neighbor-information verbose":
-		result = state.parseNeighbors(text, complete)
-	case "display current-configuration":
-		result = parseConfiguration(text, complete)
+		result = state.parseNeighbors(complete)
 	}
+	return commandViews(query, result)
+}
+
+func commandViews(query parser.Query, result parser.Result) map[wireless.Dimension]parser.Result {
+	out := map[wireless.Dimension]parser.Result{}
+	for _, name := range query.Dimensions {
+		out[name] = result
+	}
+	return out
+}
+
+func configurationViews(query parser.Query, text string, complete bool) map[wireless.Dimension]parser.Result {
+	result := parseConfiguration(text, complete)
 	out := map[wireless.Dimension]parser.Result{}
 	for _, name := range query.Dimensions {
 		r := result

@@ -4,7 +4,7 @@
 
 需要 Go **1.26.0+**；真实连接使用主机的 `ssh`/`telnet`。依赖固定为正式模块 net-connector **v0.9.0**、go-expect **v0.6.0**。当前版本 **v0.6.0**；Python 3 仅用于源码交付与发布验证。
 
-本版本升级 net-connector v0.9.0 与 go-netops v0.4.0，统一共享清单的平台配置与传输契约。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.6.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
+本版本补齐控制器回显的类型投影与证据判断，使用 parser v0.2.2 统一原文索引，并升级 net-connector v0.9.0 与 go-netops v0.4.0。升级前阅读 [核心 API](docs/core-api.md) 与 [版本迁移说明](docs/releases/v0.6.0.md)。构建使用正式依赖，无需本地 workspace 或 replace。
 
 ## 安装
 

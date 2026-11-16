@@ -309,6 +309,13 @@ func (p *Profile) ParseMany(names []wireless.Dimension, content string, complete
 	if len(queries) != 1 {
 		return nil, errors.New("one CLI output must belong to one command")
 	}
+	if !parsetext.SourceFits(content) {
+		out := map[wireless.Dimension]wireless.Observation{}
+		for _, name := range names {
+			out[name] = Unavailable(name, wireless.Failed, "source_limit_exceeded")
+		}
+		return out, nil
+	}
 	spec := p.capability.parsers[queries[0].Command]
 	text, err := NormalizeText(content, spec.PreserveNewlines)
 	var result Result

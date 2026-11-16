@@ -2,8 +2,6 @@ package h3c
 
 import (
 	"cmp"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +13,7 @@ import (
 
 	wireless "github.com/gatework/go-wireless"
 	"github.com/gatework/go-wireless/parser"
+	source "github.com/gatework/parser"
 )
 
 // SourceLine contains deliberately explicit accessors for potentially sensitive raw source.
@@ -44,7 +43,7 @@ func (l SourceLine) String() string {
 // GoString formats metadata only, never line text.
 func (l SourceLine) GoString() string { return l.String() }
 
-// MarshalJSON encodes the line, text included.
+// MarshalJSON encodes the line number without its potentially sensitive text.
 func (l SourceLine) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireless.Record{"number": l.Number()})
 }
@@ -84,11 +83,8 @@ func (c ConfigurationCapture) LastLine() int { return c.last + 1 }
 
 // Content returns the raw source of the block; it may be sensitive.
 func (c ConfigurationCapture) Content() string {
-	var b strings.Builder
-	for _, line := range c.source.lines[c.first : c.last+1] {
-		b.WriteString(line.raw)
-	}
-	return b.String()
+	text, _ := c.source.content.Span(c.first+1, c.last+1)
+	return text
 }
 
 // Complete reports whether every line of the block was parsed or deliberately
@@ -108,7 +104,7 @@ func (c ConfigurationCapture) String() string {
 // GoString formats metadata only.
 func (c ConfigurationCapture) GoString() string { return c.String() }
 
-// MarshalJSON encodes the capture, data and source included.
+// MarshalJSON encodes capture metadata without parsed data or raw source.
 func (c ConfigurationCapture) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wireless.Record{"first_line": c.FirstLine(), "last_line": c.LastLine(), "complete": c.Complete()})
 }
@@ -116,18 +112,23 @@ func (c ConfigurationCapture) MarshalJSON() ([]byte, error) {
 // ConfigurationSource is a parsed H3C configuration: the observation, every
 // source line with its parse state and the captured blocks.
 type ConfigurationSource struct {
-	content, checksum string
-	lines             []SourceLine
-	states            []string
-	roots             []*sourceBlock
-	captures          []ConfigurationCapture
-	observation       wireless.Observation
-	issues            []wireless.Record
+	content     *source.Content
+	lines       []SourceLine
+	states      []string
+	roots       []*sourceBlock
+	captures    []ConfigurationCapture
+	observation wireless.Observation
+	issues      []wireless.Record
 }
 
 // ParseConfigurationSource parses one display current-configuration output;
 // complete declares that it was captured completely.
 func ParseConfigurationSource(content string, complete bool) (*ConfigurationSource, error) {
+	if !parsetext.SourceFits(content) {
+		s := &ConfigurationSource{}
+		s.observation = parser.Unavailable(wireless.Configuration, wireless.Failed, "source_limit_exceeded")
+		return s, nil
+	}
 	if _, err := parser.NormalizeText(content, true); err != nil {
 		s := &ConfigurationSource{}
 		s.observation = parser.Unavailable(wireless.Configuration, wireless.Failed, "invalid_output")
@@ -138,7 +139,13 @@ func ParseConfigurationSource(content string, complete bool) (*ConfigurationSour
 		s.observation = parser.Unavailable(wireless.Configuration, wireless.Unsupported, "unsupported_command")
 		return s, nil
 	}
-	s := readConfigurationSource(content)
+	indexed, err := parsetext.NewContent(content)
+	if err != nil {
+		s := &ConfigurationSource{}
+		s.observation = parser.Unavailable(wireless.Configuration, wireless.Failed, "source_limit_exceeded")
+		return s, nil //nolint:nilerr // source limits are failed evidence, not an API argument error
+	}
+	s := readConfigurationSource(indexed)
 	p := newConfigurationParser(s)
 	result := p.parse(complete)
 	s.observation = parser.ResultObservation(wireless.Configuration, result)
@@ -150,10 +157,20 @@ func ParseConfigurationSource(content string, complete bool) (*ConfigurationSour
 func (s *ConfigurationSource) Observation() wireless.Observation { return s.observation }
 
 // Content returns the raw configuration; it may be sensitive.
-func (s *ConfigurationSource) Content() string { return s.content }
+func (s *ConfigurationSource) Content() string {
+	if s.content == nil {
+		return ""
+	}
+	return s.content.Text()
+}
 
 // Checksum returns the SHA-256 of the raw configuration.
-func (s *ConfigurationSource) Checksum() string { return s.checksum }
+func (s *ConfigurationSource) Checksum() string {
+	if s.content == nil {
+		return ""
+	}
+	return fmt.Sprintf("%x", s.content.Digest())
+}
 
 // Lines returns a copy of the source lines.
 func (s *ConfigurationSource) Lines() []SourceLine { return append([]SourceLine{}, s.lines...) }
@@ -209,7 +226,7 @@ func (s *ConfigurationSource) String() string {
 // GoString formats metadata only.
 func (s *ConfigurationSource) GoString() string { return s.String() }
 
-// MarshalJSON encodes the source, content included.
+// MarshalJSON encodes source metadata without raw content.
 func (s *ConfigurationSource) MarshalJSON() ([]byte, error) {
 	counts := wireless.Record{}
 	for _, state := range s.states {
@@ -223,39 +240,18 @@ func (s *ConfigurationSource) capture(block *sourceBlock, data any, path []any) 
 	p, _ := wireless.CopyValue(path)
 	s.captures = append(s.captures, ConfigurationCapture{s, block.index, block.last, v, asList(p)})
 }
-func readConfigurationSource(content string) *ConfigurationSource {
-	hash := sha256.Sum256([]byte(content))
-	s := &ConfigurationSource{content: content, checksum: hex.EncodeToString(hash[:]), roots: []*sourceBlock{}, captures: []ConfigurationCapture{}, issues: []wireless.Record{}}
-	s.lines = splitSourceLines(content)
+func readConfigurationSource(content *source.Content) *ConfigurationSource {
+	s := &ConfigurationSource{content: content, roots: []*sourceBlock{}, captures: []ConfigurationCapture{}, issues: []wireless.Record{}}
+	for line := range content.All() {
+		raw := line.Raw
+		s.lines = append(s.lines, SourceLine{index: line.Number - 1, indent: len(raw) - len(strings.TrimLeft(raw, " \t")), raw: raw, text: parsetext.Strip(line.Text)})
+	}
 	s.states = make([]string, len(s.lines))
 	for i := range s.states {
 		s.states[i] = "pending"
 	}
 	s.buildBlocks()
 	return s
-}
-
-// splitSourceLines splits content into physical lines, keeping each line's
-// terminator (CRLF, CR or LF) in raw.
-func splitSourceLines(content string) []SourceLine {
-	var lines []SourceLine
-	for start := 0; start < len(content); {
-		end := start
-		for end < len(content) && content[end] != '\r' && content[end] != '\n' {
-			end++
-		}
-		if end < len(content) {
-			if content[end] == '\r' && end+1 < len(content) && content[end+1] == '\n' {
-				end += 2
-			} else {
-				end++
-			}
-		}
-		raw := content[start:end]
-		lines = append(lines, SourceLine{len(lines), len(raw) - len(strings.TrimLeft(raw, " \t")), raw, parsetext.Strip(raw)})
-		start = end
-	}
-	return lines
 }
 
 // buildBlocks nests lines into blocks by indentation; "#" and "return" close

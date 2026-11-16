@@ -56,6 +56,10 @@ rules:
     deny: [./vendors/...]
     transitive: true
 
+  - name: source indexing stays inside text and vendor parsing
+    packages: [., ./wlan, ./rules, ./change, ./collect, ./report, ./adapter/..., ./internal/bootstrap/..., ./internal/cli/..., ./internal/workflow/...]
+    deny: [github.com/gatework/parser]
+
   - name: Huawei does not depend on the H3C implementation
     packages: [./vendors/huawei/...]
     deny: [./vendors/h3c/...]

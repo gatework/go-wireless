@@ -17,3 +17,8 @@ delivery:
 	python3 -O scripts/test_check_delivery.py -v
 	python3 scripts/test_release.py -v
 	python3 scripts/check-delivery.py
+
+# Explicit private-corpus replay; never part of ordinary tests or CI.
+.PHONY: corpus
+corpus:
+	$(GO) test -tags=corpus -run '^TestPrivateControllerCorpus$$' -count=1 -v ./wlan

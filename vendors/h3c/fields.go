@@ -30,6 +30,7 @@ var h3cClient = map[string]string{
 	"cipher suite":          "cipher",
 }
 var h3cClientDetails = map[string]bool{
+	"radio slice":                      true,
 	"authorization car":                true,
 	"authorization acl id":             true,
 	"authorization user profile":       true,
@@ -117,7 +118,7 @@ var h3cAP = map[string]string{
 }
 var h3cRadio = map[string]string{
 	"admin state":         "admin_status",
-	"state":               "admin_status",
+	"state":               "operational_status",
 	"radio type":          "protocol",
 	"type":                "protocol",
 	"channel":             "channel",

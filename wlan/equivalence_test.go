@@ -3,6 +3,7 @@ package wlan_test
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -257,5 +258,120 @@ func TestUnmodeledFieldDowngradesDimension(t *testing.T) {
 	})
 	if c.Has(wlan.DimRadios) || c.Issues[wlan.DimRadios][0].Code != wlan.IssueUnmodeled {
 		t.Fatalf("unmodeled field accepted: %+v", c)
+	}
+}
+
+func TestConfigurationRuntimeSyntaxDecodesLosslessly(t *testing.T) {
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, input := range []string{
+		"wlan ap AP1 model MODEL\n ethernet 1\n  vlan 20\n#\nreturn\n",
+		"wlan service-template WEB\n ssid Synthetic\n portal apply web-server named-server\n#\nreturn\n",
+		"wlan service-template WEB\n portal apply web-server https://private.invalid/token\n#\nreturn\n",
+	} {
+		t.Run(strings.Fields(input)[1]+strings.Fields(input)[2], func(t *testing.T) {
+			o, err := profile.Parse(wireless.Configuration, input, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			obs := wlan.Observed{Status: evidence.Status(o.Status())}
+			for _, rec := range o.Records() {
+				b, err := wireless.MarshalJSON(rec)
+				if err != nil {
+					t.Fatal(err)
+				}
+				obs.Records = append(obs.Records, b)
+			}
+			c := wlan.NewController(wlan.Identity{}, map[evidence.Dimension]wlan.Observed{wlan.DimConfiguration: obs})
+			if !c.Has(wlan.DimConfiguration) {
+				t.Fatalf("configuration did not decode: %v", c.Issues)
+			}
+			b, err := json.Marshal([]any{c.Configuration})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := lossless(generic(t, mustJSON(t, o.Records())), generic(t, b), "configuration"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := wireless.MarshalJSON(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+func TestSnapshotConfigurationDialect(t *testing.T) {
+	body, err := os.ReadFile("../testdata/h3c-snapshot-syntax.cfg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := os.ReadFile("../testdata/h3c-snapshot-syntax.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var manifest struct {
+		SHA256     string `json:"sha256"`
+		Provenance string `json:"provenance"`
+	}
+	if err := json.Unmarshal(metadata, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(body)) != manifest.SHA256 || manifest.Provenance == "" {
+		t.Fatal("fixture provenance mismatch")
+	}
+	profile, err := vendors.NewBuiltinRegistry().Fetch("h3c", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	o, err := profile.Parse(wireless.Configuration, string(body), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !o.Complete() {
+		t.Fatalf("snapshot dialect incomplete: %v", o.Issues())
+	}
+	obs := wlan.Observed{Status: evidence.Status(o.Status())}
+	for _, rec := range o.Records() {
+		obs.Records = append(obs.Records, mustJSON(t, rec))
+	}
+	c := wlan.NewController(wlan.Identity{}, map[evidence.Dimension]wlan.Observed{wlan.DimConfiguration: obs})
+	if !c.Has(wlan.DimConfiguration) {
+		t.Fatalf("snapshot dialect lost typed facts: %v", c.Issues)
+	}
+	cfg := c.Configuration
+	balance := cfg.GlobalSettings.LoadBalance
+	if balance == nil || balance.Enabled == nil || balance.SessionThreshold == nil {
+		t.Fatal("load balancing facts missing")
+	}
+	if !*balance.Enabled || balance.Mode != "session" || *balance.SessionThreshold != 40 {
+		t.Fatal("session balancing changed")
+	}
+	if cfg.GlobalSettings.APHotBackupGlobal == nil || !*cfg.GlobalSettings.APHotBackupGlobal {
+		t.Fatal("hot backup state missing")
+	}
+	if cfg.AccessPoints["AP-SYNTHETIC"].MACAddress != "02:00:00:00:00:11" {
+		t.Fatal("AP MAC binding lost")
+	}
+	if len(cfg.APGroups) != 1 {
+		t.Fatal("group nesting lost")
+	}
+	radio := cfg.APGroups[0].ModelProfiles["MODEL-SYNTHETIC"].Radios["1"]
+	navigation := radio.RoamNavigation
+	if navigation == nil || navigation.RSSI == nil || navigation.ProbeResponsePowerDBm == nil {
+		t.Fatal("navigation settings missing")
+	}
+	if *navigation.RSSI != 17 || *navigation.ProbeResponsePowerDBm != 14 || !radio.ClientOptionsEnabled["reject"] {
+		t.Fatal("radio policy changed")
+	}
+	if err := lossless(generic(t, mustJSON(t, o.Records())), generic(t, mustJSON(t, []any{c.Configuration})), "configuration"); err != nil {
+		t.Fatal(err)
 	}
 }
