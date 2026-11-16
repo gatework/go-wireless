@@ -247,7 +247,7 @@ func copyJSON(v any, seen map[visit]bool) (any, error) {
 		return x, nil
 	}
 	r := reflect.ValueOf(v)
-	switch r.Kind() {
+	switch r.Kind() { //nolint:exhaustive // Only JSON numeric and container kinds are accepted; reject all others.
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return v, nil
 	case reflect.Float32, reflect.Float64:

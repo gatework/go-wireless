@@ -160,7 +160,7 @@ func schemaOne(value any) bool {
 		return decimalOne(string(number))
 	}
 	number := reflect.ValueOf(value)
-	switch number.Kind() {
+	switch number.Kind() { //nolint:exhaustive // Only numeric kinds can represent schema version one.
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return number.Int() == 1
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:

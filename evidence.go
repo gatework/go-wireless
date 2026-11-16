@@ -16,6 +16,8 @@ func (d Dimension) Valid() bool {
 	case AccessPoints, Radios, BSSes, Clients, Configuration, APGroups, ServiceTemplates,
 		Dot1xConnections, MABConnections, BlockedClients, ClientIPConflicts, APModels, LLDP:
 		return true
+	case Collection:
+		return false
 	default:
 		return false
 	}

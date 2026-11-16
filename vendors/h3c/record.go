@@ -262,7 +262,7 @@ type recordSchema struct {
 // schemaFor returns the label mapping of a client, BSS or authentication
 // connection listing.
 func schemaFor(dim wireless.Dimension) recordSchema {
-	switch dim {
+	switch dim { //nolint:exhaustive // Client labels are the fallback; BSS and authentication listings override them.
 	case wireless.BSSes:
 		return recordSchema{h3cBss, map[string]bool{}, "BSSs?", []string{"bssid"}}
 	case wireless.Dot1xConnections, wireless.MABConnections:
