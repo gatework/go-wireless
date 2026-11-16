@@ -50,7 +50,7 @@ make check
 
 ## Controller snapshot regression and source admission
 
-Built-in command grammars use published `github.com/gatework/parser v0.2.1`
+Built-in command grammars use published `github.com/gatework/parser v0.2.2`
 for immutable physical source lines. One H3C command index is reused across AP
 and radio views and across record, field and total scans. Huawei uses the same
 source budget without extending its supported dimensions. Configuration captures

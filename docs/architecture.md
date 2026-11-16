@@ -156,7 +156,7 @@ in only one batch are listed as `appeared` / `disappeared`.
 
 ## Source indexing
 
-Published `github.com/gatework/parser v0.2.1` owns immutable raw text, SHA-256,
+Published `github.com/gatework/parser v0.2.2` owns immutable raw text, SHA-256,
 physical lines and spans. Wireless keeps vendor syntax, block traversal and the
 existing pending/parsed/ignored/unsupported/invalid diagnostics. A cursor's parsed
 bit is not a substitute for those states. Each parse owns its indexing/traversal
