@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.6.1
+
+- Pin shared `make check` tooling to published go-standards v1.1.0 instead of automatically selecting a sibling checkout.
+- Redistribute the standard lint and Make targets through stdsync; keep explicit `STANDARDS_DIR` overrides available for standard development.
+
 ## v0.6.0
 
 - Upgrade the published transport dependency to net-connector v0.9.0 and shared operations to go-netops v0.4.0.

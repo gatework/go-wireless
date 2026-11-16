@@ -50,7 +50,7 @@ func wireNumbers(v reflect.Value, active map[visit]bool) (any, error) {
 			return v.Interface(), nil
 		}
 	}
-	switch v.Kind() {
+	switch v.Kind() { //nolint:exhaustive // Rewrite numeric containers; encoding/json handles the remaining kinds.
 	case reflect.Float32, reflect.Float64:
 		return wireFloat(v)
 	case reflect.Map, reflect.Slice:

@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-Follow [the gatework Go engineering standard](https://github.com/gatework/go-standards/blob/v1.0.2/STANDARD.md) (go-standards/STANDARD.md); this file adds only what is specific to go-wireless. Run `make check` before every commit.
+Follow [the gatework Go engineering standard](https://github.com/gatework/go-standards/blob/v1.1.0/STANDARD.md) (go-standards/STANDARD.md); this file adds only what is specific to go-wireless. Run `make check` before every commit.
 
 ## Project Structure & Module Organization
 

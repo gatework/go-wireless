@@ -8,7 +8,7 @@
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.6.0) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
+从 [GitHub Releases](https://github.com/gatework/go-wireless/releases/tag/v0.6.1) 下载对应 Linux/macOS、amd64/arm64 归档，并按 SHA256SUMS 校验。解压后运行 `bin/wireless --version`，可查看版本与源提交。macOS 发行二进制要求 macOS 13+。
 
 也可使用 Go 安装 CLI 或在项目中添加库依赖：
 
@@ -102,6 +102,8 @@ python3 scripts/check-delivery.py
 # 提交前的统一门禁（gatework Go 规范 MOD-5），CI 执行同一入口
 make check
 ```
+
+`make check` 默认使用已发布的 go-standards `v1.1.0`，不依赖相邻目录。仅在联调规范时显式设置 `make check STANDARDS_DIR=/path/to/go-standards`。本次构建流程修复见 [v0.6.1 发布说明](docs/releases/v0.6.1.md)。
 
 [兼容矩阵](docs/compatibility.md) 覆盖 34 个 Ruby spec 文件和全部 lib 文件；[验证说明](docs/verification.md) 列出当前检查入口、已发布版本证据与实测边界。测试使用合成/已冻结离线证据、注入会话、本地 HTTP、内存字节传输和真实本地 PTY。显式 Ruby oracle 只用于开发对照，普通 Go 测试和运行不调用 Ruby。
 

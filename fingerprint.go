@@ -33,7 +33,7 @@ func Fingerprint(value any) (string, error) {
 var errInvalidUTF8 = fmt.Errorf("%w: invalid UTF-8", ErrDocument)
 
 func validUTF8(v reflect.Value, active map[visit]bool) error {
-	switch v.Kind() {
+	switch v.Kind() { //nolint:exhaustive // Only reference containers participate in cycle tracking.
 	case reflect.Map, reflect.Slice, reflect.Pointer:
 		if !v.IsNil() {
 			key := visit{kind: v.Kind(), ptr: v.Pointer()}
@@ -51,7 +51,7 @@ func validUTF8(v reflect.Value, active map[visit]bool) error {
 }
 
 func validUTF8Fields(v reflect.Value, active map[visit]bool) error {
-	switch v.Kind() {
+	switch v.Kind() { //nolint:exhaustive // Inspect strings and nested values; scalar kinds contain no text.
 	case reflect.String:
 		if !utf8.ValidString(v.String()) {
 			return errInvalidUTF8

@@ -1,4 +1,4 @@
-STANDARDS_DIR ?= $(wildcard $(CURDIR)/../go-standards)
+# Shared gates use the published standard unless a checkout is supplied explicitly.
 include standard.mk
 
 # Repository-specific gates appended to `make check`.
