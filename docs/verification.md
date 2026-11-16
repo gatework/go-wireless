@@ -47,3 +47,73 @@ make check
 ## 实测边界
 
 本地 HTTP、注入会话、net.Pipe 与真实本地 PTY 用于边界测试。没有以这些结果宣称真实控制器、外部 Netdisco/PostgreSQL、生产配置写入或生产部署验收。设备命令和 apply 行为仍需在明确授权的真实环境中验证。
+
+## Controller snapshot regression and source admission
+
+Built-in command grammars use published `github.com/gatework/parser v0.2.1`
+for immutable physical source lines. One H3C command index is reused across AP
+and radio views and across record, field and total scans. Huawei uses the same
+source budget without extending its supported dimensions. Configuration captures
+use exact raw `Span` values; frozen source checksums and line states remain intact.
+
+The source budget is 32 MiB and 400,000 physical lines. This preserves the
+existing evidence-file test above 16 MiB, independently of the connector's
+configuration-file budget. Oversized sources fail with `source_limit_exceeded`;
+no truncated source is interpreted. No operator flag or transport behavior changed.
+
+`testdata/h3c-snapshot-syntax.cfg` reconstructs only the reviewed syntax shapes
+using synthetic identities, station addresses and server names. Its companion
+JSON records the fixture hash and provenance, checked by
+`TestSnapshotConfigurationDialect`. Existing Ruby source fixtures remain unchanged;
+the radio state and provenance divergences are named in `correctRadioCorpus`.
+
+Private frozen captures stay outside Git. The explicit developer target is:
+
+```sh
+WIRELESS_CORPUS_DIR=/private/captures GOWORK=off make corpus
+```
+
+The directory contains one controller subdirectory per capture set, with paired
+`.output` and `.json` files carrying command, byte count, SHA-256 and final prompt.
+The replay refuses empty corpora, undeclared commands, envelope or hash mismatch,
+and unmodeled parser facts. It checks both raw script output and exact extracted
+bodies, groups dimensions by command, decodes the typed controller, and evaluates
+the rule catalog. Logs contain aggregate statuses, issue codes and rule counts,
+never raw records, controller identities or credentials. This tagged test is not
+part of ordinary tests or CI and never contacts a device. Run its own static
+checks with `go vet -tags=corpus ./wlan` and the pinned linter's
+`run --build-tags=corpus ./wlan` after changing the replay.
+
+In the 2026-11-15 local replay, 90 capture identities matched; 162 grouped parses
+produced 216 observations. For extracted bodies, configuration, AP groups and
+service templates were complete on all nine controllers, with no type projection
+errors. Six client views were complete, two retained count mismatches and one
+empty body failed; one dot1x view retained a count mismatch, and three historical
+IP-conflict tables retained duplicate-identity diagnostics. These are retained
+capture limitations, not inferred healthy or current operational states.
+Administrative-down findings required explicit `Admin state` provenance: 146
+findings, compared with 489 when operational `State` had been conflated with it.
+
+These are offline replay results, not real-controller, deployment or release
+acceptance. The full project gate remains `GOWORK=off make check`.
+
+Source-accounting checks also confirmed that the mismatched totals occur in the
+frozen source itself: client totals/record-start markers were 453/451 and
+1399/1401; dot1x was 1121/1120. Parsed record counts matched those markers.
+Three history captures contained identical repeated source rows; their diagnostics
+and private raw evidence are retained, without inferring currently active conflicts.
+
+Review-driven regressions cover both Portal JSON fields and direct named-reference
+marshaling, including rejection of URL-like names with safe diagnostics. Terminal
+prechecks iterate nonempty source segments without building another line index;
+issue locations count physical terminators before the first damaged offset. Tests
+cover banners and mixed CRLF/CR/LF as well as exactly 32 MiB and 400,000 lines,
+and one byte/line above each admission boundary.
+
+Largest-input measurements used the same extracted 7.4 MB client body, macOS
+arm64 Go 1.27.4, CLI JSON output discarded, and three alternating baseline/candidate
+runs under `/usr/bin/time -l`. All six runs exited successfully. The candidate
+observed 0.45–0.77 s elapsed and 124–128 MiB peak resident memory; the baseline
+observed 0.47–0.50 s and 115–119 MiB. This establishes admission and an observed
+resource range for this capture, not a speed or memory improvement or a bound for
+other grammars.
