@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.6.2
+
+- Upgrade published net-connector to v0.9.3, go-expect to v0.6.2 and go-netops to v0.4.2; retain Go 1.26.0 and the public API.
+
 ## v0.6.1
 
 - Pin shared `make check` tooling to published go-standards v1.1.0 instead of automatically selecting a sibling checkout.
